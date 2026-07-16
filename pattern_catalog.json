@@ -1,0 +1,613 @@
+{
+  "source_file": "analysis/data/pptx_analysis_all_levels_v2.json",
+  "filters": {
+    "levels": ["N1", "N2"],
+    "correction_found": true
+  },
+  "summary": {
+    "total_pairs_considered": 277,
+    "retained_pairs": 90,
+    "excluded_pairs": 187,
+    "exclusion_policy": [
+      "paires purement méthodologiques sans exercice instanciable",
+      "questions de simple reconnaissance visuelle non générables par substitution numérique",
+      "paires trop ambiguës pour dériver un template robuste"
+    ],
+    "normalization_note": "Dans plusieurs corrections N1, la phrase explicative inverse l'ordre de la soustraction (ex. '3 = 7 - 10'). Le template canonique à générer doit être normalisé en '10 - 7 = 3'."
+  },
+  "pure_substitution_patterns": [
+    {
+      "pattern_name": "multiplication_decomposee_chiffre_x_2chiffres",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} x {bc} = {a} x {b0} + {a} x {c} = {p1} + {p2} = {total}",
+      "constraints": {
+        "operation": "multiplication",
+        "operand_count": 2,
+        "operand_sizes": ["1 chiffre", "2 chiffres"],
+        "carry_or_borrow": "possible dans la somme finale; pas de retenue nécessaire dans les sous-produits du corpus observé",
+        "generation_rules": [
+          "{bc} est décomposé en dizaines + unités",
+          "{b0} est un multiple de 10",
+          "le corpus privilégie des facteurs simples de tables usuelles"
+        ]
+      },
+      "occurrence_count": 11,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM1_S3.pptx",
+          "question": "5 x 46 = . x .. + . x .",
+          "correction": "5 x 46 = 5 x 40 + 5 x 6 ; 200 + 30 ; 230"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S3.pptx",
+          "question": "7 x 23 = . x .. + . x .",
+          "correction": "7 x 23 = 7 x 20 + 7 x 3 ; 140 + 21 ; 161"
+        },
+        {
+          "file": "MATH_N2_P4_SEM5_S5.pptx",
+          "question": "2 x 53 = ….. + ….. ; 2 x 53 = …….",
+          "correction": "2 x 53 = 100 + 6 ; 2 x 53 = 106"
+        }
+      ]
+    },
+    {
+      "pattern_name": "addition_repetee_vers_multiplication",
+      "levels": ["N2"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{total} = {k} + {k} + ... + {k} ; {total} = {n} x {k}",
+      "constraints": {
+        "rule_type": "groupes égaux / addition répétée",
+        "generation_rules": [
+          "{total} = {n} x {k}",
+          "la somme répétée contient exactement {n} termes égaux à {k}",
+          "le corpus utilise surtout des groupes de 4, 8, 20, 30"
+        ]
+      },
+      "occurrence_count": 9,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM2_S3.pptx",
+          "question": "28 = . + . + . + . + . + . + . ; 28 = ... x …",
+          "correction": "28 = 4 + 4 + 4 + 4 + 4 + 4 + 4 ; 28 = 7 x 4"
+        },
+        {
+          "file": "MATH_N2_P4_SEM2_S3.pptx",
+          "question": "20 = . + . + . + . + . ; 20 = ... x …",
+          "correction": "20 = 4 + 4 + 4 + 4 + 4 ; 20 = 5 x 4"
+        },
+        {
+          "file": "MATH_N2_P4_SEM4_S4.pptx",
+          "question": "? | 30 | 30 | 30 | 30 | اكتبوا المتساوية المناسبة",
+          "correction": "4 x 30 = 120"
+        }
+      ]
+    },
+    {
+      "pattern_name": "partie_tout_soustraction_non_narratif",
+      "levels": ["N1"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{tout} - {partie_connue} = {partie_manquante}",
+      "constraints": {
+        "operation": "soustraction",
+        "operand_count": 2,
+        "operand_sizes": ["1 chiffre", "1 ou 2 chiffres <= 10 dans le corpus observé"],
+        "carry_or_borrow": "sans retenue; le tout est supérieur à la partie connue",
+        "generation_rules": [
+          "présentation fréquente sous forme de modèle en barres avec {partie_connue}, {tout}, ?",
+          "normaliser l'équation même si la correction prose inverse l'ordre"
+        ]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {
+          "file": "MATH_N1_P4_SEM1_S4.pptx",
+          "question": "10 | 4 | ? ; اكتبوا المتساوية المناسبة لحساب عدد الأقلام المتبقية",
+          "correction": "10 – 4 = 6"
+        },
+        {
+          "file": "MATH_N1_P4_SEM4_S4 .pptx",
+          "question": "8 | 10 | ? ; اكتبوا على الألواح ما نبحث عنه: الجزء أو الكل",
+          "correction": "2 = 8 – 10 ; normalisé: 10 - 8 = 2"
+        },
+        {
+          "file": "MATH_N1_P4_SEM5_S4.pptx",
+          "question": "7 | 2 | ? ; اكتبوا على الألواح ما نبحث عنه: الجزء أو الكل",
+          "correction": "5 = 2 - 7 ; normalisé: 7 - 2 = 5"
+        }
+      ]
+    },
+    {
+      "pattern_name": "partie_tout_addition_non_narratif",
+      "levels": ["N1"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{partie1} + {partie2} = {tout}",
+      "constraints": {
+        "operation": "addition",
+        "operand_count": 2,
+        "operand_sizes": ["1 chiffre", "1 chiffre ou petits nombres"],
+        "carry_or_borrow": "sans retenue dans le corpus observé",
+        "generation_rules": [
+          "présentation fréquente sous forme de modèle en barres avec ? pour le tout",
+          "les deux parties sont explicitement données"
+        ]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {
+          "file": "MATH_N1_P4_SEM1_S4.pptx",
+          "question": "اكتبوا على الألواح المتساوية المناسبة لحساب عدد المربعات التي تمثل الكل | 3 | 4",
+          "correction": "7 = 3 + 4"
+        },
+        {
+          "file": "MATH_N1_P4_SEM3_S4.pptx",
+          "question": "اكتبوا المتساوية المناسبة لحساب العدد الكلي للبقرات | 3 | 5 | ?",
+          "correction": "8 = 3 + 5"
+        },
+        {
+          "file": "MATH_N1_P4_SEM5_S4.pptx",
+          "question": "اكتبوا المتساوية المناسبة لحساب عدد القصص التي يملكها عماد و سكينة معا | 3 | 5 | ?",
+          "correction": "8 = 5 + 3"
+        }
+      ]
+    },
+    {
+      "pattern_name": "moitie_via_2xn",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{n} = 2 x {moitie} ; نصف {n} = {moitie}",
+      "constraints": {
+        "operation": "division par 2 / moitié",
+        "operand_count": 2,
+        "operand_sizes": ["1 ou 2 chiffres pairs"],
+        "carry_or_borrow": "non applicable",
+        "generation_rules": [
+          "{n} doit être pair",
+          "le corpus passe souvent par l'écriture multiplicative avant la réponse finale"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM5_S2.pptx",
+          "question": "12 = 2 x …. ; حددوا نصف العدد 12",
+          "correction": "12 = 2 x 6 ; نصف العدد 12 هو 6"
+        },
+        {
+          "file": "MATH_N2_P4_SEM5_S2.pptx",
+          "question": "6 = .... x .... ; اكتبوا المتساوية لحساب نصف العدد 6",
+          "correction": "6 = 2 x 3 ; نصف العدد 6 هو 3"
+        },
+        {
+          "file": "MATH_N2_P4_SEM5_S5.pptx",
+          "question": "16 = … x … ; أكملوا المتساوية وحددوا نصف العدد 16",
+          "correction": "16 = 2 x 8 ; نصف العدد 16 هو 8"
+        }
+      ]
+    },
+    {
+      "pattern_name": "addition_pas_a_pas_sans_retenue",
+      "levels": ["N1"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} + {b} = {c}",
+      "constraints": {
+        "operation": "addition",
+        "operand_count": 2,
+        "operand_sizes": ["1 chiffre + 1 chiffre", "2 chiffres + 1 chiffre"],
+        "carry_or_borrow": "sans retenue",
+        "generation_rules": [
+          "le corpus montre des pas réguliers (+3) et des ajouts simples à un nombre à deux chiffres"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {
+          "file": "MATH_N1_P4_SEM2_S1.pptx",
+          "question": "اكتبوا على الألواح مجموع العددين 3 و3",
+          "correction": "6 = 3 + 3"
+        },
+        {
+          "file": "MATH_N1_P4_SEM2_S1.pptx",
+          "question": "قوموا بإضافة 3 ل 6 و اكتبوا النتيجة على الألواح",
+          "correction": "9 = 3 + 6"
+        },
+        {
+          "file": "MATH_N1_P4_SEM4_S3.pptx",
+          "question": "34 + 3 = …",
+          "correction": "37 = 3 + 34"
+        }
+      ]
+    },
+    {
+      "pattern_name": "multiplication_chiffre_x_multiple_de_10",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} x {b0} = ({a} x {b})0",
+      "constraints": {
+        "operation": "multiplication",
+        "operand_count": 2,
+        "operand_sizes": ["1 chiffre", "multiple de 10 à 2 chiffres"],
+        "carry_or_borrow": "pas de retenue dans l'append du 0; produit {a} x {b} peut dépasser 9",
+        "generation_rules": [
+          "{b0} est un multiple de 10",
+          "stratégie corpus: calculer {a} x {b}, puis ajouter 0 à droite"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM1_S2.pptx",
+          "question": "4 x 60 = …",
+          "correction": "4 x 60 = 240"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S2.pptx",
+          "question": "7 x 50 = …",
+          "correction": "7 x 50 = 350"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S5.pptx",
+          "question": "7 x 40 = …",
+          "correction": "7 x 40 = 280"
+        }
+      ]
+    },
+    {
+      "pattern_name": "multiplication_par_10",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} x 10 = {a}0",
+      "constraints": {
+        "operation": "multiplication",
+        "operand_count": 2,
+        "operand_sizes": ["1 ou 2 chiffres", "10"],
+        "carry_or_borrow": "non applicable",
+        "generation_rules": [
+          "stratégie corpus: ajouter un zéro à droite de {a}"
+        ]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM1_S1.pptx",
+          "question": "45 x 10 = …",
+          "correction": "45 x 10 = 450"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S1.pptx",
+          "question": "76 x 10 = …",
+          "correction": "76 x 10 = 760"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S5.pptx",
+          "question": "32 x 10 = …",
+          "correction": "32 x 10 = 320"
+        }
+      ]
+    },
+    {
+      "pattern_name": "double_via_2xn",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "ضعف {n} = {n} + {n} = 2 x {n} = {double}",
+      "constraints": {
+        "operation": "double",
+        "operand_count": 1,
+        "operand_sizes": ["1 ou 2 chiffres"],
+        "carry_or_borrow": "possible selon {n}",
+        "generation_rules": [
+          "le corpus accepte la forme addition répétée ou la forme multiplicative"
+        ]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM5_S3.pptx",
+          "question": "حددوا على الألواح ضعف العدد 7",
+          "correction": "7 + 7 = 14 ; 2 x 7 = 14"
+        },
+        {
+          "file": "MATH_N2_P4_SEM5_S3.pptx",
+          "question": "اكتبوا ضعف العدد 12",
+          "correction": "12 + 12 = 24 ; 2 x 12 = 24"
+        },
+        {
+          "file": "MATH_N2_P4_SEM5_S5.pptx",
+          "question": "احسبوا ضعف العدد 4",
+          "correction": "2 x 4 = 8"
+        }
+      ]
+    },
+    {
+      "pattern_name": "conversion_cm_mm_vers_mm",
+      "levels": ["N2"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{cm} cm {mm} mm = {total_mm} mm",
+      "constraints": {
+        "rule_type": "conversion d'unités",
+        "generation_rules": [
+          "{total_mm} = 10 x {cm} + {mm}",
+          "0 <= {mm} <= 9",
+          "{cm} est un entier positif"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM3_S3.pptx",
+          "question": "5 cm 7 mm =….. mm",
+          "correction": "57 mm"
+        },
+        {
+          "file": "MATH_N2_P4_SEM3_S3.pptx",
+          "question": "2 cm 4 mm =….. mm",
+          "correction": "24 mm"
+        },
+        {
+          "file": "MATH_N2_P4_SEM3_S5.pptx",
+          "question": "3 cm 7 mm =….. mm",
+          "correction": "37 mm"
+        }
+      ]
+    },
+    {
+      "pattern_name": "addition_2chiffres_sans_retenue",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{ab} + {cd} = {sum_tens} + {sum_units} = {total}",
+      "constraints": {
+        "operation": "addition",
+        "operand_count": 2,
+        "operand_sizes": ["2 chiffres", "2 chiffres"],
+        "carry_or_borrow": "sans retenue",
+        "generation_rules": [
+          "la somme des unités est < 10",
+          "la somme des dizaines et des unités reste lisible par décomposition mentale"
+        ]
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM3_S1.pptx",
+          "question": "71 + 26 = … + … = …",
+          "correction": "71 + 26 = 91 + 6 = 97"
+        },
+        {
+          "file": "MATH_N2_P4_SEM3_S1.pptx",
+          "question": "45 + 32 = … + … = …",
+          "correction": "45 + 32 = 75 + 2 = 77"
+        }
+      ]
+    },
+    {
+      "pattern_name": "suite_multiples_de_10_a_completer",
+      "levels": ["N1", "N2"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{start}, {start_plus_10}, {start_plus_20}, ..., {end}",
+      "constraints": {
+        "rule_type": "suite arithmétique de raison 10",
+        "generation_rules": [
+          "nombres entiers positifs",
+          "la suite observée reste dans les dizaines simples"
+        ]
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {
+          "file": "MATH_N1_P4_SEM2_S1.pptx",
+          "question": "أكملوا ملء خانات الشريط العددي",
+          "correction": "30 | 40 | 50 | 60 | 70 | 80 | 90"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S2.pptx",
+          "question": "10 | 20 | 30 | ... | 50 | 60 | ... | 80 | ...",
+          "correction": "10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90"
+        }
+      ]
+    },
+    {
+      "pattern_name": "identifier_multiple_de_10",
+      "levels": ["N2"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Parmi {n1}, {n2}, {n3}, choisir le multiple de 10",
+      "constraints": {
+        "rule_type": "classification",
+        "generation_rules": [
+          "exactement une proposition doit se terminer par 0",
+          "les autres distracteurs ont des chiffres proches"
+        ]
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM1_S2.pptx",
+          "question": "45 | 40 | 54",
+          "correction": "40 مضاعف للعدد 10"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S2.pptx",
+          "question": "73 | 37 | 70",
+          "correction": "70 مضاعف للعدد 10"
+        }
+      ]
+    },
+    {
+      "pattern_name": "facteur_manquant_table_de_2",
+      "levels": ["N2"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "2 x {x} = {n}",
+      "constraints": {
+        "rule_type": "compléter une égalité multiplicative",
+        "generation_rules": [
+          "{n} est pair",
+          "{x} = {n} / 2"
+        ]
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM5_S2.pptx",
+          "question": "2 x ... = 10",
+          "correction": "2 x 5 = 10"
+        },
+        {
+          "file": "MATH_N2_P4_SEM5_S2.pptx",
+          "question": "2 x ... = 16",
+          "correction": "2 x 8 = 16"
+        }
+      ]
+    }
+  ],
+  "llm_required_patterns": [
+    {
+      "pattern_name": "probleme_reste_partie_tout",
+      "levels": ["N1"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "{personne} a {total} {objets}. {action_passee} {partie_connue} {objets}. Combien de {objets} restent ?",
+      "constraints": {
+        "operation": "soustraction",
+        "operand_count": 2,
+        "operand_sizes": ["petits entiers <= 10 dans le corpus observé"],
+        "carry_or_borrow": "sans retenue",
+        "story_slots": ["personne", "objet", "total", "partie_connue", "action", "question_restante"],
+        "llm_need": "accord lexical, choix d'un verbe crédible, variation narrative"
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {
+          "file": "MATH_N1_P4_SEM2_S4.pptx",
+          "question": "في الثّلاّجَةِ 9 حَبّاتِ طَماطِمَ ... اسْتَعْمَلَتِ الأُمُّ 3 حَبَّاتِ ... كَمْ ... مُتَبَقِّيَة ؟",
+          "correction": "9 - 3 = 6"
+        },
+        {
+          "file": "MATH_N1_P4_SEM2_S5.pptx",
+          "question": "في صَحْنٍ 6 مَوْزاتٍ ، تَناوَلَ وليدٌ 4 مَوْزاتٍ ...",
+          "correction": "6 - 4 = 2"
+        },
+        {
+          "file": "MATH_N1_P4_SEM3_S5.pptx",
+          "question": "في قِسْمٍ 10 تَلاميذ ، خَرَجَ 7 مِنْهُم . كَمْ تِلْميذاً بَقِيَ ... ؟",
+          "correction": "10 - 7 = 3"
+        }
+      ]
+    },
+    {
+      "pattern_name": "probleme_comparaison_difference",
+      "levels": ["N2"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "{personne1} a {grand} {unite}. {personne2} a {petit} {unite}. De combien {personne1} dépasse-t-{elle_il} {personne2} ?",
+      "constraints": {
+        "operation": "soustraction",
+        "operand_count": 2,
+        "operand_sizes": ["2 chiffres"],
+        "carry_or_borrow": "avec ou sans retenue selon les nombres",
+        "story_slots": ["personne1", "personne2", "unite", "grand", "petit", "question_difference"],
+        "llm_need": "variation des entités comparées et formulation naturelle de l'écart"
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM1_S4.pptx",
+          "question": "سلمى 86 نقطة ؛ زينب 47 نقطة",
+          "correction": "86 – 47 = 39"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S4.pptx",
+          "question": "وُرودٌ بَيْضاءُ 116 ؛ وُرودٌ حَمْراءُ 142",
+          "correction": "142 – 116 = 26"
+        },
+        {
+          "file": "MATH_N2_P4_SEM1_S5.pptx",
+          "question": "علي 45 ؛ فاطمة 57",
+          "correction": "57 – 45 = 12"
+        }
+      ]
+    },
+    {
+      "pattern_name": "probleme_groupes_egaux_total",
+      "levels": ["N2"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "Il y a {group_count} groupes de {group_size} {objets}. Combien y a-t-il de {objets} en tout ?",
+      "constraints": {
+        "operation": "multiplication",
+        "operand_count": 2,
+        "operand_sizes": ["1 chiffre à petit nombre de groupes", "taille de groupe 1 ou 2 chiffres"],
+        "carry_or_borrow": "non applicable",
+        "story_slots": ["group_count", "group_size", "objet", "contexte", "question_total"],
+        "llm_need": "variation du contexte (joueurs, arbres, caisses) et de la formulation"
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM3_S4.pptx",
+          "question": "عدد أشجار الحديقة ؟ | ? | 8 | 8 | 8 | 8 | 8",
+          "correction": "5 x 8 = 40"
+        },
+        {
+          "file": "MATH_N2_P4_SEM3_S5.pptx",
+          "question": "عدد اللاعبين في الملعب | ? | 7 | 7 | 7 | 7",
+          "correction": "4 x 7 = 28"
+        },
+        {
+          "file": "MATH_N2_P4_SEM4_S5.pptx",
+          "question": "عدد البرتقالات في الصناديق | ? | 20 | 20 | 20 | 20 | 20",
+          "correction": "5 x 20 = 100"
+        }
+      ]
+    },
+    {
+      "pattern_name": "probleme_total_partie_tout",
+      "levels": ["N1"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "{contexte} contient {partie1} {objets_type1} et {partie2} {objets_type2}. Combien y en a-t-il en tout ?",
+      "constraints": {
+        "operation": "addition",
+        "operand_count": 2,
+        "operand_sizes": ["petits entiers <= 10"],
+        "carry_or_borrow": "sans retenue dans le corpus observé",
+        "story_slots": ["contexte", "objet", "partie1", "partie2", "question_total"],
+        "llm_need": "rédaction d'un mini-contexte cohérent et accord en genre/nombre"
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {
+          "file": "MATH_N1_P4_SEM3_S4.pptx",
+          "question": "شارَكَ في لُعْبَةٍ 6 أَوْلادٍ وَ 3 بَناتٍ . كَمْ عَدَدُ الْأَطْفالِ ... ؟",
+          "correction": "6 + 3 = 9"
+        },
+        {
+          "file": "MATH_N1_P4_SEM5_S4.pptx",
+          "question": "في مَسْمَكٍ 4 سَمَكاتٍ صَفْراءَ وَ 6 سَمَكاتٍ حَمْراءَ. كَمْ سَمَكَةً ... ؟",
+          "correction": "4 + 6 = 10"
+        }
+      ]
+    },
+    {
+      "pattern_name": "probleme_groupes_egaux_quotient",
+      "levels": ["N2"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "{total} {objets} sont répartis en groupes de {group_size}. Combien de groupes faut-il ?",
+      "constraints": {
+        "operation": "division par groupement",
+        "operand_count": 2,
+        "operand_sizes": ["total multiple exact de la taille de groupe"],
+        "carry_or_borrow": "non applicable",
+        "story_slots": ["total", "group_size", "objet", "contexte", "question_groupes"],
+        "llm_need": "choix du contexte et de la reformulation naturelle de la division"
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {
+          "file": "MATH_N2_P4_SEM2_S5.pptx",
+          "question": "12 قرصاً ؛ 3 أقراص في اليوم ; كم يوماً سيحتاج المريض ؟",
+          "correction": "12 = 4 x 3 ; سيحتاج المريض إلى 4 أيام"
+        },
+        {
+          "file": "MATH_N2_P4_SEM2_S3.pptx",
+          "question": "لَدى أُمٍّ 60 حَلْوى ... في كُلِّ طَبَقٍ 10 حَلَوِياتٍ",
+          "correction": "60 = 6 x 10 ; يحتاج إلى 6 أطباق"
+        }
+      ]
+    }
+  ]
+}

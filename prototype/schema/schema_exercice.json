@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Exercice généré — Module IA (CE1/CE2)",
+  "type": "object",
+  "required": [
+    "id",
+    "niveau_scolaire",
+    "matiere",
+    "pattern",
+    "enonce",
+    "reponse_attendue",
+    "presentations"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Identifiant unique de l'instance générée",
+      "example": "N2-mult10-000042"
+    },
+    "niveau_scolaire": {
+      "type": "string",
+      "enum": ["CE1", "CE2"]
+    },
+    "matiere": {
+      "type": "string",
+      "const": "mathematiques"
+    },
+    "pattern": {
+      "type": "object",
+      "description": "Référence au pattern du catalogue dont cet exercice est issu",
+      "required": ["pattern_name", "pattern_family", "generation_method"],
+      "properties": {
+        "pattern_name": {
+          "type": "string",
+          "example": "multiplication_par_10"
+        },
+        "pattern_family": {
+          "type": "string",
+          "enum": ["calcul_direct", "exercice_a_trous_serie", "probleme_narratif_simple"]
+        },
+        "generation_method": {
+          "type": "string",
+          "enum": ["substitution", "llm"],
+          "description": "substitution = purement procédural (aucun appel LLM) ; llm = généré avec few-shot à partir d'exemples réels"
+        }
+      }
+    },
+    "variables": {
+      "type": "object",
+      "description": "Valeurs concrètes injectées dans le template pour cette instance (permet de régénérer/auditer)",
+      "example": { "a": 45 }
+    },
+    "contexte_narratif": {
+      "type": ["object", "null"],
+      "description": "Uniquement pour pattern_family = probleme_narratif_simple. Les 'story slots' remplis par le LLM.",
+      "example": {
+        "personnage": "Khalid",
+        "objet": "stylos",
+        "total": 9,
+        "partie_connue": 3
+      }
+    },
+    "enonce": {
+      "type": "string",
+      "description": "Énoncé final tel qu'affiché à l'élève, variables déjà substituées",
+      "example": "45 x 10 = ?"
+    },
+    "reponse_attendue": {
+      "type": "object",
+      "required": ["valeur", "format"],
+      "properties": {
+        "valeur": {
+          "description": "Réponse correcte, normalisée (voir note sur l'inversion des soustractions N1)"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["nombre_entier", "expression", "choix_multiple", "liste_ordonnee"]
+        },
+        "tolerance": {
+          "type": "object",
+          "description": "Règles de comparaison souples si besoin (ex. accepter '450' et '450.0')",
+          "properties": {
+            "ignorer_espaces": { "type": "boolean" },
+            "equivalences_acceptees": { "type": "array", "items": {} }
+          }
+        }
+      }
+    },
+    "presentations": {
+      "type": "object",
+      "description": "Les 3 niveaux de résolution confirmés dans le contenu source (modélisation -> pratique guidée -> pratique autonome). Même énoncé et même réponse, seul le niveau d'aide affiché change.",
+      "required": ["1_guide", "2_semi_guide", "3_autonome"],
+      "properties": {
+        "1_guide": {
+          "type": "object",
+          "description": "Correspond à l'Activité 1 : la méthode du professeur reste affichée pendant que l'élève résout",
+          "required": ["aide_affichee"],
+          "properties": {
+            "aide_affichee": { "type": "boolean", "const": true },
+            "etapes_methode": {
+              "type": "array",
+              "items": { "type": "string" },
+              "example": ["Ajoute un zéro à droite de 45", "45 x 10 = 450"]
+            }
+          }
+        },
+        "2_semi_guide": {
+          "type": "object",
+          "description": "Correspond à l'Activité 2 : seul l'énoncé est visible, correction collective après coup",
+          "required": ["aide_affichee"],
+          "properties": {
+            "aide_affichee": { "type": "boolean", "const": false },
+            "correction_apres_coup": { "type": "boolean", "default": true }
+          }
+        },
+        "3_autonome": {
+          "type": "object",
+          "description": "Correspond à la phase « réalise seul(e) » : aucune aide, l'élève résout en autonomie complète",
+          "required": ["aide_affichee"],
+          "properties": {
+            "aide_affichee": { "type": "boolean", "const": false },
+            "correction_apres_coup": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+    "jeu": {
+      "type": "object",
+      "description": "Rattachement à la carte 2D (rempli au moment de l'assignation à une étape, pas à la génération)",
+      "properties": {
+        "etape_id": { "type": ["string", "null"] },
+        "chemin_id": { "type": ["string", "null"] }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source_pattern_occurrence_count": { "type": "integer" },
+        "fichiers_source": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "genere_le": { "type": "string", "format": "date-time" },
+        "verifie_manuellement": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+[
+  {
+    "id": "N2-mult10-000042",
+    "niveau_scolaire": "CE2",
+    "matiere": "mathematiques",
+    "pattern": {
+      "pattern_name": "multiplication_par_10",
+      "pattern_family": "calcul_direct",
+      "generation_method": "substitution"
+    },
+    "variables": { "a": 45 },
+    "contexte_narratif": null,
+    "enonce": "45 x 10 = ?",
+    "reponse_attendue": {
+      "valeur": 450,
+      "format": "nombre_entier",
+      "tolerance": { "ignorer_espaces": true, "equivalences_acceptees": ["450", "450.0"] }
+    },
+    "presentations": {
+      "1_guide": {
+        "aide_affichee": true,
+        "etapes_methode": ["Ajoute un zéro à droite de 45", "45 x 10 = 450"]
+      },
+      "2_semi_guide": { "aide_affichee": false, "correction_apres_coup": true },
+      "3_autonome": { "aide_affichee": false, "correction_apres_coup": false }
+    },
+    "jeu": { "etape_id": null, "chemin_id": null },
+    "metadata": {
+      "source_pattern_occurrence_count": 4,
+      "fichiers_source": ["MATH_N2_P4_SEM1_S1.pptx", "MATH_N2_P4_SEM1_S5.pptx"],
+      "genere_le": "2026-07-16T10:00:00Z",
+      "verifie_manuellement": false
+    }
+  },
+  {
+    "id": "N1-reste-partie-tout-000017",
+    "niveau_scolaire": "CE1",
+    "matiere": "mathematiques",
+    "pattern": {
+      "pattern_name": "probleme_reste_partie_tout",
+      "pattern_family": "probleme_narratif_simple",
+      "generation_method": "llm"
+    },
+    "variables": { "total": 8, "partie_connue": 5 },
+    "contexte_narratif": {
+      "personnage": "Yasmine",
+      "objet": "billes",
+      "action": "a donné",
+      "question_restante": "Combien de billes reste-t-il à Yasmine ?"
+    },
+    "enonce": "Yasmine a 8 billes. Elle en a donné 5 à son frère. Combien de billes reste-t-il à Yasmine ?",
+    "reponse_attendue": {
+      "valeur": 3,
+      "format": "nombre_entier",
+      "tolerance": { "ignorer_espaces": true, "equivalences_acceptees": ["3"] }
+    },
+    "presentations": {
+      "1_guide": {
+        "aide_affichee": true,
+        "etapes_methode": [
+          "Identifie le total de départ : 8",
+          "Identifie la partie qui part : 5",
+          "8 - 5 = 3"
+        ]
+      },
+      "2_semi_guide": { "aide_affichee": false, "correction_apres_coup": true },
+      "3_autonome": { "aide_affichee": false, "correction_apres_coup": false }
+    },
+    "jeu": { "etape_id": null, "chemin_id": null },
+    "metadata": {
+      "source_pattern_occurrence_count": 7,
+      "fichiers_source": ["MATH_N1_P4_SEM2_S4.pptx", "MATH_N1_P4_SEM2_S5.pptx", "MATH_N1_P4_SEM3_S5.pptx"],
+      "genere_le": "2026-07-16T10:00:00Z",
+      "verifie_manuellement": false
+    }
+  }
+]
