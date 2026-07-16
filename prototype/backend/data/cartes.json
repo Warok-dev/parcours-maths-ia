@@ -1,0 +1,58 @@
+{
+  "CE1": {
+    "niveau": "CE1",
+    "titre": "Carte CE1",
+    "chemins": [
+      {
+        "id": "ce1-chemin-a",
+        "label": "Chemin des additions",
+        "etapes": [
+          {
+            "id": "ce1-etape-1",
+            "label": "Etape 1",
+            "x": 80,
+            "y": 140,
+            "exercice_id": "CE1-mock-substitution-001",
+            "deverrouillee": true
+          },
+          {
+            "id": "ce1-etape-2",
+            "label": "Etape 2",
+            "x": 220,
+            "y": 100,
+            "exercice_id": null,
+            "deverrouillee": false
+          }
+        ]
+      }
+    ]
+  },
+  "CE2": {
+    "niveau": "CE2",
+    "titre": "Carte CE2",
+    "chemins": [
+      {
+        "id": "ce2-chemin-a",
+        "label": "Chemin des multiplications",
+        "etapes": [
+          {
+            "id": "ce2-etape-1",
+            "label": "Etape 1",
+            "x": 100,
+            "y": 160,
+            "exercice_id": "CE2-mock-substitution-001",
+            "deverrouillee": true
+          },
+          {
+            "id": "ce2-etape-2",
+            "label": "Etape 2",
+            "x": 260,
+            "y": 120,
+            "exercice_id": null,
+            "deverrouillee": false
+          }
+        ]
+      }
+    ]
+  }
+}

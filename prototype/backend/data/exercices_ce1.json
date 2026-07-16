@@ -1,0 +1,54 @@
+[
+  {
+    "id": "CE1-mock-substitution-001",
+    "niveau_scolaire": "CE1",
+    "matiere": "mathematiques",
+    "pattern": {
+      "pattern_name": "addition_simple",
+      "pattern_family": "calcul_direct",
+      "generation_method": "substitution"
+    },
+    "variables": {
+      "a": 24,
+      "b": 6
+    },
+    "contexte_narratif": null,
+    "enonce": "24 + 6 = ?",
+    "reponse_attendue": {
+      "valeur": 30,
+      "format": "nombre_entier",
+      "tolerance": {
+        "ignorer_espaces": true,
+        "equivalences_acceptees": ["30", "30.0"]
+      }
+    },
+    "presentations": {
+      "1_guide": {
+        "aide_affichee": true,
+        "etapes_methode": [
+          "Pars de 24.",
+          "Ajoute 6.",
+          "24 + 6 = 30."
+        ]
+      },
+      "2_semi_guide": {
+        "aide_affichee": false,
+        "correction_apres_coup": true
+      },
+      "3_autonome": {
+        "aide_affichee": false,
+        "correction_apres_coup": false
+      }
+    },
+    "jeu": {
+      "etape_id": "ce1-etape-1",
+      "chemin_id": "ce1-chemin-a"
+    },
+    "metadata": {
+      "source_pattern_occurrence_count": 1,
+      "fichiers_source": [],
+      "genere_le": "2026-07-16T10:00:00Z",
+      "verifie_manuellement": false
+    }
+  }
+]

@@ -1,0 +1,130 @@
+:root {
+  --bg: #f4efe6;
+  --panel: rgba(255, 250, 242, 0.92);
+  --ink: #17313e;
+  --accent: #db6d3f;
+  --accent-soft: #f5c66b;
+  --line: #7ca1b4;
+  --locked: #bfc9cf;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(245, 198, 107, 0.45), transparent 35%),
+    linear-gradient(135deg, #f6f0e7, #dce8ec);
+}
+
+.layout {
+  width: min(1080px, calc(100% - 32px));
+  margin: 24px auto;
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 2px solid rgba(23, 49, 62, 0.08);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 14px 40px rgba(23, 49, 62, 0.08);
+}
+
+.hero h1,
+.panel h2 {
+  margin-top: 0;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+
+#map {
+  width: 100%;
+  min-height: 260px;
+  background: linear-gradient(180deg, #d7eef7 0%, #eef8df 100%);
+  border-radius: 16px;
+  border: 2px dashed rgba(23, 49, 62, 0.12);
+}
+
+.path-line {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.step {
+  stroke: white;
+  stroke-width: 4;
+}
+
+.step.unlocked {
+  fill: var(--accent);
+  cursor: pointer;
+}
+
+.step.locked {
+  fill: var(--locked);
+}
+
+#map text {
+  fill: white;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.chat-log {
+  min-height: 120px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+}
+
+.chat-form {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-form input {
+  flex: 1;
+  padding: 12px 14px;
+  border: 1px solid rgba(23, 49, 62, 0.15);
+  border-radius: 999px;
+}
+
+.chat-form button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.message {
+  margin: 0 0 8px;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    width: min(100% - 16px, 1080px);
+    margin: 16px auto;
+  }
+
+  .chat-form {
+    flex-direction: column;
+  }
+}

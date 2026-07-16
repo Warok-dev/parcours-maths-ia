@@ -1,0 +1,53 @@
+[
+  {
+    "id": "CE2-mock-substitution-001",
+    "niveau_scolaire": "CE2",
+    "matiere": "mathematiques",
+    "pattern": {
+      "pattern_name": "multiplication_par_10",
+      "pattern_family": "calcul_direct",
+      "generation_method": "substitution"
+    },
+    "variables": {
+      "a": 45
+    },
+    "contexte_narratif": null,
+    "enonce": "45 x 10 = ?",
+    "reponse_attendue": {
+      "valeur": 450,
+      "format": "nombre_entier",
+      "tolerance": {
+        "ignorer_espaces": true,
+        "equivalences_acceptees": ["450", "450.0"]
+      }
+    },
+    "presentations": {
+      "1_guide": {
+        "aide_affichee": true,
+        "etapes_methode": [
+          "Pars de 45.",
+          "Ajoute un zero a droite.",
+          "45 x 10 = 450."
+        ]
+      },
+      "2_semi_guide": {
+        "aide_affichee": false,
+        "correction_apres_coup": true
+      },
+      "3_autonome": {
+        "aide_affichee": false,
+        "correction_apres_coup": false
+      }
+    },
+    "jeu": {
+      "etape_id": "ce2-etape-1",
+      "chemin_id": "ce2-chemin-a"
+    },
+    "metadata": {
+      "source_pattern_occurrence_count": 1,
+      "fichiers_source": [],
+      "genere_le": "2026-07-16T10:00:00Z",
+      "verifie_manuellement": false
+    }
+  }
+]

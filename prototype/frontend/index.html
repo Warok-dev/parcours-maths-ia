@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prototype Parcours Maths IA</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="panel hero">
+        <p class="eyebrow">Prototype CE1 / CE2</p>
+        <h1>Carte en construction</h1>
+        <p>
+          Le parcours 2D, les etapes et le tuteur IA seront relies au backend
+          FastAPI.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Carte 2D</h2>
+        <svg id="map" viewBox="0 0 400 240" aria-label="Carte du parcours"></svg>
+        <p id="map-status">Chargement de la carte factice...</p>
+      </section>
+
+      <section class="panel">
+        <h2>Tuteur IA</h2>
+        <div id="chat-log" class="chat-log">
+          <p>Le tuteur reagira ici a une question sur l'exercice courant.</p>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <input
+            id="chat-input"
+            type="text"
+            placeholder="Pose une question sur l'exercice"
+          />
+          <button type="submit">Envoyer</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="map.js"></script>
+    <script src="chat.js"></script>
+  </body>
+</html>
