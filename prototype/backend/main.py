@@ -15,7 +15,7 @@ from generation.substitution import (
     generer_lot,
     patterns_disponibles_pour_niveau,
 )
-from tutor import TutorServiceError, build_tutor_reply, ensure_tutor_configured
+from tutor import TutorServiceError, build_tutor_reply
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -34,11 +34,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def validate_tutor_configuration() -> None:
-    ensure_tutor_configured()
 
 
 class EvaluationRequest(BaseModel):
