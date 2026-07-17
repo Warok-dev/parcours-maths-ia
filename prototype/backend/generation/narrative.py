@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import random
 import re
+from collections import Counter, defaultdict, deque
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -20,6 +21,67 @@ MAX_ATTEMPTS = 2
 STRICT_KEYS = ("personnage", "objet", "action", "question")
 NUMBER_RE = re.compile(r"\d")
 CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+MAX_OBJECT_SHARE = 0.3
+RECENT_CONTEXT_LIMIT = 4
+PERSONNAGES = (
+    "Yassine",
+    "Yasmine",
+    "Salma",
+    "Karim",
+    "Amina",
+    "Aya",
+    "Imane",
+    "Samir",
+    "Amine",
+    "Nadia",
+    "Sami",
+    "Meryem",
+    "Rania",
+    "Zakaria",
+    "Lina",
+    "Hamza",
+)
+OBJECT_POOLS = {
+    "small_count": (
+        "billes",
+        "crayons",
+        "gommes",
+        "cahiers",
+        "pommes",
+        "oranges",
+        "dattes",
+        "ballons",
+        "jouets",
+        "fleurs",
+    ),
+    "medium_count": (
+        "billes",
+        "autocollants",
+        "cartes",
+        "jetons",
+        "points",
+        "graines",
+        "perles",
+        "images",
+        "tickets",
+        "bonbons",
+    ),
+    "grouped_count": (
+        "cartes",
+        "autocollants",
+        "jetons",
+        "billes",
+        "perles",
+        "bonbons",
+        "gobelets",
+        "crayons",
+        "gommes",
+        "balles",
+    ),
+}
+RECENT_CONTEXTS: dict[str, deque[dict[str, str]]] = defaultdict(
+    lambda: deque(maxlen=RECENT_CONTEXT_LIMIT)
+)
 
 
 class NarrativeGenerationError(RuntimeError):
@@ -115,6 +177,76 @@ def _validate_llm_payload(payload: object) -> dict[str, str]:
             raise NarrativeGenerationError(f"La valeur '{key}' contient un nombre.")
         cleaned[key] = stripped
     return cleaned
+
+
+def _choose_object_pool(pattern_name: str, variables: dict) -> tuple[str, ...]:
+    if pattern_name in {"probleme_reste_partie_tout", "probleme_total_partie_tout"}:
+        return OBJECT_POOLS["small_count"]
+
+    if pattern_name == "probleme_comparaison_difference":
+        maximum = max(variables["grand"], variables["petit"])
+        return OBJECT_POOLS["medium_count"] if maximum >= 25 else OBJECT_POOLS["small_count"]
+
+    if pattern_name in {"probleme_groupes_egaux_total", "probleme_groupes_egaux_quotient"}:
+        total = variables.get("total", variables.get("group_count", 0) * variables.get("group_size", 0))
+        return OBJECT_POOLS["grouped_count"] if total >= 25 else OBJECT_POOLS["medium_count"]
+
+    raise NarrativeGenerationError(f"Pool d'objets inconnu pour {pattern_name}.")
+
+
+def _validate_allowed_values(
+    contexte: dict[str, str],
+    *,
+    allowed_personnages: tuple[str, ...],
+    allowed_objets: tuple[str, ...],
+) -> dict[str, str]:
+    if contexte["personnage"] not in allowed_personnages:
+        raise NarrativeGenerationError("Le personnage choisi n'est pas dans la liste autorisee.")
+    if contexte["objet"] not in allowed_objets:
+        raise NarrativeGenerationError("L'objet choisi n'est pas dans la liste autorisee.")
+    return contexte
+
+
+def _recent_constraints(pattern_name: str) -> tuple[list[str], list[str]]:
+    recent = list(RECENT_CONTEXTS[pattern_name])
+    return (
+        [item["personnage"] for item in recent],
+        [item["objet"] for item in recent],
+    )
+
+
+def _remember_context(pattern_name: str, contexte: dict[str, str]) -> None:
+    RECENT_CONTEXTS[pattern_name].append(
+        {"personnage": contexte["personnage"], "objet": contexte["objet"]}
+    )
+
+
+def _object_share_by_pattern(exercises: list[dict]) -> dict[str, dict[str, float]]:
+    by_pattern: dict[str, list[str]] = defaultdict(list)
+    for exercice in exercises:
+        pattern_name = exercice["pattern"]["pattern_name"]
+        objet = exercice.get("contexte_narratif", {}).get("objet")
+        if objet:
+            by_pattern[pattern_name].append(objet)
+
+    shares: dict[str, dict[str, float]] = {}
+    for pattern_name, objets in by_pattern.items():
+        total = len(objets)
+        counts = Counter(objets)
+        shares[pattern_name] = {objet: count / total for objet, count in counts.items()}
+    return shares
+
+
+def assert_narrative_diversity(exercises: list[dict], max_object_share: float = MAX_OBJECT_SHARE) -> None:
+    shares = _object_share_by_pattern(exercises)
+    for pattern_name, pattern_shares in shares.items():
+        if not pattern_shares:
+            continue
+        objet, share = max(pattern_shares.items(), key=lambda item: item[1])
+        if share > max_object_share:
+            raise NarrativeGenerationError(
+                f"Non-diversite detectee pour {pattern_name}: '{objet}' apparait dans {share:.0%} des exercices."
+            )
 
 
 def _parse_llm_json(text: str) -> dict[str, str]:
@@ -218,16 +350,43 @@ def _build_exercise(
     }
 
 
-def _prompt_for_pattern(pattern_name: str, instruction: str) -> str:
+def _prompt_for_pattern(
+    pattern_name: str,
+    instruction: str,
+    *,
+    variables: dict,
+    allowed_personnages: tuple[str, ...],
+    allowed_objets: tuple[str, ...],
+    recent_personnages: list[str],
+    recent_objets: list[str],
+) -> str:
     pattern_def = PATTERN_DEFS[pattern_name]
+    recent_block = ""
+    if recent_personnages or recent_objets:
+        recent_block = (
+            "Variantes recentes a eviter si possible:\n"
+            f"- Personnages recents: {', '.join(recent_personnages) if recent_personnages else 'aucun'}\n"
+            f"- Objets recents: {', '.join(recent_objets) if recent_objets else 'aucun'}\n"
+        )
     return (
         f"Pattern cible: {pattern_name}\n"
         f"Template pedagogique: {pattern_def['template']}\n"
+        f"Valeurs numeriques deja fixees par Python: {json.dumps(variables, ensure_ascii=False)}\n"
         "Exemples reels du corpus a imiter pour le registre et le niveau:\n"
         f"{_build_examples_block(pattern_name)}\n\n"
+        "Banque de personnages autorises:\n"
+        f"{', '.join(allowed_personnages)}\n"
+        "Banque d'objets autorises pour cet ordre de grandeur:\n"
+        f"{', '.join(allowed_objets)}\n"
+        f"{recent_block}\n"
         "Ta mission:\n"
         f"{instruction}\n"
         "Regles absolues:\n"
+        "- Choisis obligatoirement un personnage dans la banque autorisee.\n"
+        "- Choisis obligatoirement un objet dans la banque autorisee.\n"
+        "- Varie systematiquement le personnage et l'objet; evite de reprendre ceux utilises juste avant.\n"
+        "- Tiens compte de l'ordre de grandeur des nombres deja fixes par Python pour choisir un objet plausible.\n"
+        "- Pour les grandes quantites, privilegie des objets ou mesures que l'on compte facilement par dizaines comme billes, cartes, jetons, points, autocollants ou graines.\n"
         "- N'ecris aucun chiffre ni aucun nombre dans les valeurs JSON.\n"
         "- Ne fais aucun calcul.\n"
         "- N'ajoute aucune cle supplementaire.\n"
@@ -443,9 +602,26 @@ def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) ->
 
     builder = PATTERN_BUILDERS[selected_pattern]
     variables, valeur, steps = builder["sample"]()
-    prompt = _prompt_for_pattern(selected_pattern, builder["instruction"]())
+    allowed_personnages = PERSONNAGES
+    allowed_objets = _choose_object_pool(selected_pattern, variables)
+    recent_personnages, recent_objets = _recent_constraints(selected_pattern)
+    prompt = _prompt_for_pattern(
+        selected_pattern,
+        builder["instruction"](),
+        variables=variables,
+        allowed_personnages=allowed_personnages,
+        allowed_objets=allowed_objets,
+        recent_personnages=recent_personnages,
+        recent_objets=recent_objets,
+    )
     contexte = _generate_narrative_context(prompt)
+    contexte = _validate_allowed_values(
+        contexte,
+        allowed_personnages=allowed_personnages,
+        allowed_objets=allowed_objets,
+    )
     enonce = builder["assemble"](variables, contexte)
+    _remember_context(selected_pattern, contexte)
 
     return _build_exercise(
         niveau=niveau,
@@ -456,3 +632,20 @@ def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) ->
         valeur=valeur,
         steps=steps,
     )
+
+
+def generate_narrative_lot(niveau: str, pattern_name: str, count: int) -> list[dict]:
+    if count <= 0:
+        return []
+
+    last_error: Exception | None = None
+    for _ in range(5):
+        lot = [generate_narrative_exercise(niveau, pattern_name) for _ in range(count)]
+        try:
+            assert_narrative_diversity(lot)
+            return lot
+        except NarrativeGenerationError as exc:
+            last_error = exc
+    raise NarrativeGenerationError(
+        f"Impossible d'obtenir un lot narratif suffisamment diversifie pour {pattern_name}."
+    ) from last_error

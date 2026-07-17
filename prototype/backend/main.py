@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,10 +21,10 @@ from tutor import TutorServiceError, build_tutor_reply
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 ALLOWED_LEVELS = {"CE1", "CE2"}
-# Volatile in-memory cache for dynamically generated exercises.
-# This is enough for a local prototype, but the content is lost on server restart.
-# A deployed version would need persistent storage (file or database).
+RESOLUTION_LEVEL_TO_KEY = {1: "1_guide", 2: "2_semi_guide", 3: "3_autonome"}
+REINFORCEMENT_BY_MASTERY = {1: 4, 2: 3, 3: 2}
 EXERCICE_CACHE: dict[str, dict] = {}
+SESSION_STATE: dict[str, dict] = {}
 
 app = FastAPI(title="Prototype Parcours Maths IA", version="0.1.0")
 
@@ -36,16 +37,23 @@ app.add_middleware(
 )
 
 
+class SessionStartRequest(BaseModel):
+    niveau_scolaire: Literal["CE1", "CE2"]
+
+
 class EvaluationRequest(BaseModel):
     exercice_id: str
-    niveau: Literal["CE1", "CE2"]
-    reponse_eleve: str
+    session_id: str | None = None
+    niveau: Literal["CE1", "CE2"] | None = None
+    reponse_eleve: str | None = None
+    reponse_donnee: str | None = None
 
 
 class TutorRequest(BaseModel):
     exercice_id: str
     niveau: Literal["CE1", "CE2"]
     question: str
+    session_id: str | None = None
 
 
 def load_json(name: str) -> list[dict] | dict:
@@ -70,12 +78,227 @@ def get_exercice_by_id(niveau: str, exercice_id: str) -> dict:
     for exercice in load_exercices(niveau):
         if exercice.get("id") == exercice_id:
             return exercice
-    raise HTTPException(status_code=404, detail="Exercice introuvable ou expiré.")
+    raise HTTPException(status_code=404, detail="Exercice introuvable ou expire.")
+
+
+def _resolution_key(level: int) -> str:
+    return RESOLUTION_LEVEL_TO_KEY[level]
+
+
+def _concepts_for_level(niveau: str) -> list[str]:
+    concepts = patterns_disponibles_pour_niveau(niveau)
+    if not concepts:
+        raise HTTPException(status_code=500, detail="Aucun concept disponible pour ce niveau.")
+    return concepts
+
+
+def _cache_exercise(exercice: dict) -> dict:
+    EXERCICE_CACHE[exercice["id"]] = exercice
+    return exercice
+
+
+def _generate_concept_exercise(niveau: str, concept: str) -> dict:
+    return _cache_exercise(generer_exercice(concept, niveau))
+
+
+def _progression_payload(session: dict) -> dict:
+    exercice = EXERCICE_CACHE.get(session["exercice_id_courant"])
+    current_level = session["niveau_resolution_courant"]
+    payload = {
+        "session_id": session["session_id"],
+        "niveau_scolaire": session["niveau_scolaire"],
+        "concept_courant": session["concept_courant"],
+        "phase": session["phase"],
+        "niveau_resolution_courant": current_level,
+        "presentation_courante": _resolution_key(current_level),
+        "exercice_id_courant": session["exercice_id_courant"],
+        "erreurs_sur_chaine_actuelle": session["erreurs_sur_chaine_actuelle"],
+        "maitrise_actuelle": session["maitrise_actuelle"],
+        "exercices_renforcement_restants": session["exercices_renforcement_restants"],
+        "etapes_debloquees": session["etapes_debloquees"],
+        "concepts": session["concepts"],
+        "concept_index": session["concept_index"],
+        "terminee": session["terminee"],
+    }
+    if exercice is not None:
+        payload["exercice_courant"] = exercice
+        payload["presentation_courante_detail"] = exercice["presentations"][_resolution_key(current_level)]
+    return payload
+
+
+def _build_session(niveau: str) -> dict:
+    concepts = _concepts_for_level(niveau)
+    concept = concepts[0]
+    exercice = _generate_concept_exercise(niveau, concept)
+    session_id = uuid4().hex
+    session = {
+        "session_id": session_id,
+        "niveau_scolaire": niveau,
+        "concepts": concepts,
+        "concept_index": 0,
+        "concept_courant": concept,
+        "phase": "detection_maitrise",
+        "niveau_resolution_courant": 1,
+        "exercice_id_courant": exercice["id"],
+        "erreurs_sur_chaine_actuelle": False,
+        "exercices_renforcement_restants": 0,
+        "etapes_debloquees": [concept],
+        "maitrise_actuelle": 0,
+        "terminee": False,
+    }
+    SESSION_STATE[session_id] = session
+    return session
+
+
+def _get_session(session_id: str) -> dict:
+    session = SESSION_STATE.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session introuvable.")
+    return session
+
+
+def _ensure_current_exercise(session: dict, exercice_id: str) -> dict:
+    if session["terminee"]:
+        raise HTTPException(status_code=400, detail="La carte est deja terminee.")
+    if exercice_id != session["exercice_id_courant"]:
+        raise HTTPException(status_code=409, detail="Exercice courant invalide pour cette session.")
+    return get_exercice_by_id(session["niveau_scolaire"], exercice_id)
+
+
+def _advance_to_next_level(session: dict) -> None:
+    session["niveau_resolution_courant"] += 1
+
+
+def _mark_chain_broken(session: dict) -> None:
+    session["erreurs_sur_chaine_actuelle"] = True
+
+
+def _start_reinforcement(session: dict, mastery: int) -> dict:
+    session["phase"] = "renforcement"
+    session["maitrise_actuelle"] = mastery
+    session["niveau_resolution_courant"] = 1
+    session["erreurs_sur_chaine_actuelle"] = False
+    session["exercices_renforcement_restants"] = REINFORCEMENT_BY_MASTERY[mastery]
+    exercice = _generate_concept_exercise(session["niveau_scolaire"], session["concept_courant"])
+    session["exercice_id_courant"] = exercice["id"]
+    return exercice
+
+
+def _unlock_next_concept(session: dict) -> tuple[str, dict | None]:
+    next_index = session["concept_index"] + 1
+    if next_index >= len(session["concepts"]):
+        session["terminee"] = True
+        session["concept_index"] = next_index
+        session["concept_courant"] = None
+        session["phase"] = "terminee"
+        session["niveau_resolution_courant"] = 1
+        session["exercice_id_courant"] = None
+        session["exercices_renforcement_restants"] = 0
+        session["erreurs_sur_chaine_actuelle"] = False
+        return "carte_terminee", None
+
+    session["concept_index"] = next_index
+    session["concept_courant"] = session["concepts"][next_index]
+    session["phase"] = "detection_maitrise"
+    session["niveau_resolution_courant"] = 1
+    session["erreurs_sur_chaine_actuelle"] = False
+    session["exercices_renforcement_restants"] = 0
+    session["maitrise_actuelle"] = 0
+    session["terminee"] = False
+    session["etapes_debloquees"].append(session["concept_courant"])
+    exercice = _generate_concept_exercise(session["niveau_scolaire"], session["concept_courant"])
+    session["exercice_id_courant"] = exercice["id"]
+    return "correct_concept_debloque", exercice
+
+
+def _handle_detection_success(session: dict) -> tuple[str, dict | None]:
+    current_level = session["niveau_resolution_courant"]
+    if session["erreurs_sur_chaine_actuelle"]:
+        locked_mastery = max(1, session["maitrise_actuelle"])
+        exercice = _start_reinforcement(session, locked_mastery)
+        return "correct_nouveau_renforcement", exercice
+
+    session["maitrise_actuelle"] = current_level
+    if current_level < 3:
+        _advance_to_next_level(session)
+        return "correct_niveau_suivant", EXERCICE_CACHE[session["exercice_id_courant"]]
+
+    exercice = _start_reinforcement(session, 3)
+    return "correct_nouveau_renforcement", exercice
+
+
+def _handle_reinforcement_success(session: dict) -> tuple[str, dict | None]:
+    current_level = session["niveau_resolution_courant"]
+    if current_level < 3:
+        _advance_to_next_level(session)
+        return "correct_niveau_suivant", EXERCICE_CACHE[session["exercice_id_courant"]]
+
+    session["exercices_renforcement_restants"] -= 1
+    if session["exercices_renforcement_restants"] > 0:
+        session["niveau_resolution_courant"] = 1
+        session["erreurs_sur_chaine_actuelle"] = False
+        exercice = _generate_concept_exercise(session["niveau_scolaire"], session["concept_courant"])
+        session["exercice_id_courant"] = exercice["id"]
+        return "correct_nouveau_renforcement", exercice
+
+    return _unlock_next_concept(session)
+
+
+def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> dict:
+    result = compare_reponse(reponse, exercice["reponse_attendue"])
+    response = {
+        "session_id": session["session_id"],
+        "exercice_id": exercice["id"],
+        "niveau": session["niveau_scolaire"],
+        **result,
+    }
+
+    if not result["correct"]:
+        _mark_chain_broken(session)
+        response["statut"] = "incorrect"
+        response["progression"] = _progression_payload(session)
+        return response
+
+    if session["phase"] == "detection_maitrise":
+        statut, next_exercise = _handle_detection_success(session)
+    elif session["phase"] == "renforcement":
+        statut, next_exercise = _handle_reinforcement_success(session)
+    else:
+        raise HTTPException(status_code=400, detail="Session terminee.")
+
+    response["statut"] = statut
+    response["progression"] = _progression_payload(session)
+    if next_exercise is not None:
+        response["exercice_suivant"] = next_exercise
+    return response
+
+
+def _extract_answer(payload: EvaluationRequest) -> str:
+    answer = payload.reponse_donnee if payload.reponse_donnee is not None else payload.reponse_eleve
+    if answer is None:
+        raise HTTPException(status_code=400, detail="La reponse est obligatoire.")
+    return answer
 
 
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.post("/session/demarrer")
+def demarrer_session(payload: SessionStartRequest) -> dict:
+    session = _build_session(payload.niveau_scolaire)
+    return {
+        "session_id": session["session_id"],
+        "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
+        "progression": _progression_payload(session),
+    }
+
+
+@app.get("/session/{session_id}")
+def get_session(session_id: str) -> dict:
+    session = _get_session(session_id)
+    return _progression_payload(session)
 
 
 @app.get("/exercices/{niveau}")
@@ -90,19 +313,25 @@ def get_exercice(niveau: str, pattern: str | None = None) -> dict:
                 status_code=404,
                 detail=f"Pattern '{pattern}' introuvable pour le niveau {niveau}.",
             )
-        exercice = generer_exercice(pattern, niveau)
-        EXERCICE_CACHE[exercice["id"]] = exercice
-        return exercice
+        return _cache_exercise(generer_exercice(pattern, niveau))
 
-    exercice = generer_lot(niveau, 1)[0]
-    EXERCICE_CACHE[exercice["id"]] = exercice
-    return exercice
+    return _cache_exercise(generer_lot(niveau, 1)[0])
 
 
 @app.post("/evaluer")
 def evaluer(payload: EvaluationRequest) -> dict:
+    reponse = _extract_answer(payload)
+
+    if payload.session_id is not None:
+        session = _get_session(payload.session_id)
+        exercice = _ensure_current_exercise(session, payload.exercice_id)
+        return _apply_session_evaluation(session, exercice, reponse)
+
+    if payload.niveau is None:
+        raise HTTPException(status_code=400, detail="Le niveau est obligatoire hors session.")
+
     exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)
-    result = compare_reponse(payload.reponse_eleve, exercice["reponse_attendue"])
+    result = compare_reponse(reponse, exercice["reponse_attendue"])
     return {
         "exercice_id": payload.exercice_id,
         "niveau": payload.niveau,
@@ -112,17 +341,30 @@ def evaluer(payload: EvaluationRequest) -> dict:
 
 @app.post("/tuteur/aide")
 def tuteur_aide(payload: TutorRequest) -> dict:
-    exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)
+    progression = None
+    if payload.session_id is not None:
+        session = _get_session(payload.session_id)
+        exercice = _ensure_current_exercise(session, payload.exercice_id)
+        if session["niveau_resolution_courant"] >= 2:
+            _mark_chain_broken(session)
+        progression = _progression_payload(session)
+    else:
+        exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)
+
     try:
         tutor_reply = build_tutor_reply(exercice, payload.question)
     except TutorServiceError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return {
+    response = {
         "exercice_id": payload.exercice_id,
         "niveau": payload.niveau,
         **tutor_reply,
     }
+    if payload.session_id is not None:
+        response["session_id"] = payload.session_id
+        response["progression"] = progression
+    return response
 
 
 @app.get("/carte/{niveau}")

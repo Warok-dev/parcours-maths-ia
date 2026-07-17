@@ -21,9 +21,9 @@ LLM_PAYLOADS = {
     },
     "probleme_groupes_egaux_total": {
         "personnage": "Samir",
-        "objet": "oranges",
+        "objet": "cartes",
         "action": "prepare",
-        "question": "Combien y a-t-il d'oranges en tout ?",
+        "question": "Combien y a-t-il de cartes en tout ?",
     },
     "probleme_total_partie_tout": {
         "personnage": "Aya",
@@ -33,7 +33,7 @@ LLM_PAYLOADS = {
     },
     "probleme_groupes_egaux_quotient": {
         "personnage": "Imane",
-        "objet": "gateaux",
+        "objet": "jetons",
         "action": "range",
         "question": "Combien de groupes faut-il ?",
     },
@@ -41,6 +41,9 @@ LLM_PAYLOADS = {
 
 
 class NarrativeGenerationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        narrative.RECENT_CONTEXTS.clear()
+
     def _generate_with_mock(self, niveau: str, pattern_name: str) -> dict:
         with patch("generation.narrative._call_model_json", return_value=LLM_PAYLOADS[pattern_name]):
             return narrative.generate_narrative_exercise(niveau, pattern_name)
@@ -107,6 +110,91 @@ class NarrativeGenerationTests(unittest.TestCase):
         ):
             with self.assertRaises(narrative.NarrativeGenerationError):
                 narrative.generate_narrative_exercise("CE2", "probleme_comparaison_difference")
+
+    def test_large_comparison_rejects_implausible_object_outside_allowed_pool(self) -> None:
+        with patch.dict(
+            narrative.PATTERN_BUILDERS["probleme_comparaison_difference"],
+            {
+                "sample": lambda: (
+                    {"grand": 91, "petit": 41},
+                    50,
+                    ["Repere la plus grande quantite : 91."],
+                )
+            },
+        ):
+            with patch(
+                "generation.narrative._call_model_json",
+                return_value={
+                    "personnage": "Salma",
+                    "objet": "pommes",
+                    "action": "Son camarade en a",
+                    "question": "De combien en a-t-elle de plus ?",
+                },
+            ):
+                with self.assertRaises(narrative.NarrativeGenerationError):
+                    narrative.generate_narrative_exercise("CE2", "probleme_comparaison_difference")
+
+    def test_diversity_threshold_on_20_comparison_exercises(self) -> None:
+        payloads = [
+            {
+                "personnage": name,
+                "objet": obj,
+                "action": "Son camarade en a",
+                "question": "De combien en a-t-il de plus ?",
+            }
+            for name, obj in [
+                ("Yassine", "points"),
+                ("Salma", "cartes"),
+                ("Karim", "billes"),
+                ("Amina", "autocollants"),
+                ("Samir", "jetons"),
+            ]
+            for _ in range(4)
+        ]
+        with patch.dict(
+            narrative.PATTERN_BUILDERS["probleme_comparaison_difference"],
+            {
+                "sample": lambda: (
+                    {"grand": 91, "petit": 41},
+                    50,
+                    ["Repere la plus grande quantite : 91."],
+                )
+            },
+        ):
+            with patch("generation.narrative._call_model_json", side_effect=payloads):
+                lot = narrative.generate_narrative_lot("CE2", "probleme_comparaison_difference", 20)
+        narrative.assert_narrative_diversity(lot)
+
+    def test_diversity_threshold_on_20_group_total_exercises(self) -> None:
+        payloads = [
+            {
+                "personnage": name,
+                "objet": obj,
+                "action": "prepare",
+                "question": "Combien y en a-t-il en tout ?",
+            }
+            for name, obj in [
+                ("Aya", "cartes"),
+                ("Imane", "jetons"),
+                ("Rania", "perles"),
+                ("Hamza", "bonbons"),
+                ("Lina", "billes"),
+            ]
+            for _ in range(4)
+        ]
+        with patch.dict(
+            narrative.PATTERN_BUILDERS["probleme_groupes_egaux_total"],
+            {
+                "sample": lambda: (
+                    {"group_count": 5, "group_size": 8},
+                    40,
+                    ["Repere le nombre de groupes : 5."],
+                )
+            },
+        ):
+            with patch("generation.narrative._call_model_json", side_effect=payloads):
+                lot = narrative.generate_narrative_lot("CE2", "probleme_groupes_egaux_total", 20)
+        narrative.assert_narrative_diversity(lot)
 
 
 if __name__ == "__main__":

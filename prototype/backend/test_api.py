@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from main import app
+from main import EXERCICE_CACHE, SESSION_STATE, app
+
+
+def _answer_for(exercice: dict) -> str:
+    value = exercice["reponse_attendue"]["valeur"]
+    if isinstance(value, list):
+        return ", ".join(map(str, value))
+    return str(value)
 
 
 class ApiIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
+
+    def setUp(self) -> None:
+        EXERCICE_CACHE.clear()
+        SESSION_STATE.clear()
 
     def test_get_exercices_ce1_returns_valid_exercise(self) -> None:
         response = self.client.get("/exercices/CE1")
@@ -56,7 +68,7 @@ class ApiIntegrationTests(unittest.TestCase):
             json={
                 "exercice_id": exercice["id"],
                 "niveau": "CE1",
-                "reponse_eleve": str(exercice["reponse_attendue"]["valeur"]),
+                "reponse_eleve": _answer_for(exercice),
             },
         )
 
@@ -64,6 +76,234 @@ class ApiIntegrationTests(unittest.TestCase):
         payload = evaluation_response.json()
         self.assertEqual(payload["exercice_id"], exercice["id"])
         self.assertTrue(payload["correct"])
+
+    def test_session_perfect_mastery_unlocks_next_concept_after_two_reinforcements(self) -> None:
+        start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+        self.assertEqual(start.status_code, 200)
+        payload = start.json()
+        session_id = payload["session_id"]
+        concept_initial = payload["progression"]["concept_courant"]
+        exercice = payload["exercice"]
+
+        statuses: list[str] = []
+        for _ in range(9):
+            response = self.client.post(
+                "/evaluer",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "reponse_donnee": _answer_for(exercice),
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            statuses.append(body["statut"])
+            if "exercice_suivant" in body:
+                exercice = body["exercice_suivant"]
+
+        self.assertEqual(
+            statuses,
+            [
+                "correct_niveau_suivant",
+                "correct_niveau_suivant",
+                "correct_nouveau_renforcement",
+                "correct_niveau_suivant",
+                "correct_niveau_suivant",
+                "correct_nouveau_renforcement",
+                "correct_niveau_suivant",
+                "correct_niveau_suivant",
+                "correct_concept_debloque",
+            ],
+        )
+
+        session_state = self.client.get(f"/session/{session_id}")
+        self.assertEqual(session_state.status_code, 200)
+        progression = session_state.json()
+        self.assertEqual(progression["maitrise_actuelle"], 0)
+        self.assertEqual(progression["phase"], "detection_maitrise")
+        self.assertNotEqual(progression["concept_courant"], concept_initial)
+        self.assertEqual(progression["exercices_renforcement_restants"], 0)
+
+    def test_session_failure_once_at_level_two_leads_to_mastery_one_and_four_reinforcements(self) -> None:
+        start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+        self.assertEqual(start.status_code, 200)
+        payload = start.json()
+        session_id = payload["session_id"]
+        exercice = payload["exercice"]
+
+        level_one = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": session_id,
+                "exercice_id": exercice["id"],
+                "reponse_donnee": _answer_for(exercice),
+            },
+        )
+        self.assertEqual(level_one.status_code, 200)
+        self.assertEqual(level_one.json()["statut"], "correct_niveau_suivant")
+
+        wrong_level_two = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": session_id,
+                "exercice_id": exercice["id"],
+                "reponse_donnee": "__faux__",
+            },
+        )
+        self.assertEqual(wrong_level_two.status_code, 200)
+        self.assertEqual(wrong_level_two.json()["statut"], "incorrect")
+        self.assertEqual(wrong_level_two.json()["progression"]["niveau_resolution_courant"], 2)
+
+        retry_level_two = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": session_id,
+                "exercice_id": exercice["id"],
+                "reponse_donnee": _answer_for(exercice),
+            },
+        )
+        self.assertEqual(retry_level_two.status_code, 200)
+        payload = retry_level_two.json()
+        self.assertEqual(payload["statut"], "correct_nouveau_renforcement")
+        self.assertEqual(payload["progression"]["maitrise_actuelle"], 1)
+        self.assertEqual(payload["progression"]["phase"], "renforcement")
+        self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 4)
+
+    def test_session_incorrect_answer_does_not_change_level_or_phase(self) -> None:
+        start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+        self.assertEqual(start.status_code, 200)
+        payload = start.json()
+        session_id = payload["session_id"]
+        exercice = payload["exercice"]
+
+        before = payload["progression"]
+        wrong = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": session_id,
+                "exercice_id": exercice["id"],
+                "reponse_donnee": "__incorrect__",
+            },
+        )
+
+        self.assertEqual(wrong.status_code, 200)
+        wrong_payload = wrong.json()
+        self.assertEqual(wrong_payload["statut"], "incorrect")
+        self.assertEqual(
+            wrong_payload["progression"]["niveau_resolution_courant"],
+            before["niveau_resolution_courant"],
+        )
+        self.assertEqual(wrong_payload["progression"]["phase"], before["phase"])
+        self.assertEqual(wrong_payload["progression"]["concept_courant"], before["concept_courant"])
+
+    def test_tutor_at_level_two_breaks_perfect_chain_even_if_answers_stay_correct(self) -> None:
+        with patch(
+            "main.build_tutor_reply",
+            return_value={
+                "modele": "gemini-3.5-flash",
+                "reponse": "Regarde d'abord le total puis la partie.",
+                "question_recue": "Aide-moi.",
+            },
+        ):
+            start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+            self.assertEqual(start.status_code, 200)
+            payload = start.json()
+            session_id = payload["session_id"]
+            exercice = payload["exercice"]
+
+            level_one = self.client.post(
+                "/evaluer",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "reponse_donnee": _answer_for(exercice),
+                },
+            )
+            self.assertEqual(level_one.status_code, 200)
+            self.assertEqual(level_one.json()["statut"], "correct_niveau_suivant")
+
+            tutor = self.client.post(
+                "/tuteur/aide",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "niveau": "CE1",
+                    "question": "Aide-moi.",
+                },
+            )
+            self.assertEqual(tutor.status_code, 200)
+            self.assertTrue(tutor.json()["progression"]["erreurs_sur_chaine_actuelle"])
+            self.assertEqual(tutor.json()["progression"]["niveau_resolution_courant"], 2)
+
+            level_two = self.client.post(
+                "/evaluer",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "reponse_donnee": _answer_for(exercice),
+                },
+            )
+            self.assertEqual(level_two.status_code, 200)
+            payload = level_two.json()
+            self.assertEqual(payload["statut"], "correct_nouveau_renforcement")
+            self.assertEqual(payload["progression"]["maitrise_actuelle"], 1)
+            self.assertEqual(payload["progression"]["phase"], "renforcement")
+            self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 4)
+
+    def test_tutor_at_level_one_does_not_break_perfect_chain(self) -> None:
+        with patch(
+            "main.build_tutor_reply",
+            return_value={
+                "modele": "gemini-3.5-flash",
+                "reponse": "Commence par lire l'enonce.",
+                "question_recue": "Aide-moi.",
+            },
+        ):
+            start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+            self.assertEqual(start.status_code, 200)
+            payload = start.json()
+            session_id = payload["session_id"]
+            exercice = payload["exercice"]
+
+            tutor = self.client.post(
+                "/tuteur/aide",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "niveau": "CE1",
+                    "question": "Aide-moi.",
+                },
+            )
+            self.assertEqual(tutor.status_code, 200)
+            self.assertFalse(tutor.json()["progression"]["erreurs_sur_chaine_actuelle"])
+            self.assertEqual(tutor.json()["progression"]["niveau_resolution_courant"], 1)
+
+            statuses: list[str] = []
+            for _ in range(3):
+                response = self.client.post(
+                    "/evaluer",
+                    json={
+                        "session_id": session_id,
+                        "exercice_id": exercice["id"],
+                        "reponse_donnee": _answer_for(exercice),
+                    },
+                )
+                self.assertEqual(response.status_code, 200)
+                body = response.json()
+                statuses.append(body["statut"])
+                if "exercice_suivant" in body:
+                    exercice = body["exercice_suivant"]
+
+            self.assertEqual(
+                statuses,
+                [
+                    "correct_niveau_suivant",
+                    "correct_niveau_suivant",
+                    "correct_nouveau_renforcement",
+                ],
+            )
+            self.assertEqual(body["progression"]["maitrise_actuelle"], 3)
+            self.assertEqual(body["progression"]["exercices_renforcement_restants"], 2)
 
 
 if __name__ == "__main__":
