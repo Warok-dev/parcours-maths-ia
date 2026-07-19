@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import random
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -499,6 +500,17 @@ def patterns_disponibles_pour_niveau(niveau: str) -> list[str]:
     ]
 
 
+# Les plages de certains patterns CE1 sont volontairement etroites (sommes
+# sans retenue <= 10) : deux tirages proches dans le temps peuvent etre
+# identiques. On memorise les dernieres variantes par pattern et on retente
+# pour eviter les quasi-doublons consecutifs pendant le renforcement.
+RECENT_VARIANTS_LIMIT = 4
+RECENT_VARIANT_ATTEMPTS = 12
+_RECENT_VARIANTS: dict[str, deque[str]] = defaultdict(
+    lambda: deque(maxlen=RECENT_VARIANTS_LIMIT)
+)
+
+
 def generer_exercice(pattern_name: str, niveau: str | None = None) -> dict:
     if pattern_name not in GENERATOR_REGISTRY:
         raise ValueError(f"Pattern inconnu: {pattern_name}")
@@ -510,7 +522,14 @@ def generer_exercice(pattern_name: str, niveau: str | None = None) -> dict:
     if LEVEL_MAP[actual_niveau] not in PATTERN_DEFS[pattern_name]["levels"]:
         raise ValueError(f"Le pattern {pattern_name} n'est pas disponible pour {actual_niveau}.")
 
-    return GENERATOR_REGISTRY[pattern_name](actual_niveau)
+    recent = _RECENT_VARIANTS[pattern_name]
+    exercice = GENERATOR_REGISTRY[pattern_name](actual_niveau)
+    for _ in range(RECENT_VARIANT_ATTEMPTS):
+        if _exercise_signature(exercice) not in recent:
+            break
+        exercice = GENERATOR_REGISTRY[pattern_name](actual_niveau)
+    recent.append(_exercise_signature(exercice))
+    return exercice
 
 
 def _generer_exercice_unique(

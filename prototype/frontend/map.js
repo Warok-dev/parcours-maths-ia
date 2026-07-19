@@ -16,6 +16,9 @@ const INTERACTION_DISTANCE = 118;
 const LANE_XS = [550, 1560, 660, 1480, 600, 1600];
 const OBSTACLE_TYPES = ["castle_gate", "blocked_road", "broken_bridge", "crossroads"];
 const RIVER_HALF_HEIGHT = 62;
+/* Miroir de REINFORCEMENT_BY_MASTERY cote backend : nombre total de points
+   d'arret sur la route de renforcement selon la maitrise detectee. */
+const REINFORCEMENT_TOTALS = { 1: 4, 2: 3, 3: 2 };
 
 const LESSON_ICONS = {
   addition: "+",
@@ -41,6 +44,10 @@ const restartButton = document.getElementById("restart-button");
 const menuButton = document.getElementById("menu-button");
 const menuDropdown = document.getElementById("menu-dropdown");
 const mapElement = document.getElementById("map");
+const scoreChip = document.getElementById("score-chip");
+const scoreValue = document.getElementById("score-value");
+const minimapButton = document.getElementById("minimap");
+const minimapSvg = document.getElementById("minimap-svg");
 const feedback = document.getElementById("feedback");
 const exerciseOverlay = document.getElementById("exercise-overlay");
 const exerciseModal = document.getElementById("exercise-modal");
@@ -65,6 +72,9 @@ const state = {
   availableLessons: [],
   selectedLesson: null,
   masteryByIndex: {},
+  reinforcement: null,
+  pendingEvaluation: null,
+  score: 0,
 };
 
 let animationFrameId = null;
@@ -102,6 +112,30 @@ function clearFeedback() {
 
 function currentConceptIndex() {
   return state.session ? state.session.concept_index : -1;
+}
+
+/* ============================================================
+   SCORE : compteur de session (remis a zero a chaque nouvelle
+   session), bonus selon la maitrise detectee par le backend.
+   ============================================================ */
+function refreshScoreDisplay() {
+  scoreValue.textContent = String(state.score);
+}
+
+function addScore(points) {
+  if (!points) {
+    return;
+  }
+  state.score += points;
+  refreshScoreDisplay();
+  scoreChip.classList.remove("bump");
+  void scoreChip.offsetWidth; /* relance l'animation */
+  scoreChip.classList.add("bump");
+}
+
+function resetScore() {
+  state.score = 0;
+  refreshScoreDisplay();
 }
 
 function levelLabel() {
@@ -164,6 +198,16 @@ function obstacleTheme(type) {
         intro: "Resous l'exercice pour continuer ton chemin.",
       };
   }
+}
+
+/* Theme des points d'arret d'entrainement le long des routes. */
+function stopTheme() {
+  return {
+    name: "L'entrainement",
+    modalClass: "theme-camp",
+    title: "Halte d'entrainement !",
+    intro: "Un exercice pour bien ancrer la methode, puis reprends la route.",
+  };
 }
 
 /* ============================================================
@@ -328,6 +372,24 @@ const ASSETS = {
         <line x1="-52" y1="-76" x2="-52" y2="76" class="bridge-rail"></line>
         <line x1="52" y1="-76" x2="52" y2="76" class="bridge-rail"></line>
       </g>
+    `;
+  },
+
+  /* Point d'arret d'entrainement : petit socle + fanion. */
+  trainingStop(status) {
+    if (status === "done") {
+      return `
+        <ellipse cx="2" cy="6" rx="18" ry="10" class="tree-shadow"></ellipse>
+        <circle cx="0" cy="0" r="15" class="stop-pad done"></circle>
+        <path d="M -6 0 l 4 5 l 8 -10" class="stop-check"></path>
+      `;
+    }
+    return `
+      <ellipse cx="2" cy="6" rx="18" ry="10" class="tree-shadow"></ellipse>
+      <circle cx="0" cy="0" r="15" class="stop-pad"></circle>
+      <circle cx="0" cy="0" r="15" class="stop-pulse-ring"></circle>
+      <rect x="-2" y="-30" width="4" height="30" rx="2" class="stop-pole"></rect>
+      <path d="M 2 -30 l 17 5.5 l -17 5.5 Z" class="stop-flag"></path>
     `;
   },
 
@@ -508,43 +570,121 @@ function buildRoadPath(points) {
   return path;
 }
 
-/* Trois chemins par troncon : court (direct, dore), moyen (la route),
-   long (tres sinueux, brun). Actif = celui de la maitrise detectee. */
+/* Geometrie des trois routes qui partent de l'obstacle obstacleIndex vers le
+   point suivant (obstacle suivant ou sortie) : courte (directe, doree),
+   moyenne (la route principale), longue (tres sinueuse, brune). C'est la
+   route de renforcement du concept obstacleIndex. */
+function branchGeometry(scene, obstacleIndex) {
+  const a = scene.routePoints[obstacleIndex + 1];
+  const b = scene.routePoints[obstacleIndex + 2];
+  if (!a || !b) {
+    return null;
+  }
+  const next = scene.obstacles[obstacleIndex + 1] || null;
+  /* Devant un pont, on s'arrete sur la berge nord, pas dans la riviere. */
+  const endOffset = next && next.type === "broken_bridge" ? 116 : 72;
+  const start = { x: a.x, y: a.y + 56 };
+  const end = { x: b.x, y: b.y - endOffset };
+  const dx = end.x - start.x;
+  const side = dx >= 0 ? 1 : -1;
+  const midY = (start.y + end.y) / 2;
+
+  const short = `M ${start.x} ${start.y} Q ${(start.x + end.x) / 2 + side * 30} ${midY - 40} ${end.x} ${end.y}`;
+  const medium = `M ${start.x} ${start.y} C ${start.x} ${midY} ${end.x} ${midY} ${end.x} ${end.y}`;
+  const long = `M ${start.x} ${start.y}
+    C ${start.x - side * 190} ${start.y + 60} ${start.x - side * 210} ${midY - 30} ${(start.x + end.x) / 2 - side * 60} ${midY}
+    C ${end.x + side * 230} ${midY + 40} ${end.x + side * 190} ${end.y - 70} ${end.x} ${end.y}`;
+
+  return { short, medium, long };
+}
+
+/* Chemin de renforcement effectif selon la maitrise : 3 = court, 2 = moyen
+   (la route principale), 1 = long. Meme mapping que le rendu visuel. */
+function reinforcementRouteD(geometry, mastery) {
+  if (mastery === 3) {
+    return geometry.short;
+  }
+  if (mastery === 1) {
+    return geometry.long;
+  }
+  return geometry.medium;
+}
+
 function branchMarkup(scene) {
   const segments = [];
-  for (let index = 1; index < scene.routePoints.length; index += 1) {
-    const a = scene.routePoints[index - 1];
-    const b = scene.routePoints[index];
-    const afterObstacleIndex = index - 1; // troncon qui SUIT l'obstacle index-1
-    if (afterObstacleIndex < 0 || afterObstacleIndex >= scene.obstacles.length) continue;
-    const obstacle = scene.obstacles[afterObstacleIndex];
-    const next = scene.obstacles[afterObstacleIndex + 1];
-    if (next && next.type === "broken_bridge") continue; // pas de branche a travers la riviere
-    const mastery = state.masteryByIndex[afterObstacleIndex] || null;
-
-    const start = { x: a.x, y: a.y + 56 };
-    const end = { x: b.x, y: b.y - 72 };
-    const dx = end.x - start.x;
-    const side = dx >= 0 ? 1 : -1;
-
-    const shortPath = `M ${start.x} ${start.y} Q ${(start.x + end.x) / 2 + side * 30} ${(start.y + end.y) / 2 - 40} ${end.x} ${end.y}`;
-    const midY = (start.y + end.y) / 2;
-    const longPath = `M ${start.x} ${start.y}
-      C ${start.x - side * 190} ${start.y + 60} ${start.x - side * 210} ${midY - 30} ${(start.x + end.x) / 2 - side * 60} ${midY}
-      C ${end.x + side * 230} ${midY + 40} ${end.x + side * 190} ${end.y - 70} ${end.x} ${end.y}`;
+  for (const obstacle of scene.obstacles) {
+    const geometry = branchGeometry(scene, obstacle.index);
+    if (!geometry) continue;
+    const mastery = state.masteryByIndex[obstacle.index] || null;
 
     segments.push(`
       <g class="path-branch path-short ${mastery === 3 ? "active-path" : ""}">
-        <path d="${shortPath}" class="path-short-edge"></path>
-        <path d="${shortPath}" class="path-short-surface"></path>
+        <path d="${geometry.short}" class="path-short-edge"></path>
+        <path d="${geometry.short}" class="path-short-surface"></path>
       </g>
       <g class="path-branch path-long ${mastery === 1 ? "active-path" : ""}">
-        <path d="${longPath}" class="path-long-edge"></path>
-        <path d="${longPath}" class="path-long-surface"></path>
+        <path d="${geometry.long}" class="path-long-edge"></path>
+        <path d="${geometry.long}" class="path-long-surface"></path>
       </g>
     `);
   }
   return segments.join("");
+}
+
+/* ============================================================
+   POINTS D'ARRET DE RENFORCEMENT
+   N marqueurs le long de la route active ; le joueur doit marcher
+   jusqu'a chacun et resoudre un exercice pour continuer.
+   ============================================================ */
+function computeReinforcementStops() {
+  if (!state.scene || !state.session || state.session.phase !== "renforcement") {
+    return null;
+  }
+  const conceptIndex = state.session.concept_index;
+  const mastery = state.session.maitrise_actuelle || 2;
+  const total = REINFORCEMENT_TOTALS[mastery] || state.session.exercices_renforcement_restants;
+  const remaining = state.session.exercices_renforcement_restants;
+  const geometry = branchGeometry(state.scene, conceptIndex);
+  if (!geometry || total <= 0) {
+    return null;
+  }
+
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", reinforcementRouteD(geometry, mastery));
+  const length = path.getTotalLength();
+  if (!length) {
+    return null;
+  }
+  const stops = [];
+  for (let index = 0; index < total; index += 1) {
+    /* Etale les haltes de 18% a 85% de la route pour qu'elles epousent les
+       virages (les fractions centrales tombent sur la partie droite). */
+    const fraction = total === 1 ? 0.5 : 0.18 + (0.67 * index) / (total - 1);
+    const point = path.getPointAtLength(fraction * length);
+    stops.push({ x: point.x, y: point.y });
+  }
+  return { conceptIndex, mastery, total, remaining, stops, nextStopIndex: total - remaining };
+}
+
+function stopsMarkup() {
+  if (!state.reinforcement) {
+    return "";
+  }
+  const { stops, nextStopIndex } = state.reinforcement;
+  return stops
+    .map((stop, index) => {
+      const status = index < nextStopIndex ? "done" : index === nextStopIndex ? "current" : "locked";
+      return `
+        <g class="reinforcement-stop stop-${status}" transform="translate(${stop.x}, ${stop.y})">
+          ${ASSETS.trainingStop(status)}
+        </g>
+      `;
+    })
+    .join("");
+}
+
+function stopIconSvg() {
+  return `<svg viewBox="-26 -38 52 56" aria-hidden="true">${ASSETS.trainingStop("current")}</svg>`;
 }
 
 /* ============================================================
@@ -559,7 +699,9 @@ function obstacleStatus(index) {
     return "done";
   }
   if (index === currentIndex) {
-    return "current";
+    /* Detection reussie : l'obstacle s'ouvre et le joueur part s'entrainer
+       sur la route ; les points d'arret prennent le relais. */
+    return state.session.phase === "renforcement" ? "done" : "current";
   }
   return "locked";
 }
@@ -749,6 +891,7 @@ function sceneMarkup(scene) {
       <path d="${roadPath}" class="road-paving offset" transform="translate(-14, -8)"></path>
     </g>
     <g class="props-layer">${propsMarkup(scene)}</g>
+    <g class="stops-layer">${stopsMarkup()}</g>
     <g class="obstacle-layer">
       ${scene.obstacles.map(obstacleMarkup).join("")}
     </g>
@@ -756,20 +899,78 @@ function sceneMarkup(scene) {
       <rect x="-118" y="-30" width="236" height="46" rx="20" class="hint-bubble"></rect>
       <rect x="-104" y="-21" width="64" height="28" rx="8" class="hint-key"></rect>
       <text x="-72" y="0" text-anchor="middle" class="hint-text">Entree</text>
-      <text x="30" y="0" text-anchor="middle" class="hint-text">pour aider !</text>
+      <text x="30" y="0" text-anchor="middle" class="hint-text" id="hint-action-text">pour aider !</text>
     </g>
     <g id="fx-layer"></g>
     <g id="player-token" class="player-token">${ASSETS.player()}</g>
   `;
 }
 
+/* ============================================================
+   MINI-MAP : structure simplifiee du parcours en coin d'ecran.
+   Vert = traverse, orange = courant, gris = a venir.
+   ============================================================ */
+function minimapStatus(index) {
+  const currentIndex = currentConceptIndex();
+  if (!state.session || currentIndex < 0) {
+    return "locked";
+  }
+  if (state.session.terminee || index < currentIndex) {
+    return "done";
+  }
+  return index === currentIndex ? "current" : "locked";
+}
+
+function renderMinimap() {
+  if (!minimapSvg) {
+    return;
+  }
+  if (!state.scene) {
+    minimapSvg.innerHTML = "";
+    return;
+  }
+  const scene = state.scene;
+  minimapSvg.setAttribute("viewBox", `0 0 ${scene.width} ${scene.height}`);
+  minimapSvg.innerHTML = `
+    <path d="${buildRoadPath(scene.routePoints)}" class="mini-road"></path>
+    ${
+      state.reinforcement
+        ? state.reinforcement.stops
+            .map(
+              (stop, i) =>
+                `<circle cx="${stop.x}" cy="${stop.y}" r="34" class="mini-stop ${i < state.reinforcement.nextStopIndex ? "done" : ""}"></circle>`,
+            )
+            .join("")
+        : ""
+    }
+    ${scene.obstacles
+      .map(
+        (obstacle) =>
+          `<circle cx="${obstacle.x}" cy="${obstacle.barrierY}" r="64" class="mini-obstacle mini-${minimapStatus(obstacle.index)}"></circle>`,
+      )
+      .join("")}
+    <circle id="minimap-player" r="46" class="mini-player"></circle>
+  `;
+  updateMinimapPlayer();
+}
+
+function updateMinimapPlayer() {
+  const node = document.getElementById("minimap-player");
+  if (node) {
+    node.setAttribute("transform", `translate(${state.playerPosition.x}, ${state.playerPosition.y})`);
+  }
+}
+
 function renderScene() {
   if (!state.session) {
     mapElement.innerHTML = "";
+    renderMinimap();
     return;
   }
   state.scene = createSceneModel(state.session.concepts || []);
+  state.reinforcement = computeReinforcementStops();
   mapElement.innerHTML = sceneMarkup(state.scene);
+  renderMinimap();
   updateSceneDynamics();
   applyCameraViewBox();
 }
@@ -805,16 +1006,34 @@ function clampToBounds(position) {
   };
 }
 
-function applyCurrentBarrier(nextPosition, previousPosition) {
+/* La prochaine cible d'interaction : le point d'arret de renforcement en
+   attente, sinon l'obstacle courant a debloquer. */
+function interactionTarget() {
+  if (!state.session || state.session.terminee) {
+    return null;
+  }
+  if (state.reinforcement) {
+    const stop = state.reinforcement.stops[state.reinforcement.nextStopIndex];
+    if (stop) {
+      return { kind: "stop", x: stop.x, y: stop.y };
+    }
+  }
   const obstacle = activeObstacle();
-  if (!obstacle || state.panelOpen || state.session.terminee) {
+  if (obstacle && obstacleStatus(obstacle.index) === "current") {
+    return { kind: "obstacle", x: obstacle.x, y: obstacle.barrierY };
+  }
+  return null;
+}
+
+function applyCurrentBarrier(nextPosition, previousPosition) {
+  if (state.panelOpen || !state.session || state.session.terminee) {
     return nextPosition;
   }
-  const unresolved = obstacleStatus(obstacle.index) === "current";
-  if (!unresolved) {
+  const target = interactionTarget();
+  if (!target) {
     return nextPosition;
   }
-  const barrierY = obstacle.barrierY - PLAYER_RADIUS;
+  const barrierY = target.y - PLAYER_RADIUS;
   if (previousPosition.y <= barrierY && nextPosition.y > barrierY) {
     return { ...nextPosition, y: barrierY };
   }
@@ -822,11 +1041,9 @@ function applyCurrentBarrier(nextPosition, previousPosition) {
 }
 
 function updateNearObstacle() {
-  const obstacle = activeObstacle();
+  const target = interactionTarget();
   state.nearObstacle =
-    Boolean(obstacle) &&
-    distance(state.playerPosition, { x: obstacle.x, y: obstacle.barrierY }) <= INTERACTION_DISTANCE &&
-    !state.session.terminee;
+    Boolean(target) && distance(state.playerPosition, target) <= INTERACTION_DISTANCE;
 }
 
 function updateSceneDynamics() {
@@ -844,14 +1061,20 @@ function updateSceneDynamics() {
   }
 
   const hintNode = document.getElementById("interaction-hint");
-  const obstacle = activeObstacle();
+  const target = interactionTarget();
   const hintVisible = state.nearObstacle && !state.panelOpen;
-  if (hintNode && obstacle) {
-    hintNode.setAttribute("transform", `translate(${obstacle.x}, ${obstacle.barrierY - 152})`);
+  if (hintNode && target) {
+    const hintY = target.kind === "stop" ? target.y - 84 : target.y - 152;
+    hintNode.setAttribute("transform", `translate(${target.x}, ${hintY})`);
     hintNode.classList.toggle("visible", hintVisible);
+    const actionText = document.getElementById("hint-action-text");
+    if (actionText) {
+      actionText.textContent = target.kind === "stop" ? "s'entrainer !" : "pour aider !";
+    }
   }
   /* La bulle remplace le marqueur "!" quand le joueur est assez proche. */
   mapElement.classList.toggle("hint-visible", hintVisible);
+  updateMinimapPlayer();
 }
 
 /* ============================================================
@@ -920,6 +1143,9 @@ function openExercisePanel() {
 }
 
 function closeExercisePanel() {
+  /* Si une correction attendait le bouton "Continuer", on applique quand
+     meme la progression : le backend a deja avance. */
+  finalizePendingEvaluation();
   state.panelOpen = false;
   exerciseOverlay.classList.add("hidden");
   exerciseModal.innerHTML = "";
@@ -934,7 +1160,11 @@ function renderExerciseModal() {
 
   const exercise = state.currentExercise;
   const obstacle = activeObstacle();
-  const theme = obstacleTheme(obstacle?.type);
+  const atStop = Boolean(state.reinforcement);
+  const theme = atStop ? stopTheme() : obstacleTheme(obstacle?.type);
+  const mechanic = window.ParcoursMechanics
+    ? window.ParcoursMechanics.choose(exercise, state.session.concept_index || 0)
+    : "clavier";
   const resolutionKey = state.session.presentation_courante;
   const details = exercise.presentations?.[resolutionKey] || {};
   const steps = (details.etapes_methode || []).map((step) => `<li>${step}</li>`).join("");
@@ -948,7 +1178,7 @@ function renderExerciseModal() {
   exerciseModal.innerHTML = `
     <button id="close-exercise" class="modal-close" type="button" aria-label="Fermer">&#10005;</button>
     <div class="modal-head">
-      <span class="modal-icon">${obstacleIconSvg(obstacle?.type, "current")}</span>
+      <span class="modal-icon">${atStop ? stopIconSvg() : obstacleIconSvg(obstacle?.type, "current")}</span>
       <div>
         <h2 class="modal-title">${theme.title}</h2>
         <p class="modal-intro">${theme.intro}</p>
@@ -968,9 +1198,14 @@ function renderExerciseModal() {
             </div>`
           : ""
       }
-      <form id="exercise-form" class="exercise-form">
-        <label for="answer-input">Ta reponse</label>
-        <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="numeric" />
+      <form id="exercise-form" class="exercise-form" data-mechanic="${mechanic}">
+        ${
+          mechanic === "clavier"
+            ? `<label for="answer-input">Ta reponse</label>
+               <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="numeric" />`
+            : `<input id="answer-input" name="answer" type="hidden" />
+               <div id="mechanic-area" class="mechanic-area"></div>`
+        }
         <div class="exercise-actions">
           <button type="submit" class="btn-primary">Valider</button>
           <button id="help-button" type="button" class="btn-help">&#129417; Aide</button>
@@ -980,13 +1215,23 @@ function renderExerciseModal() {
   `;
   exerciseOverlay.classList.remove("hidden");
 
-  document.getElementById("exercise-form").addEventListener("submit", handleSubmitAnswer);
+  const form = document.getElementById("exercise-form");
+  form.addEventListener("submit", handleSubmitAnswer);
   document.getElementById("help-button").addEventListener("click", () => {
     window.ParcoursChat?.open();
     document.getElementById("chat-input")?.focus();
   });
   document.getElementById("close-exercise").addEventListener("click", closeExercisePanel);
-  document.getElementById("answer-input")?.focus();
+  if (mechanic === "clavier") {
+    document.getElementById("answer-input")?.focus();
+  } else {
+    window.ParcoursMechanics.mount(document.getElementById("mechanic-area"), mechanic, exercise, {
+      setValue: (value) => {
+        document.getElementById("answer-input").value = value;
+      },
+      submit: () => form.requestSubmit(),
+    });
+  }
 }
 
 /* ============================================================
@@ -1109,6 +1354,9 @@ async function startSession(level, lessonId) {
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
   state.masteryByIndex = {};
+  state.reinforcement = null;
+  state.pendingEvaluation = null;
+  resetScore();
   state.selectedLesson =
     state.availableLessons.find((lesson) => lesson.lecon_id === lessonId) || {
       lecon_id: lessonId,
@@ -1117,9 +1365,25 @@ async function startSession(level, lessonId) {
   applySessionSnapshot(payload.progression, payload.exercice);
   showGameScreen();
   clearFeedback();
+  window.ParcoursAudio?.setMusicActive(true);
 }
 
-function feedbackFromStatus(status) {
+function openingMessage(obstacleType) {
+  switch (obstacleType) {
+    case "castle_gate":
+      return "Bravo ! La porte du chateau s'ouvre !";
+    case "blocked_road":
+      return "Bravo ! La route est degagee !";
+    case "broken_bridge":
+      return "Bravo ! Le pont est repare !";
+    case "crossroads":
+      return "Bravo ! Le chemin cache apparait !";
+    default:
+      return "Bravo ! Tu peux continuer !";
+  }
+}
+
+function feedbackFromStatus(status, context) {
   switch (status) {
     case "correct_niveau_suivant":
       return {
@@ -1127,23 +1391,21 @@ function feedbackFromStatus(status) {
         tone: "success",
       };
     case "correct_nouveau_renforcement":
+      if (context.previousPhase === "detection_maitrise") {
+        return {
+          message: `${openingMessage(context.previousObstacle?.type)} Suis la route jusqu'au premier fanion d'entrainement.`,
+          tone: "success",
+        };
+      }
       return {
-        message: "Bravo ! Voici un nouvel exercice d'entrainement.",
+        message: "Bravo ! Continue jusqu'au prochain fanion !",
         tone: "success",
       };
     case "correct_concept_debloque":
-      switch (state.lastUnlockedType) {
-        case "castle_gate":
-          return { message: "Bravo ! La porte du chateau s'ouvre !", tone: "success" };
-        case "blocked_road":
-          return { message: "Bravo ! La route est degagee !", tone: "success" };
-        case "broken_bridge":
-          return { message: "Bravo ! Le pont est repare !", tone: "success" };
-        case "crossroads":
-          return { message: "Bravo ! Le chemin cache apparait !", tone: "success" };
-        default:
-          return { message: "Bravo ! Tu peux continuer !", tone: "success" };
-      }
+      return {
+        message: "Bravo ! Entrainement termine, un nouveau defi t'attend plus loin !",
+        tone: "success",
+      };
     case "incorrect":
       return {
         message: "Presque ! Essaie encore une fois.",
@@ -1159,6 +1421,118 @@ function feedbackFromStatus(status) {
   }
 }
 
+/* Applique le resultat d'une evaluation : fermeture eventuelle de la popup,
+   snapshot de session, effets et feedback. Appele directement, ou apres le
+   bouton "Continuer" de la correction (niveau 2). */
+function applyEvaluationResult(payload, context) {
+  const statut = payload.statut;
+  const opensObstacle =
+    statut === "correct_nouveau_renforcement" && context.previousPhase === "detection_maitrise";
+  const stopCompleted =
+    statut === "correct_nouveau_renforcement" && context.previousPhase === "renforcement";
+  const unlocked = statut === "correct_concept_debloque";
+  const finished = statut === "carte_terminee";
+
+  if (opensObstacle || stopCompleted || unlocked || finished) {
+    state.panelOpen = false;
+    exerciseOverlay.classList.add("hidden");
+    exerciseModal.innerHTML = "";
+  }
+  if (opensObstacle) {
+    state.justUnlockedIndex = context.previousConceptIndex;
+    state.justUnlockedUntil = Date.now() + 1400;
+    state.lastUnlockedType = context.previousObstacle?.type || null;
+  }
+
+  if (statut === "incorrect") {
+    window.ParcoursAudio?.playWrong();
+  } else if (opensObstacle || unlocked || finished) {
+    window.ParcoursAudio?.playUnlock();
+  } else {
+    window.ParcoursAudio?.playCorrect();
+  }
+
+  /* Score : 10 points par bonne reponse sur une chaine sans erreur ni tuteur
+     (5 sinon), bonus de detection proportionnel a la maitrise calculee par le
+     backend (x10), bonus de deblocage de concept (+20). */
+  if (statut !== "incorrect") {
+    let points = context.chainClean ? 10 : 5;
+    if (opensObstacle) {
+      points += (payload.progression?.maitrise_actuelle || 1) * 10;
+    }
+    if (unlocked || finished) {
+      points += 20;
+    }
+    addScore(points);
+  }
+
+  const nextExercise = payload.exercice_suivant || state.currentExercise;
+  applySessionSnapshot(payload.progression, nextExercise);
+  state.currentExercise = nextExercise;
+
+  if (opensObstacle && context.previousObstacle) {
+    spawnUnlockFx(context.previousObstacle.x, context.previousObstacle.barrierY);
+  } else if ((stopCompleted || unlocked || finished) && context.previousStop) {
+    spawnUnlockFx(context.previousStop.x, context.previousStop.y);
+  }
+
+  const meta = feedbackFromStatus(statut, context);
+  setFeedback(meta.message, meta.tone);
+
+  if (state.panelOpen) {
+    /* Seule la saisie clavier se vide manuellement : les autres mecaniques
+       viennent d'etre remontees par le re-rendu de la popup et gerent
+       elles-memes leur valeur initiale. */
+    const form = document.getElementById("exercise-form");
+    if (form?.dataset.mechanic === "clavier") {
+      const refreshedInput = document.getElementById("answer-input");
+      if (refreshedInput) {
+        refreshedInput.value = "";
+        refreshedInput.focus();
+      }
+    }
+  }
+}
+
+function finalizePendingEvaluation() {
+  const pending = state.pendingEvaluation;
+  if (!pending) {
+    return;
+  }
+  state.pendingEvaluation = null;
+  applyEvaluationResult(pending.payload, pending.context);
+}
+
+/* Niveau 2 (semi-guide) : correction explicite apres validation, juste ou
+   faux, avant de continuer. Pilote par correction_apres_coup du schema. */
+function renderCorrectionView(payload, context) {
+  const exercise = context.answeredExercise;
+  const guideSteps = exercise.presentations?.["1_guide"]?.etapes_methode || [];
+  const explanation = guideSteps.length ? guideSteps[guideSteps.length - 1] : "";
+  const expected = exercise.reponse_attendue?.valeur;
+  const expectedText = Array.isArray(expected) ? expected.join(", ") : String(expected);
+
+  const paper = exerciseModal.querySelector(".modal-paper");
+  const form = document.getElementById("exercise-form");
+  if (!paper || !form) {
+    finalizePendingEvaluation();
+    return;
+  }
+  form.classList.add("hidden");
+  const block = document.createElement("div");
+  block.className = `correction-block ${payload.correct ? "correct" : "wrong"}`;
+  block.innerHTML = `
+    <p class="correction-verdict">${payload.correct ? "C'est juste, bravo !" : "Pas tout a fait..."}</p>
+    <p class="correction-answer">La bonne reponse : <strong>${expectedText}</strong></p>
+    ${explanation ? `<p class="correction-explain">${explanation}</p>` : ""}
+    <button id="correction-continue" class="btn-primary" type="button">Continuer</button>
+  `;
+  paper.appendChild(block);
+  const continueButton = document.getElementById("correction-continue");
+  continueButton.addEventListener("click", finalizePendingEvaluation);
+  continueButton.focus();
+}
+
 async function handleSubmitAnswer(event) {
   event.preventDefault();
   if (!state.currentExercise || !state.sessionId) {
@@ -1168,13 +1542,29 @@ async function handleSubmitAnswer(event) {
   const answerInput = event.currentTarget.querySelector("#answer-input");
   const reponse = answerInput.value.trim();
   if (!reponse) {
-    setFeedback("Entre une reponse avant de valider.", "warning");
+    const mechanicName = event.currentTarget.dataset.mechanic;
+    setFeedback(
+      mechanicName && mechanicName !== "clavier"
+        ? "Choisis ta reponse avant de valider."
+        : "Entre une reponse avant de valider.",
+      "warning",
+    );
     return;
   }
 
+  const context = {
+    previousConceptIndex: currentConceptIndex(),
+    previousObstacle: activeObstacle(),
+    previousPhase: state.session.phase,
+    chainClean: !state.session.erreurs_sur_chaine_actuelle,
+    previousStop: state.reinforcement
+      ? state.reinforcement.stops[state.reinforcement.nextStopIndex] || null
+      : null,
+    answeredExercise: state.currentExercise,
+    answeredPresentation: state.session.presentation_courante,
+  };
+
   try {
-    const previousConceptIndex = currentConceptIndex();
-    const previousObstacle = activeObstacle();
     const payload = await request("/evaluer", {
       method: "POST",
       body: JSON.stringify({
@@ -1184,36 +1574,13 @@ async function handleSubmitAnswer(event) {
       }),
     });
 
-    const unlocked = payload.statut === "correct_concept_debloque";
-    const finished = payload.statut === "carte_terminee";
-
-    if (unlocked || finished) {
-      state.justUnlockedIndex = previousConceptIndex;
-      state.justUnlockedUntil = Date.now() + 1400;
-      state.lastUnlockedType = previousObstacle?.type || null;
-      state.panelOpen = false;
-      exerciseOverlay.classList.add("hidden");
-      exerciseModal.innerHTML = "";
+    const answeredDetail = context.answeredExercise.presentations?.[context.answeredPresentation];
+    if (answeredDetail?.correction_apres_coup) {
+      state.pendingEvaluation = { payload, context };
+      renderCorrectionView(payload, context);
+      return;
     }
-
-    const nextExercise = payload.exercice_suivant || state.currentExercise;
-    applySessionSnapshot(payload.progression, nextExercise);
-    state.currentExercise = nextExercise;
-
-    if ((unlocked || finished) && previousObstacle) {
-      spawnUnlockFx(previousObstacle.x, previousObstacle.barrierY);
-    }
-
-    const meta = feedbackFromStatus(payload.statut);
-    setFeedback(meta.message, meta.tone);
-
-    if (state.panelOpen) {
-      const refreshedInput = document.getElementById("answer-input");
-      if (refreshedInput) {
-        refreshedInput.value = "";
-        refreshedInput.focus();
-      }
-    }
+    applyEvaluationResult(payload, context);
   } catch (error) {
     /* 503 = generation du prochain exercice indisponible : la session n'a pas
        bouge cote backend, l'eleve peut simplement revalider la meme reponse. */
@@ -1240,7 +1607,14 @@ function resetSharedState() {
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
   state.masteryByIndex = {};
+  state.reinforcement = null;
+  state.pendingEvaluation = null;
+  resetScore();
+  window.ParcoursAudio?.setMusicActive(false);
   mapElement.innerHTML = "";
+  if (minimapSvg) {
+    minimapSvg.innerHTML = "";
+  }
   exerciseOverlay.classList.add("hidden");
   exerciseModal.innerHTML = "";
   clearFeedback();
@@ -1345,6 +1719,7 @@ function tick(timestamp) {
       /* Le personnage est dessine face au sud : on oriente vers la direction. */
       const targetAngle = (Math.atan2(vector.dy, vector.dx) * 180) / Math.PI - 90;
       state.playerAngle = easeAngle(state.playerAngle, targetAngle, Math.min(1, deltaSeconds * 14));
+      window.ParcoursAudio?.footstep(performance.now());
     }
     updateNearObstacle();
     updateSceneDynamics();
@@ -1371,6 +1746,22 @@ function closeMenuDropdown() {
   menuDropdown.classList.add("hidden");
   menuButton.setAttribute("aria-expanded", "false");
 }
+
+const muteButton = document.getElementById("mute-button");
+if (window.ParcoursAudio?.isMuted()) {
+  muteButton.classList.add("muted");
+  muteButton.setAttribute("aria-pressed", "true");
+}
+muteButton.addEventListener("click", () => {
+  const muted = window.ParcoursAudio?.toggleMute() ?? false;
+  muteButton.classList.toggle("muted", muted);
+  muteButton.setAttribute("aria-pressed", String(muted));
+});
+
+minimapButton.addEventListener("click", () => {
+  const expanded = minimapButton.classList.toggle("expanded");
+  minimapButton.setAttribute("aria-expanded", String(expanded));
+});
 
 menuButton.addEventListener("click", (event) => {
   event.stopPropagation();
@@ -1425,6 +1816,8 @@ window.ParcoursApp = {
     const obstacle = activeObstacle();
     return obstacle ? { x: obstacle.x, y: obstacle.barrierY, type: obstacle.type } : null;
   },
+  getReinforcement: () => state.reinforcement,
+  getInteractionTarget: () => interactionTarget(),
   openExercisePanel,
 };
 

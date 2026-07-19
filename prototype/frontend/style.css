@@ -321,6 +321,99 @@ input {
 .hud-top-left {
   top: 14px;
   left: 14px;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+/* ---------- Score ---------- */
+.hud-score {
+  padding: 6px 14px 6px 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.hud-score.bump {
+  animation: scoreBump 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scoreBump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Mini-map ---------- */
+.hud-bottom-left {
+  left: 18px;
+  bottom: 18px;
+  z-index: 30;
+}
+
+.minimap {
+  display: block;
+  width: 148px;
+  height: 118px;
+  padding: 8px;
+  background: rgba(251, 243, 231, 0.92);
+  border: 3px solid var(--wood);
+  border-radius: 14px;
+  box-shadow: var(--shadow-chip);
+  cursor: pointer;
+  transition: width 220ms ease, height 220ms ease, transform 120ms ease;
+}
+
+.minimap:hover {
+  transform: scale(1.03);
+}
+
+.minimap.expanded {
+  width: 330px;
+  height: 262px;
+}
+
+.minimap svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mini-road {
+  fill: none;
+  stroke: var(--road);
+  stroke-width: 80;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+.mini-obstacle {
+  stroke: var(--cream);
+  stroke-width: 18;
+}
+
+.mini-obstacle.mini-done {
+  fill: var(--success);
+}
+
+.mini-obstacle.mini-current {
+  fill: var(--road-dark);
+}
+
+.mini-obstacle.mini-locked {
+  fill: var(--stone-dark);
+}
+
+.mini-stop {
+  fill: var(--gold-dark);
+}
+
+.mini-stop.done {
+  fill: var(--success);
+}
+
+.mini-player {
+  fill: var(--player-shirt);
+  stroke: var(--cream);
+  stroke-width: 16;
 }
 
 .hud-top-right {
@@ -379,6 +472,23 @@ input {
 .hud-round-button svg {
   width: 28px;
   height: 28px;
+}
+
+/* Bouton son : la barre de "coupe" n'apparait qu'en mode muet */
+#mute-button .mute-slash {
+  display: none;
+}
+
+#mute-button.muted .mute-slash {
+  display: block;
+}
+
+#mute-button.muted .mute-waves {
+  display: none;
+}
+
+#mute-button.muted {
+  opacity: 0.7;
 }
 
 .menu-dropdown {
@@ -955,6 +1065,380 @@ input {
   border-color: var(--stone-deep);
 }
 
+/* ----- Theme CAMP : halte d'entrainement sur la route ----- */
+.theme-camp {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(124, 182, 104, 0.2), transparent 40%),
+    radial-gradient(circle at 88% 92%, rgba(124, 182, 104, 0.24), transparent 42%),
+    var(--cream);
+  border: 5px solid var(--grass-dark);
+  border-radius: 24px;
+  box-shadow: var(--shadow-pop), inset 0 3px 0 rgba(251, 243, 231, 0.6);
+}
+
+.theme-camp .modal-title {
+  color: #2c5e35;
+}
+
+.theme-camp .modal-icon {
+  border-color: var(--grass-dark);
+}
+
+/* ----- Correction apres coup (niveau 2 semi-guide) ----- */
+.correction-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 3px solid var(--success);
+  background: rgba(75, 143, 86, 0.12);
+}
+
+.correction-block.wrong {
+  border-color: var(--danger);
+  background: rgba(192, 91, 74, 0.12);
+}
+
+.correction-verdict {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2c5e35;
+}
+
+.correction-block.wrong .correction-verdict {
+  color: #8a3a2c;
+}
+
+.correction-answer {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.correction-answer strong {
+  font-size: 1.2rem;
+}
+
+.correction-explain {
+  margin: 0;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.correction-block .btn-primary {
+  justify-self: end;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   MECANIQUES D'INTERACTION (planches, ligne, cadenas, panier)
+   ============================================================ */
+.mechanic-area {
+  display: grid;
+  gap: 10px;
+}
+
+.mech-hint {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* ----- Planches du pont ----- */
+.plank-slots,
+.plank-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.plank-slots {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(95, 159, 192, 0.18);
+  border: 3px dashed var(--water-dark);
+}
+
+.plank-slot,
+.plank-piece {
+  min-width: 54px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-family: var(--font-round);
+  font-size: 1.3rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plank-slot {
+  background: rgba(61, 44, 30, 0.12);
+  border: 3px dashed var(--wood);
+  color: var(--wood);
+}
+
+.plank-slot.filled {
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border: 3px solid var(--wood-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+}
+
+.plank-piece {
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border: 3px solid var(--wood-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+}
+
+.plank-piece:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.plank-piece:not(:disabled):hover,
+.plank-slot.filled:hover {
+  transform: translateY(-2px);
+}
+
+/* ----- Ligne numerique ----- */
+.mech-line {
+  padding: 12px 8px 8px;
+  border-radius: 14px;
+  background: rgba(124, 182, 104, 0.14);
+  border: 3px solid var(--grass-dark);
+  outline: none;
+}
+
+.mech-line:focus-visible {
+  border-color: var(--gold-dark);
+}
+
+.line-track {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 26px 4px 4px;
+  border-bottom: 5px solid var(--wood);
+  border-radius: 2px;
+}
+
+.line-tick {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 30px;
+  padding: 0 2px 4px;
+  background: transparent;
+  border: none;
+  font-family: var(--font-round);
+  cursor: pointer;
+}
+
+.line-notch {
+  width: 4px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--wood);
+}
+
+.line-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.line-hop {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--player-shirt);
+  border: 3px solid var(--player-shirt-dark);
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.line-tick.on .line-hop {
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 140ms ease;
+}
+
+.line-tick.on .line-label {
+  color: var(--ink);
+  font-size: 1.1rem;
+}
+
+.line-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.line-progress {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* ----- Cadenas a combinaison ----- */
+.mech-lock {
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  outline: none;
+}
+
+.lock-shackle {
+  width: 74px;
+  height: 34px;
+  border: 10px solid var(--stone-dark);
+  border-bottom: none;
+  border-radius: 40px 40px 0 0;
+}
+
+.lock-body {
+  display: flex;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  border: 4px solid var(--wood-dark);
+  box-shadow: var(--shadow-chip);
+}
+
+.lock-wheel {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 3px solid transparent;
+}
+
+.lock-wheel.active {
+  border-color: var(--cream);
+  background: rgba(251, 243, 231, 0.25);
+}
+
+.lock-digit {
+  min-width: 40px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--cream);
+  border: 3px solid var(--wood-dark);
+  font-family: var(--font-round);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+}
+
+.lock-up,
+.lock-down {
+  width: 34px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid var(--wood-dark);
+  background: var(--cream);
+  color: var(--wood-dark);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.lock-up:hover,
+.lock-down:hover {
+  background: var(--cream-dark);
+}
+
+/* ----- Panier a remplir ----- */
+.basket-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(124, 182, 104, 0.14);
+  border: 3px solid var(--grass-dark);
+}
+
+.basket-item {
+  width: 44px;
+  height: 44px;
+  padding: 4px;
+  background: transparent;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.basket-item:hover {
+  border-color: var(--gold);
+}
+
+.basket-item.in-basket {
+  background: rgba(240, 184, 75, 0.3);
+  border-color: var(--gold-dark);
+}
+
+.basket-fruit {
+  fill: var(--npc-body);
+  stroke: var(--npc-body-dark);
+  stroke-width: 2;
+}
+
+.basket-shine {
+  fill: rgba(251, 243, 231, 0.55);
+}
+
+.basket-leaf {
+  fill: var(--grass-dark);
+}
+
+.basket-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.basket-svg {
+  width: 64px;
+  height: 40px;
+}
+
+.basket-body {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.basket-handle {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 4;
+}
+
+.basket-counter {
+  min-width: 46px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--cream);
+  border: 3px solid var(--gold-dark);
+  font-family: var(--font-round);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+}
+
 /* ----- Theme CARREFOUR : panneau routier illustre ----- */
 .theme-crossroads {
   background: linear-gradient(180deg, #f6c96a, var(--gold));
@@ -1069,6 +1553,72 @@ input {
 .path-short-surface,
 .path-long-surface {
   stroke-dasharray: 30 14;
+}
+
+/* Points d'arret de renforcement le long des routes */
+.stop-pad {
+  fill: var(--cream);
+  stroke: var(--gold-dark);
+  stroke-width: 4;
+}
+
+.stop-pad.done {
+  fill: var(--success);
+  stroke: #2c5e35;
+}
+
+.stop-check {
+  fill: none;
+  stroke: var(--cream);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stop-pole {
+  fill: var(--wood-dark);
+}
+
+.stop-flag {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.reinforcement-stop.stop-locked {
+  opacity: 0.5;
+}
+
+.reinforcement-stop.stop-locked .stop-flag {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+}
+
+.stop-pulse-ring {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 3;
+  opacity: 0;
+}
+
+.reinforcement-stop.stop-current .stop-pulse-ring {
+  animation: stopPulse 1.6s ease-out infinite;
+}
+
+@keyframes stopPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
 }
 
 /* Riviere */
