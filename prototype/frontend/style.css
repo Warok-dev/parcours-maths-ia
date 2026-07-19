@@ -1,30 +1,67 @@
+/* ============================================================
+   SYSTEME DE DESIGN — Le petit monde des maths (CE1/CE2)
+   Palette unique, utilisee partout. Aucune couleur ad hoc.
+   ============================================================ */
 :root {
-  --bg-top: #f5efe2;
-  --bg-bottom: #dcebf2;
-  --panel: rgba(255, 250, 244, 0.95);
-  --ink: #203845;
-  --muted: #5f7582;
-  --accent: #e67840;
-  --accent-deep: #c75c2e;
-  --accent-soft: #f7cf77;
-  --success: #4b9f73;
-  --locked: #b8c1c8;
-  --warning: #d86f61;
-  --shadow: 0 18px 40px rgba(32, 56, 69, 0.12);
+  /* Palette principale */
+  --grass: #7cb668;
+  --road: #d97748;
+  --water: #8fc4de;
+  --cream: #fbf3e7;
+  --gold: #f0b84b;
+  --wood: #8b5e3c;
+
+  /* Declinaisons fixes derivees de la palette */
+  --grass-light: #8cc47a;
+  --grass-dark: #6aa657;
+  --road-light: #e6976c;
+  --road-dark: #b85c33;
+  --water-light: #b3d9ea;
+  --water-dark: #5f9fc0;
+  --cream-dark: #f1e3cc;
+  --gold-dark: #c9922e;
+  --wood-light: #a97b52;
+  --wood-dark: #6e4a2e;
+
+  /* Couleurs dominantes des obstacles (identite au premier coup d'oeil) */
+  --stone: #b8bfc7;      /* chateau  = pierre grise  */
+  --stone-dark: #8a939c;
+  --stone-deep: #5d6a75;
+
+  /* Personnages (definis UNE fois, identiques partout) */
+  --player-shirt: #4a7bc4;
+  --player-shirt-dark: #35598f;
+  --skin: #ffd0a6;
+  --hair: #6e4a2e;
+  --npc-body: #a64d5f;
+  --npc-body-dark: #7d3a48;
+
+  /* Encre et etats */
+  --ink: #3d2c1e;
+  --ink-soft: #6b5744;
+  --success: #4b8f56;
+  --danger: #c05b4a;
+
+  --font-round: "Fredoka", "Comic Sans MS", "Arial Rounded MT Bold", "Segoe UI", sans-serif;
+  --shadow-pop: 0 18px 44px rgba(61, 44, 30, 0.28);
+  --shadow-chip: 0 4px 14px rgba(61, 44, 30, 0.18);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
+  overflow: hidden;
   color: var(--ink);
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(247, 207, 119, 0.46), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(75, 159, 115, 0.14), transparent 24%),
-    linear-gradient(145deg, var(--bg-top), var(--bg-bottom));
+  font-family: var(--font-round);
+  background: var(--grass);
 }
 
 button,
@@ -36,686 +73,726 @@ input {
   display: none !important;
 }
 
-.app-shell {
-  width: min(1280px, calc(100% - 28px));
-  margin: 20px auto;
+.screen {
+  position: fixed;
+  inset: 0;
 }
 
-.panel {
-  background: var(--panel);
-  border: 1px solid rgba(32, 56, 69, 0.08);
-  border-radius: 24px;
-  box-shadow: var(--shadow);
+/* ============================================================
+   ECRANS DE MENU (niveau / lecon)
+   ============================================================ */
+.menu-screen {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(251, 243, 231, 0.5), transparent 34%),
+    linear-gradient(180deg, var(--water-light) 0%, var(--water) 34%, var(--grass-light) 34.2%, var(--grass) 100%);
 }
 
-.start-screen {
-  padding: 48px;
+.menu-sky-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cloud {
+  position: absolute;
+  width: 140px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(251, 243, 231, 0.85);
+  animation: drift 26s linear infinite;
+}
+
+.cloud::before,
+.cloud::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: inherit;
+}
+
+.cloud::before {
+  width: 64px;
+  height: 64px;
+  left: 22px;
+  top: -26px;
+}
+
+.cloud::after {
+  width: 46px;
+  height: 46px;
+  right: 26px;
+  top: -16px;
+}
+
+.cloud-a { top: 8%; left: -160px; }
+.cloud-b { top: 16%; left: -160px; animation-delay: -12s; transform: scale(0.8); }
+.cloud-c { top: 5%; left: -160px; animation-delay: -20s; transform: scale(0.6); }
+
+@keyframes drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(100vw + 340px)); }
+}
+
+.menu-card {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 40px 36px;
   text-align: center;
+  background: var(--cream);
+  border: 4px solid var(--wood);
+  border-radius: 30px;
+  box-shadow: var(--shadow-pop);
 }
 
-.eyebrow {
-  margin: 0 0 10px;
+.menu-card-wide {
+  width: min(760px, 100%);
+}
+
+.menu-eyebrow {
+  margin: 0 0 8px;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.75rem;
-  color: var(--accent-deep);
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--road-dark);
 }
 
-h1,
-h2,
-h3,
-p {
-  margin-top: 0;
+.menu-card h1 {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  font-weight: 700;
 }
 
-.lead {
-  max-width: 620px;
-  margin: 0 auto 24px;
-  font-size: 1.08rem;
-  color: var(--muted);
+.menu-lead {
+  margin: 0 auto 26px;
+  max-width: 480px;
+  color: var(--ink-soft);
+  font-size: 1.06rem;
 }
 
-.subtle {
-  color: var(--muted);
+.menu-note {
+  margin: 18px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
 }
 
 .level-actions {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  gap: 22px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
 }
 
-.level-button,
-.exercise-actions button,
-.chat-form button {
-  border: 0;
-  border-radius: 999px;
-  padding: 14px 22px;
-  background: var(--accent);
-  color: white;
-  font-weight: 700;
+/* Boutons de niveau : pancartes de bois */
+.level-button {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 18px 26px 16px;
+  min-width: 180px;
   cursor: pointer;
-  transition: transform 120ms ease, background 120ms ease;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  box-shadow:
+    inset 0 2px 0 rgba(251, 243, 231, 0.35),
+    inset 0 -4px 0 rgba(61, 44, 30, 0.35),
+    0 8px 18px rgba(61, 44, 30, 0.3);
+  transition: transform 130ms ease, box-shadow 130ms ease;
 }
 
-.level-button:hover,
-.exercise-actions button:hover,
-.chat-form button:hover {
-  background: var(--accent-deep);
-  transform: translateY(-1px);
+.level-button:hover {
+  transform: translateY(-3px) rotate(-1deg);
+}
+
+.level-sign {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 4px solid var(--cream);
+  color: var(--ink);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.level-copy {
+  color: var(--cream);
+  font-weight: 600;
+}
+
+.lesson-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin: 8px 0 18px;
+  text-align: left;
+}
+
+.lesson-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  min-height: 76px;
+  cursor: pointer;
+  border: 3px solid var(--cream-dark);
+  border-radius: 20px;
+  background: #fff;
+  transition: transform 130ms ease, border-color 130ms ease;
+}
+
+.lesson-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+}
+
+.lesson-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--gold);
+  border: 3px solid var(--gold-dark);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lesson-card-title {
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.lesson-card-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+
+.lesson-footer {
+  margin-top: 4px;
 }
 
 .ghost-button {
-  border: 1px solid rgba(32, 56, 69, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--ink);
-  padding: 10px 16px;
+  padding: 12px 20px;
   cursor: pointer;
-}
-
-.game-screen {
-  display: grid;
-  gap: 16px;
-}
-
-.topbar {
-  padding: 20px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-
-.session-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 78px;
-  padding: 8px 14px;
+  border: 3px solid var(--wood);
   border-radius: 999px;
-  background: rgba(230, 120, 64, 0.12);
-  color: var(--accent-deep);
-  font-weight: 700;
+  background: transparent;
+  color: var(--wood-dark);
+  font-weight: 600;
 }
 
-.badge-soft {
-  background: rgba(247, 207, 119, 0.28);
-  color: #7f5a16;
+.ghost-button:hover {
+  background: var(--cream-dark);
 }
 
-.game-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.95fr) minmax(330px, 0.92fr);
-  gap: 16px;
-}
-
-.map-panel,
-.exercise-panel,
-.tutor-panel {
-  padding: 22px;
-}
-
-.side-column {
-  display: grid;
-  gap: 16px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 14px;
+/* ============================================================
+   JEU PLEIN ECRAN
+   ============================================================ */
+.game-screen {
+  background: var(--grass);
 }
 
 #map {
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 100%;
   display: block;
-  aspect-ratio: 13 / 9;
-  min-height: 0;
-  height: auto;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.55), transparent 22%),
-    linear-gradient(180deg, #d9f0f8 0%, #eef7de 100%);
-  border-radius: 18px;
-  border: 2px dashed rgba(32, 56, 69, 0.1);
 }
 
-.scene-sky {
-  fill: url(#sky);
+/* ---------- HUD minimal dans les coins ---------- */
+.hud {
+  position: absolute;
+  z-index: 20;
 }
 
-.scene-grass {
-  fill: #86c86f;
+.hud-top-left {
+  top: 14px;
+  left: 14px;
 }
 
-.road-outline {
-  fill: none;
-  stroke: #7b5d35;
-  stroke-width: 108;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.25;
+.hud-top-right {
+  top: 14px;
+  right: 14px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
 }
 
-.road-surface {
-  fill: none;
-  stroke: #d2a66e;
-  stroke-width: 76;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.road-center-line {
-  fill: none;
-  stroke: rgba(255, 245, 223, 0.88);
-  stroke-width: 7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 20 18;
-}
-
-.tree-trunk {
-  fill: #8a5b3d;
-}
-
-.tree-leaf {
-  fill: #5db86d;
-}
-
-.tree-leaf-back {
-  fill: #4b9f73;
-}
-
-.tree-leaf-front {
-  fill: #6dc47b;
-}
-
-.bush-leaf {
-  fill: #63b66f;
-}
-
-.rock-shape {
-  fill: #aab5bd;
-}
-
-.rock-back {
-  fill: #96a4ae;
-}
-
-.rock-front {
-  fill: #c1cad1;
-}
-
-.flower-stem {
-  stroke: #4b9f73;
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-
-.flower-center {
-  fill: #ffb14f;
-}
-
-.flower-petal {
-  fill: #ffffff;
-}
-
-.direction-sign .sign-board {
-  fill: #fff4d4;
-  stroke: #7b5d35;
-  stroke-width: 3;
-}
-
-.direction-sign .sign-pole {
-  stroke: #7b5d35;
-  stroke-width: 6;
-  stroke-linecap: round;
-}
-
-.direction-sign .sign-arrow {
-  fill: #7b5d35;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.obstacle .fence-line {
-  stroke: #8a6a42;
-  stroke-width: 12;
-  stroke-linecap: round;
-}
-
-.castle-wall {
-  fill: #d8c6b0;
-  stroke: #8b6a49;
-  stroke-width: 4;
-}
-
-.castle-tower {
-  fill: #cdb79d;
-  stroke: #8b6a49;
-  stroke-width: 4;
-}
-
-.castle-roof {
-  fill: #a55b4a;
-}
-
-.door-arch {
-  fill: rgba(122, 89, 55, 0.16);
-  stroke: #7b5d35;
-  stroke-width: 4;
-}
-
-.door-panel {
-  fill: #8f5733;
-  stroke: #6e3f21;
-  stroke-width: 3;
-}
-
-.door-panel.left-open {
-  fill: #9a603a;
-  stroke: #6e3f21;
-  stroke-width: 3;
-  transform-origin: left center;
-  transform: rotate(-26deg);
-}
-
-.door-panel.right-open {
-  fill: #9a603a;
-  stroke: #6e3f21;
-  stroke-width: 3;
-  transform-origin: right center;
-  transform: rotate(26deg);
-}
-
-.door-handle {
-  fill: #f4d786;
-}
-
-.door-lock {
-  fill: #f0d15e;
-  stroke: #8b7226;
-  stroke-width: 2;
-}
-
-.door-lock-shackle {
-  fill: none;
-  stroke: #8b7226;
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-
-.cabin-wall {
-  fill: #b77b4c;
-  stroke: #734826;
-  stroke-width: 4;
-}
-
-.cabin-roof {
-  fill: #8c4f31;
-}
-
-.cabin-door {
-  fill: #6d3f21;
-}
-
-.cabin-window {
-  fill: #d4eef7;
-}
-
-.log-shape {
-  fill: #9a6a3b;
-  stroke: #6c431f;
-  stroke-width: 3;
-}
-
-.log-end {
-  fill: #c7945d;
-  stroke: #6c431f;
-  stroke-width: 3;
-}
-
-.block-rock {
-  fill: #a8b1b9;
-  stroke: #7f8a95;
-  stroke-width: 3;
-}
-
-.river-band {
-  fill: rgba(76, 165, 223, 0.58);
-}
-
-.bridge-post,
-.bridge-rail {
-  stroke: #72482b;
-  stroke-width: 8;
-  stroke-linecap: round;
-}
-
-.bridge-plank {
-  fill: #9f6f42;
-  stroke: #6f4724;
-  stroke-width: 3;
-  rx: 6;
-}
-
-.cross-path-main {
-  fill: none;
-  stroke: rgba(162, 127, 84, 0.55);
-  stroke-width: 22;
-  stroke-linecap: round;
-}
-
-.cross-path-hidden {
-  fill: none;
-  stroke: rgba(182, 186, 191, 0.65);
-  stroke-width: 18;
-  stroke-linecap: round;
-  stroke-dasharray: 14 12;
-  opacity: 0.32;
-}
-
-.cross-path-hidden.revealed {
-  stroke: rgba(210, 166, 110, 0.95);
-  opacity: 1;
-}
-
-.mist {
-  fill: rgba(232, 241, 247, 0.75);
-}
-
-.mist-cloud.cleared {
-  opacity: 0.18;
-  transition: opacity 700ms ease;
-}
-
-.story-block {
-  margin-bottom: 16px;
-  padding: 14px;
-  border-radius: 16px;
-  background: rgba(230, 120, 64, 0.08);
-}
-
-.story-title {
-  margin-bottom: 6px;
-  font-weight: 700;
-  color: var(--accent-deep);
-}
-
-.story-text {
-  margin-bottom: 0;
-  color: var(--ink);
-}
-
-.npc-head {
-  fill: #ffd0a6;
-}
-
-.npc-body {
-  fill: #a64d5f;
-}
-
-.npc-limb {
-  stroke: #a64d5f;
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-
-.obstacle-chip {
-  fill: rgba(255, 250, 244, 0.92);
-  stroke: rgba(32, 56, 69, 0.12);
-  stroke-width: 2;
-}
-
-.obstacle-chip-text {
-  fill: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.status-chip {
-  fill: rgba(255, 255, 255, 0.86);
-  stroke: rgba(32, 56, 69, 0.1);
-  stroke-width: 2;
-}
-
-.status-chip-text {
-  fill: var(--ink);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.status-chip-subtext {
-  fill: var(--muted);
-  font-size: 11px;
-}
-
-.obstacle-done .door-arch,
-.obstacle-done .status-chip {
-  stroke: var(--success);
-}
-
-.obstacle-current .door-arch,
-.obstacle-current .status-chip {
-  stroke: var(--accent-deep);
-}
-
-.obstacle-locked {
-  opacity: 0.72;
-}
-
-.obstacle-locked .door-panel,
-.obstacle-locked .npc-body {
-  fill: var(--locked);
-  stroke: #8f979d;
-}
-
-.obstacle-locked .npc-limb,
-.obstacle-locked .fence-line {
-  stroke: #9fa7ad;
-}
-
-.obstacle-unlocking .door-frame-group {
-  animation: gateOpen 900ms ease forwards;
-}
-
-@keyframes gateOpen {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1.04);
-    opacity: 0.86;
-  }
-}
-
-.obstacle-castle_gate.obstacle-unlocking .door-panels {
-  animation: castleOpen 900ms ease forwards;
-}
-
-@keyframes castleOpen {
-  0% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.28;
-  }
-}
-
-.obstacle-blocked_road.obstacle-unlocking .log-block,
-.obstacle-blocked_road.obstacle-unlocking .rock-pile {
-  animation: clearRoad 900ms ease forwards;
-}
-
-@keyframes clearRoad {
-  0% {
-    opacity: 1;
-    transform: translateX(0) rotate(-6deg);
-  }
-  100% {
-    opacity: 0.2;
-    transform: translateX(-120px) rotate(-24deg);
-  }
-}
-
-.obstacle-broken_bridge.obstacle-unlocking .bridge-planks.broken {
-  animation: repairBridge 900ms ease forwards;
-}
-
-@keyframes repairBridge {
-  0% {
-    opacity: 0.55;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-.obstacle-crossroads.obstacle-unlocking .cross-path-hidden,
-.obstacle-crossroads.obstacle-unlocking .mist-cloud {
-  animation: revealPath 900ms ease forwards;
-}
-
-@keyframes revealPath {
-  0% {
-    opacity: 0.32;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-.interaction-hint {
-  opacity: 0;
-  transition: opacity 150ms ease;
-  pointer-events: none;
-}
-
-.interaction-hint.visible {
-  opacity: 1;
-}
-
-.hint-bubble {
-  fill: rgba(255, 250, 244, 0.94);
-  stroke: rgba(32, 56, 69, 0.14);
-  stroke-width: 2;
-}
-
-.hint-text {
-  fill: var(--ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.player-token {
-  pointer-events: none;
-}
-
-.player-shadow {
-  fill: rgba(32, 56, 69, 0.18);
-}
-
-.player-head {
-  fill: #ffd0a6;
-  stroke: rgba(32, 56, 69, 0.15);
-  stroke-width: 2;
-}
-
-.player-body {
-  fill: #2f70a8;
-  stroke: rgba(255, 255, 255, 0.82);
-  stroke-width: 2;
-}
-
-.player-limb {
-  stroke: #2f70a8;
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-
-.legend {
+.hud-chip {
   display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-  color: var(--muted);
-}
-
-.dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px 9px 12px;
+  background: var(--cream);
+  border: 3px solid var(--wood);
   border-radius: 999px;
-  margin-right: 8px;
+  box-shadow: var(--shadow-chip);
+  font-weight: 600;
+  font-size: 0.98rem;
 }
 
-.dot.done {
-  background: var(--success);
+.hud-chip-icon {
+  width: 26px;
+  height: 26px;
 }
 
-.dot.current {
-  background: var(--accent);
+.hud-level {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--gold);
+  border: 2px solid var(--gold-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
-.dot.locked {
-  background: var(--locked);
-}
-
-.exercise-card {
-  min-height: 300px;
-  padding: 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(32, 56, 69, 0.08);
-}
-
-.exercise-card.empty-state {
+.hud-round-button {
   display: grid;
   place-items: center;
-  color: var(--muted);
-  text-align: center;
+  width: 52px;
+  height: 52px;
+  cursor: pointer;
+  border: 3px solid var(--wood);
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--wood-dark);
+  box-shadow: var(--shadow-chip);
+  transition: transform 120ms ease;
 }
 
-.exercise-panel-top {
+.hud-round-button:hover {
+  transform: scale(1.06);
+}
+
+.hud-round-button svg {
+  width: 28px;
+  height: 28px;
+}
+
+.menu-dropdown {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  background: var(--cream);
+  border: 3px solid var(--wood);
+  border-radius: 18px;
+  box-shadow: var(--shadow-pop);
+}
+
+.menu-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  text-align: left;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.menu-item:hover {
+  background: var(--cream-dark);
+}
+
+/* ---------- Bandeau de feedback temporaire ---------- */
+.feedback-banner {
+  position: absolute;
+  /* Au-dessus de l'overlay d'exercice (50) : le feedback doit rester lisible
+     meme quand la popup est ouverte (reponse fausse, generation indisponible). */
+  z-index: 60;
+  top: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 40px));
+  padding: 14px 22px;
+  transform: translateX(-50%);
+  background: var(--cream);
+  border: 3px solid var(--wood);
+  border-radius: 999px;
+  box-shadow: var(--shadow-pop);
+  font-size: 1.05rem;
+  font-weight: 600;
+  animation: bannerIn 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.feedback-banner::before {
+  font-size: 1.3rem;
+}
+
+.feedback-banner.success {
+  border-color: var(--success);
+  color: #2c5e35;
+}
+
+.feedback-banner.success::before {
+  content: "\2B50";
+}
+
+.feedback-banner.warning {
+  border-color: var(--danger);
+  color: #8a3a2c;
+}
+
+.feedback-banner.warning::before {
+  content: "\1F4AA";
+}
+
+.feedback-banner.info {
+  border-color: var(--water-dark);
+  color: #2b5567;
+}
+
+.feedback-banner.info::before {
+  content: "\1F989";
+}
+
+.feedback-banner.wait {
+  border-color: var(--gold-dark);
+  color: #7d5a1c;
+}
+
+.feedback-banner.wait::before {
+  content: "\23F3";
+}
+
+@keyframes bannerIn {
+  from {
+    transform: translateX(-50%) translateY(-26px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+.feedback-banner.leaving {
+  transition: opacity 350ms ease, transform 350ms ease;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+}
+
+/* ---------- Mascotte hibou + bulle du tuteur ---------- */
+.tutor-dock {
+  position: absolute;
+  z-index: 30;
+  right: 18px;
+  bottom: 16px;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.tutor-button {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  padding: 6px;
+  cursor: pointer;
+  border: 4px solid var(--water-dark);
+  border-radius: 50%;
+  background: var(--water-light);
+  box-shadow: var(--shadow-chip);
+  transition: transform 140ms ease;
+  animation: owlBob 3.4s ease-in-out infinite;
+}
+
+.tutor-button:hover {
+  transform: scale(1.07);
+}
+
+.tutor-button .owl {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes owlBob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -6px; }
+}
+
+.tutor-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 3px solid var(--water);
+  opacity: 0;
+  animation: pulse 2.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  70% { transform: scale(1.25); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+.chat-bubble {
+  position: relative;
+  width: min(340px, calc(100vw - 40px));
+  padding: 16px;
+  background: var(--cream);
+  border: 3px solid var(--water-dark);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: bubbleIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: bottom right;
+}
+
+.chat-bubble::after {
+  content: "";
+  position: absolute;
+  right: 34px;
+  bottom: -14px;
+  width: 22px;
+  height: 22px;
+  background: var(--cream);
+  border-right: 3px solid var(--water-dark);
+  border-bottom: 3px solid var(--water-dark);
+  transform: rotate(45deg);
+  border-bottom-right-radius: 6px;
+}
+
+@keyframes bubbleIn {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.chat-bubble-title {
+  margin: 0 0 8px;
+  font-weight: 700;
+  color: var(--water-dark);
+}
+
+.chat-log {
+  min-height: 90px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #fff;
+  border: 2px solid var(--cream-dark);
+  border-radius: 14px;
+}
+
+.message {
+  margin: 0 0 8px;
+  line-height: 1.35;
+  font-size: 0.94rem;
+}
+
+.message.user {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.message.assistant {
+  color: var(--ink-soft);
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  border: 2px solid var(--cream-dark);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.chat-form input:focus {
+  outline: 3px solid var(--water);
+  outline-offset: 1px;
+}
+
+.chat-form button {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 50%;
+  background: var(--water-dark);
+  color: var(--cream);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+/* ============================================================
+   POPUP D'EXERCICE THEMATIQUE
+   ============================================================ */
+.exercise-overlay {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(61, 44, 30, 0.4);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.exercise-modal {
+  position: relative;
+  width: min(620px, 100%);
+  padding: 26px 28px 24px;
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalIn {
+  from { transform: scale(0.82) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.modal-close {
+  position: absolute;
+  z-index: 2;
+  top: -12px;
+  right: -12px;
+  width: 48px;
+  height: 48px;
+  cursor: pointer;
+  border: 3px solid var(--cream);
+  border-radius: 50%;
+  background: var(--road);
+  color: var(--cream);
+  font-size: 1.2rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-chip);
+}
+
+.modal-close:hover {
+  background: var(--road-dark);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.modal-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: var(--cream);
+  border: 3px solid rgba(61, 44, 30, 0.25);
+  box-shadow: var(--shadow-chip);
+}
+
+.modal-icon svg {
+  width: 58px;
+  height: 58px;
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.modal-intro {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+/* Zone de contenu toujours creme : lisibilite maximale pour l'enfant */
+.modal-paper {
+  padding: 18px;
+  background: var(--cream);
+  border-radius: 18px;
+  border: 2px solid rgba(61, 44, 30, 0.18);
+}
+
+.modal-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
-.exercise-meta {
-  margin-bottom: 0;
-  color: var(--muted);
+/* Badge visuel du niveau de resolution : 3 etoiles */
+.stars {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.star {
+  color: rgba(61, 44, 30, 0.25);
+}
+
+.star.filled {
+  color: var(--gold-dark);
+  text-shadow: 0 1px 0 rgba(61, 44, 30, 0.25);
+}
+
+.phase-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--cream-dark);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .exercise-statement {
-  font-size: 1.12rem;
-  line-height: 1.45;
-  margin-bottom: 16px;
+  margin: 0 0 14px;
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: lining-nums;
 }
 
 .method-block {
-  margin-bottom: 18px;
-  padding: 14px;
-  border-radius: 16px;
-  background: rgba(247, 207, 119, 0.16);
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(240, 184, 75, 0.22);
+  border: 2px dashed var(--gold-dark);
+}
+
+.method-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--gold-dark);
 }
 
 .method-block ol {
-  margin: 10px 0 0 20px;
+  margin: 0 0 0 22px;
   padding: 0;
+  font-size: 1.02rem;
+}
+
+.method-block li {
+  margin-bottom: 4px;
 }
 
 .exercise-form {
@@ -723,13 +800,23 @@ p {
   gap: 10px;
 }
 
-.exercise-form input,
-.chat-form input {
-  width: 100%;
-  padding: 12px 14px;
+.exercise-form label {
+  font-weight: 600;
+}
+
+.exercise-form input {
+  padding: 14px 16px;
+  font-size: 1.3rem;
+  text-align: center;
+  border: 3px solid var(--wood-light);
   border-radius: 14px;
-  border: 1px solid rgba(32, 56, 69, 0.16);
-  background: rgba(255, 255, 255, 0.92);
+  background: #fff;
+  font-variant-numeric: lining-nums;
+}
+
+.exercise-form input:focus {
+  outline: 3px solid var(--gold);
+  outline-offset: 1px;
 }
 
 .exercise-actions {
@@ -738,119 +825,792 @@ p {
   flex-wrap: wrap;
 }
 
-.feedback {
-  margin-top: 14px;
-  padding: 14px 16px;
-  border-radius: 16px;
+/* Boutons "bois sculpte" */
+.btn-primary,
+.btn-help {
+  flex: 1;
+  min-width: 130px;
+  min-height: 52px;
+  padding: 12px 20px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 14px;
+  font-size: 1.06rem;
+  font-weight: 700;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, var(--road-light), var(--road));
+  color: #fff;
+  box-shadow:
+    inset 0 2px 0 rgba(251, 243, 231, 0.45),
+    inset 0 -4px 0 var(--road-dark),
+    0 5px 12px rgba(61, 44, 30, 0.28);
+}
+
+.btn-help {
+  background: linear-gradient(180deg, var(--water-light), var(--water));
+  color: #234a5c;
+  box-shadow:
+    inset 0 2px 0 rgba(251, 243, 231, 0.5),
+    inset 0 -4px 0 var(--water-dark),
+    0 5px 12px rgba(61, 44, 30, 0.22);
+}
+
+.btn-primary:hover,
+.btn-help:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.04);
+}
+
+.btn-primary:active,
+.btn-help:active {
+  transform: translateY(1px);
+}
+
+/* ----- Theme CHATEAU : parchemin deroule ----- */
+.theme-castle {
+  background:
+    repeating-linear-gradient(0deg, rgba(139, 94, 60, 0.05) 0 3px, transparent 3px 9px),
+    radial-gradient(circle at 12% 8%, rgba(139, 94, 60, 0.14), transparent 42%),
+    radial-gradient(circle at 90% 94%, rgba(139, 94, 60, 0.16), transparent 40%),
+    var(--cream);
+  border: 3px solid var(--wood-light);
+  border-radius: 8px 26px 10px 30px / 30px 10px 26px 8px;
+  box-shadow: var(--shadow-pop);
+}
+
+.theme-castle::before,
+.theme-castle::after {
+  content: "";
+  position: absolute;
+  left: -14px;
+  right: -14px;
+  height: 20px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood-dark));
+  border-radius: 999px;
+  box-shadow: 0 3px 8px rgba(61, 44, 30, 0.35);
+}
+
+.theme-castle::before { top: -10px; }
+.theme-castle::after { bottom: -10px; }
+
+.theme-castle .modal-icon {
+  border-color: var(--stone-dark);
+}
+
+/* ----- Theme CABANE : planche de bois cloutee ----- */
+.theme-cabin {
+  background:
+    repeating-linear-gradient(
+      180deg,
+      var(--wood-light) 0 44px,
+      var(--wood) 44px 46px,
+      var(--wood-light) 46px 90px
+    );
+  border: 6px solid var(--wood-dark);
+  border-radius: 18px;
+  box-shadow: var(--shadow-pop), inset 0 0 40px rgba(61, 44, 30, 0.25);
+}
+
+.theme-cabin .modal-title,
+.theme-cabin .modal-intro {
+  color: var(--cream);
+  text-shadow: 0 1px 2px rgba(61, 44, 30, 0.6);
+}
+
+.theme-cabin::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 10px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 5px at 8px 8px, var(--ink) 4px, transparent 5px),
+    radial-gradient(circle 5px at calc(100% - 8px) 8px, var(--ink) 4px, transparent 5px),
+    radial-gradient(circle 5px at 8px calc(100% - 8px), var(--ink) 4px, transparent 5px),
+    radial-gradient(circle 5px at calc(100% - 8px) calc(100% - 8px), var(--ink) 4px, transparent 5px);
+  background-repeat: no-repeat;
+  opacity: 0.55;
+}
+
+/* ----- Theme PONT : pierre gravee / ardoise ----- */
+.theme-bridge {
+  background:
+    radial-gradient(circle at 20% 12%, rgba(251, 243, 231, 0.14), transparent 36%),
+    linear-gradient(180deg, #78868f, var(--stone-deep));
+  border: 5px solid var(--stone-dark);
+  border-radius: 26px;
+  box-shadow: var(--shadow-pop), inset 0 3px 0 rgba(251, 243, 231, 0.25), inset 0 -6px 0 rgba(0, 0, 0, 0.25);
+}
+
+.theme-bridge .modal-title,
+.theme-bridge .modal-intro {
+  color: var(--cream);
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.45);
+}
+
+.theme-bridge .modal-icon {
+  border-color: var(--stone-deep);
+}
+
+/* ----- Theme CARREFOUR : panneau routier illustre ----- */
+.theme-crossroads {
+  background: linear-gradient(180deg, #f6c96a, var(--gold));
+  border: 6px solid var(--wood);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop), inset 0 3px 0 rgba(251, 243, 231, 0.5);
+}
+
+.theme-crossroads::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -34px;
+  width: 26px;
+  height: 34px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, var(--wood), var(--wood-dark));
+  border-radius: 0 0 8px 8px;
+  z-index: -1;
+}
+
+.theme-crossroads .modal-title {
+  color: var(--wood-dark);
+}
+
+/* ============================================================
+   SCENE SVG — monde vu du dessus
+   Chaque classe correspond a UN composant defini une fois dans map.js
+   ============================================================ */
+.ground {
+  fill: var(--grass);
+}
+
+.ground-patch {
+  fill: var(--grass-light);
+}
+
+.ground-patch.dark {
+  fill: var(--grass-dark);
+}
+
+/* Route principale (chemin moyen) : terre cuite, bords nets, pavee */
+.road-edge {
+  fill: none;
+  stroke: var(--wood);
+  stroke-width: 86;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.road-surface {
+  fill: none;
+  stroke: var(--road);
+  stroke-width: 72;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.road-paving {
+  fill: none;
+  stroke: var(--road-light);
+  stroke-width: 46;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 3 30;
+  opacity: 0.85;
+}
+
+.road-paving.offset {
+  stroke-width: 18;
+  stroke-dasharray: 3 22;
+}
+
+/* Chemin COURT : direct, dore */
+.path-short-edge {
+  fill: none;
+  stroke: var(--gold-dark);
+  stroke-width: 40;
+  stroke-linecap: round;
+}
+
+.path-short-surface {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 30;
+  stroke-linecap: round;
+}
+
+/* Chemin LONG : tres sinueux, brun bois */
+.path-long-edge {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 40;
+  stroke-linecap: round;
+}
+
+.path-long-surface {
+  fill: none;
+  stroke: var(--wood-light);
+  stroke-width: 30;
+  stroke-linecap: round;
+}
+
+.path-branch {
+  opacity: 0.88;
+}
+
+.path-branch.active-path {
+  opacity: 1;
+}
+
+.path-short-surface,
+.path-long-surface {
+  stroke-dasharray: 30 14;
+}
+
+/* Riviere */
+.river {
+  fill: var(--water);
+}
+
+.river-bank {
+  fill: var(--water-dark);
+}
+
+.river-wave {
+  fill: none;
+  stroke: var(--water-light);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 26 34;
+}
+
+/* Vegetation (vue du dessus : couronnes circulaires) */
+.tree-canopy-back {
+  fill: var(--grass-dark);
+}
+
+.tree-canopy {
+  fill: #59a04f;
+}
+
+.tree-canopy-light {
+  fill: #74bd66;
+}
+
+.tree-shadow,
+.prop-shadow {
+  fill: rgba(61, 44, 30, 0.16);
+}
+
+.bush-leaf {
+  fill: #64ab58;
+}
+
+.bush-leaf-light {
+  fill: #7cc06d;
+}
+
+.flower-petal {
+  fill: var(--cream);
+}
+
+.flower-petal.pink {
+  fill: #f4b8c4;
+}
+
+.flower-center {
+  fill: var(--gold);
+}
+
+.grass-tuft {
+  stroke: var(--grass-dark);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  fill: none;
+  opacity: 0.8;
+}
+
+.deco-rock {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 3;
+}
+
+.deco-rock-small {
+  fill: var(--stone-dark);
+}
+
+/* ---------- Chateau (pierre grise) ---------- */
+.castle-wall {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 4;
+}
+
+.castle-wall-inner {
+  fill: var(--stone-dark);
+  opacity: 0.35;
+}
+
+.castle-tower {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 4;
+}
+
+.castle-tower-top {
+  fill: var(--stone-dark);
+}
+
+.castle-courtyard {
+  fill: var(--cream-dark);
+  stroke: var(--stone-dark);
+  stroke-width: 3;
+}
+
+.castle-banner {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.door-panel {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.door-plank {
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  opacity: 0.6;
+}
+
+.door-lock-body {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2.5;
+}
+
+.door-lock-shackle {
+  fill: none;
+  stroke: var(--gold-dark);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.gate-left,
+.gate-right {
+  transform-box: fill-box;
+  transition: transform 900ms ease;
+}
+
+.gate-left {
+  transform-origin: left center;
+}
+
+.gate-right {
+  transform-origin: right center;
+}
+
+.obstacle-done .gate-left {
+  transform: rotate(-64deg);
+}
+
+.obstacle-done .gate-right {
+  transform: rotate(64deg);
+}
+
+/* ---------- Cabane (bois brun, vue du dessus = toit) ---------- */
+.cabin-roof {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 4;
+}
+
+.cabin-roof-half {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.cabin-ridge {
+  stroke: var(--wood-dark);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.cabin-chimney {
+  fill: var(--stone-dark);
+  stroke: var(--stone-deep);
+  stroke-width: 2;
+}
+
+.log-shape {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.log-end {
+  fill: var(--cream-dark);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.block-rock {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 3;
+}
+
+/* ---------- Pont (sur l'eau) ---------- */
+.bridge-deck {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.bridge-plank {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 2.5;
+}
+
+.bridge-plank.ghost {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-dasharray: 7 7;
+  opacity: 0.55;
+}
+
+.bridge-rail {
+  stroke: var(--wood-dark);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+/* ---------- Carrefour (jaune, chemin cache) ---------- */
+.signpost-pole {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 2.5;
+}
+
+.signpost-board {
+  fill: var(--gold);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.signpost-text {
+  fill: var(--wood-dark);
+  font-family: var(--font-round);
+  font-size: 21px;
   font-weight: 700;
 }
 
-.feedback.success {
-  display: block;
-  color: #1f5d42;
-  background: rgba(75, 159, 115, 0.16);
+.hidden-path {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 26;
+  stroke-linecap: round;
+  stroke-dasharray: 16 14;
+  opacity: 0.25;
 }
 
-.feedback.warning {
-  display: block;
-  color: #8a493e;
-  background: rgba(216, 111, 97, 0.14);
+.hidden-path-edge {
+  fill: none;
+  stroke: var(--gold-dark);
+  stroke-width: 34;
+  stroke-linecap: round;
+  opacity: 0;
 }
 
-.feedback.info {
-  display: block;
-  color: #2b5567;
-  background: rgba(125, 166, 183, 0.16);
+.obstacle-done .hidden-path {
+  opacity: 1;
+  transition: opacity 800ms ease;
 }
 
-.chat-widget {
-  display: grid;
-  gap: 12px;
+.obstacle-done .hidden-path-edge {
+  opacity: 0.7;
+  transition: opacity 800ms ease;
+}
+
+.mist {
+  fill: var(--cream);
+  opacity: 0.75;
+}
+
+.obstacle-done .mist {
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+.hedge-line {
+  stroke: var(--grass-dark);
+  stroke-width: 30;
+  stroke-linecap: round;
+  stroke-dasharray: 2 40;
+}
+
+/* Barrieres en bois de part et d'autre de la route */
+.fence-rail {
+  stroke: var(--wood);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.fence-post {
+  fill: var(--wood-dark);
+}
+
+/* ---------- PNJ (defini une fois, couleur fixe) ---------- */
+.npc-shadow {
+  fill: rgba(61, 44, 30, 0.18);
+}
+
+.npc-body {
+  fill: var(--npc-body);
+  stroke: var(--npc-body-dark);
+  stroke-width: 2.5;
+}
+
+.npc-head {
+  fill: var(--skin);
+  stroke: var(--npc-body-dark);
+  stroke-width: 2;
+}
+
+.npc-hair {
+  fill: var(--hair);
+}
+
+.npc-hand {
+  fill: var(--skin);
+}
+
+/* ---------- Joueur (defini une fois) ---------- */
+.player-token {
+  pointer-events: none;
+}
+
+.player-shadow {
+  fill: rgba(61, 44, 30, 0.22);
+}
+
+.player-body {
+  fill: var(--player-shirt);
+  stroke: var(--player-shirt-dark);
+  stroke-width: 3;
+}
+
+.player-head {
+  fill: var(--skin);
+  stroke: var(--player-shirt-dark);
+  stroke-width: 2;
+}
+
+.player-hair {
+  fill: var(--hair);
+}
+
+.player-hand {
+  fill: var(--skin);
+  stroke: var(--player-shirt-dark);
+  stroke-width: 2;
+}
+
+.player-foot {
+  fill: var(--wood-dark);
+}
+
+/* Cycle de marche : les pieds alternent, les mains balancent */
+.player-walking .player-foot.left {
+  animation: stepLeft 380ms linear infinite;
+}
+
+.player-walking .player-foot.right {
+  animation: stepRight 380ms linear infinite;
+}
+
+.player-walking .player-hand.left {
+  animation: stepRight 380ms linear infinite;
+}
+
+.player-walking .player-hand.right {
+  animation: stepLeft 380ms linear infinite;
+}
+
+@keyframes stepLeft {
+  0%, 100% { transform: translateY(-7px); }
+  50% { transform: translateY(7px); }
+}
+
+@keyframes stepRight {
+  0%, 100% { transform: translateY(7px); }
+  50% { transform: translateY(-7px); }
+}
+
+/* ---------- Etats des obstacles ---------- */
+.obstacle-locked {
+  opacity: 0.62;
+  filter: saturate(0.55);
+}
+
+.obstacle-unlocking {
+  animation: unlockGlow 1100ms ease;
+}
+
+@keyframes unlockGlow {
+  0% { filter: brightness(1); }
+  35% { filter: brightness(1.5) drop-shadow(0 0 26px rgba(240, 184, 75, 0.95)); }
+  100% { filter: brightness(1); }
+}
+
+.obstacle-blocked_road.obstacle-unlocking .log-block {
+  animation: clearRoad 900ms ease forwards;
+}
+
+@keyframes clearRoad {
+  0% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-130px, 46px) rotate(-30deg); }
+}
+
+/* Pastille "ici !" au-dessus de l'obstacle actif */
+.obstacle-marker {
+  animation: markerBounce 1.4s ease-in-out infinite;
+  transition: opacity 180ms ease;
+}
+
+/* Quand la bulle d'interaction est affichee, elle prend la place du "!" */
+#map.hint-visible .obstacle-marker {
+  opacity: 0;
+}
+
+@keyframes markerBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.marker-pin {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 3;
+}
+
+.marker-glyph {
+  fill: var(--wood-dark);
+  font-family: var(--font-round);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+/* Panneau nominatif de l'obstacle (icone + couleur, pas de jargon) */
+.obstacle-plate {
+  fill: var(--cream);
+  stroke: var(--wood);
+  stroke-width: 3;
+}
+
+.obstacle-plate-text {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.obstacle-done-check {
+  fill: var(--success);
+  stroke: var(--cream);
+  stroke-width: 2.5;
+}
+
+/* Bulle d'interaction */
+.interaction-hint {
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.interaction-hint.visible {
+  opacity: 1;
+}
+
+.hint-bubble {
+  fill: var(--cream);
+  stroke: var(--wood);
+  stroke-width: 3;
+}
+
+.hint-key {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.hint-text {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* Particules de reussite */
+.fx-particle {
+  animation: particleFly 1100ms ease-out forwards;
+}
+
+@keyframes particleFly {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0.35);
+    opacity: 0;
+  }
+}
+
+.fx-star {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.fx-dot {
+  fill: var(--cream);
 }
 
 .debug-log {
-  margin: 0;
-  max-height: 220px;
-  overflow: auto;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(32, 56, 69, 0.08);
-  color: var(--ink);
-  font-family: "Consolas", "Courier New", monospace;
-  font-size: 0.88rem;
-  white-space: pre-wrap;
-}
-
-.chat-log {
-  min-height: 180px;
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(32, 56, 69, 0.08);
-}
-
-.chat-form {
-  display: flex;
-  gap: 10px;
-}
-
-.message {
-  margin: 0 0 10px;
-  line-height: 1.4;
-}
-
-.message.user {
-  color: var(--ink);
-}
-
-.message.assistant {
-  color: var(--muted);
+  display: none;
 }
 
 code {
   font-family: "Consolas", "Courier New", monospace;
 }
 
-@media (max-width: 1020px) {
-  .game-grid {
-    grid-template-columns: 1fr;
-  }
-
-  #map {
-    aspect-ratio: 13 / 9;
-  }
-}
-
 @media (max-width: 640px) {
-  .app-shell {
-    width: min(100% - 16px, 1280px);
-    margin: 16px auto;
+  .menu-card {
+    padding: 26px 18px;
   }
 
-  .start-screen,
-  .map-panel,
-  .exercise-panel,
-  .tutor-panel,
-  .topbar {
-    padding: 18px;
+  .hud-chip {
+    max-width: calc(100vw - 110px);
+    font-size: 0.85rem;
   }
 
-  .topbar,
-  .panel-header,
-  .chat-form,
-  .exercise-panel-top {
-    flex-direction: column;
-    align-items: stretch;
+  .hud-chip span#session-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .session-meta {
-    justify-content: space-between;
-  }
-
-  .exercise-actions {
-    flex-direction: column;
+  .exercise-modal {
+    padding: 20px 16px;
   }
 }

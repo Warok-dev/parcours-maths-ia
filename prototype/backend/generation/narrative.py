@@ -126,14 +126,19 @@ def _build_presentations(steps: list[str]) -> dict:
 
 def _pick_pattern_for_level(niveau: str) -> str:
     level_code = LEVEL_MAP[niveau]
-    compatibles = [
+    compatibles = patterns_narratifs_disponibles_pour_niveau(niveau)
+    if not compatibles:
+        raise NarrativeGenerationError(f"Aucun pattern narratif disponible pour {niveau}.")
+    return random.choice(compatibles)
+
+
+def patterns_narratifs_disponibles_pour_niveau(niveau: str) -> list[str]:
+    level_code = LEVEL_MAP[niveau]
+    return [
         pattern_name
         for pattern_name, definition in PATTERN_DEFS.items()
         if level_code in definition["levels"]
     ]
-    if not compatibles:
-        raise NarrativeGenerationError(f"Aucun pattern narratif disponible pour {niveau}.")
-    return random.choice(compatibles)
 
 
 def _sentence(text: str) -> str:

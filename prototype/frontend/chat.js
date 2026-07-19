@@ -14,12 +14,14 @@ function appendMessage(text, role) {
 
 function ensureOpen() {
   chatWidget.classList.remove("hidden");
-  toggleChatButton.textContent = "Fermer";
+  toggleChatButton.classList.add("chat-open");
+  toggleChatButton.setAttribute("aria-expanded", "true");
 }
 
 function closeWidget() {
   chatWidget.classList.add("hidden");
-  toggleChatButton.textContent = "Ouvrir";
+  toggleChatButton.classList.remove("chat-open");
+  toggleChatButton.setAttribute("aria-expanded", "false");
 }
 
 async function askTutor(question) {
@@ -102,7 +104,7 @@ window.ParcoursChat = {
   reset() {
     chatLog.innerHTML = `
       <p class="message assistant">
-        Le tuteur repondra ici aux questions sur l'exercice courant.
+        Hou hou ! Pose-moi une question sur l'exercice.
       </p>
     `;
     closeWidget();

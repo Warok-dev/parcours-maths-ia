@@ -3,112 +3,152 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Prototype Parcours Maths IA</title>
+    <title>Parcours Maths - Le Petit Monde</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section id="start-screen" class="panel start-screen">
-        <p class="eyebrow">Parcours Maths IA</p>
+    <!-- ===== Ecran 1 : choix du niveau ===== -->
+    <section id="start-screen" class="screen menu-screen">
+      <div class="menu-sky-decor" aria-hidden="true">
+        <span class="cloud cloud-a"></span>
+        <span class="cloud cloud-b"></span>
+        <span class="cloud cloud-c"></span>
+      </div>
+      <div class="menu-card">
+        <p class="menu-eyebrow">Le petit monde des maths</p>
         <h1>Choisis ton niveau</h1>
-        <p class="lead">
-          Demarre une session puis avance sur la carte en resolvant les exercices.
-        </p>
+        <p class="menu-lead">Pars a l'aventure et aide les habitants en resolvant des exercices.</p>
         <div class="level-actions">
-          <button class="level-button" data-level="CE1">Commencer en CE1</button>
-          <button class="level-button" data-level="CE2">Commencer en CE2</button>
+          <button class="level-button" data-level="CE1">
+            <span class="level-sign">CE1</span>
+            <span class="level-copy">Commencer en CE1</span>
+          </button>
+          <button class="level-button" data-level="CE2">
+            <span class="level-sign">CE2</span>
+            <span class="level-copy">Commencer en CE2</span>
+          </button>
         </div>
-        <p id="start-status" class="subtle">
+        <p id="start-status" class="menu-note">
           Le backend FastAPI doit etre lance sur <code>http://127.0.0.1:8000</code>.
         </p>
+      </div>
+    </section>
+
+    <!-- ===== Ecran 2 : choix de la lecon ===== -->
+    <section id="lesson-screen" class="screen menu-screen hidden">
+      <div class="menu-sky-decor" aria-hidden="true">
+        <span class="cloud cloud-a"></span>
+        <span class="cloud cloud-b"></span>
+      </div>
+      <div class="menu-card menu-card-wide">
+        <p class="menu-eyebrow">Le petit monde des maths</p>
+        <h1 id="lesson-title">Choisis ta lecon</h1>
+        <p class="menu-lead">Chaque lecon ouvre une nouvelle carte a explorer.</p>
+        <div id="lesson-actions" class="lesson-actions"></div>
+        <div class="lesson-footer">
+          <button id="back-to-levels-button" class="ghost-button" type="button">
+            &#8592; Changer de niveau
+          </button>
+        </div>
+        <p id="lesson-status" class="menu-note"></p>
+      </div>
+    </section>
+
+    <!-- ===== Ecran 3 : le jeu plein ecran ===== -->
+    <section id="game-screen" class="screen game-screen hidden">
+      <svg id="map" preserveAspectRatio="xMidYMid slice" aria-label="Carte du parcours"></svg>
+
+      <!-- HUD coin haut-gauche : lecon en cours -->
+      <div class="hud hud-top-left">
+        <div class="hud-chip">
+          <svg class="hud-chip-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M6 26 V10 a2 2 0 0 1 2-2 h6 a2 2 0 0 1 2 2 v16" fill="#FBF3E7" stroke="#8B5E3C" stroke-width="2" />
+            <path d="M16 26 V10 a2 2 0 0 1 2-2 h6 a2 2 0 0 1 2 2 v16" fill="#F0B84B" stroke="#8B5E3C" stroke-width="2" />
+            <line x1="4" y1="26" x2="28" y2="26" stroke="#8B5E3C" stroke-width="3" stroke-linecap="round" />
+          </svg>
+          <span id="session-title">Carte du parcours</span>
+          <span id="current-level-badge" class="hud-level">CE1</span>
+        </div>
+      </div>
+
+      <!-- HUD coin haut-droit : menu -->
+      <div class="hud hud-top-right">
+        <button id="menu-button" class="hud-round-button" type="button" aria-label="Menu" aria-expanded="false">
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <line x1="7" y1="10" x2="25" y2="10" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" />
+            <line x1="7" y1="16" x2="25" y2="16" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" />
+            <line x1="7" y1="22" x2="25" y2="22" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" />
+          </svg>
+        </button>
+        <div id="menu-dropdown" class="menu-dropdown hidden">
+          <button id="change-lesson-button" class="menu-item" type="button">&#128214; Changer de lecon</button>
+          <button id="restart-button" class="menu-item" type="button">&#127891; Changer de niveau</button>
+        </div>
+      </div>
+
+      <!-- Bandeau de feedback temporaire -->
+      <div id="feedback" class="feedback-banner hidden" aria-live="polite"></div>
+
+      <!-- Mascotte tuteur : hibou en bas a droite -->
+      <div class="tutor-dock">
+        <div id="chat-widget" class="chat-bubble hidden">
+          <p class="chat-bubble-title">Le hibou tuteur</p>
+          <div id="chat-log" class="chat-log">
+            <p class="message assistant">Hou hou ! Pose-moi une question sur l'exercice.</p>
+          </div>
+          <form id="chat-form" class="chat-form">
+            <input
+              id="chat-input"
+              type="text"
+              placeholder="Pose ta question ici"
+              autocomplete="off"
+              aria-label="Question pour le tuteur"
+            />
+            <button type="submit" aria-label="Envoyer">&#10148;</button>
+          </form>
+        </div>
+        <button id="toggle-chat" class="tutor-button" type="button" aria-label="Parler au hibou tuteur">
+          <svg class="owl" viewBox="0 0 96 96" aria-hidden="true">
+            <ellipse cx="48" cy="88" rx="22" ry="5" fill="rgba(60,40,20,0.18)" />
+            <path d="M20 46 Q14 34 22 26 L32 34 Z" fill="#8B5E3C" />
+            <path d="M76 46 Q82 34 74 26 L64 34 Z" fill="#8B5E3C" />
+            <ellipse cx="48" cy="52" rx="30" ry="34" fill="#8B5E3C" />
+            <ellipse cx="48" cy="60" rx="21" ry="24" fill="#FBF3E7" />
+            <path d="M27 40 Q48 24 69 40 Q66 22 48 20 Q30 22 27 40 Z" fill="#6E4A2E" />
+            <circle cx="37" cy="44" r="11" fill="#FBF3E7" stroke="#6E4A2E" stroke-width="2" />
+            <circle cx="59" cy="44" r="11" fill="#FBF3E7" stroke="#6E4A2E" stroke-width="2" />
+            <circle cx="37" cy="44" r="5" fill="#203845" />
+            <circle cx="59" cy="44" r="5" fill="#203845" />
+            <circle cx="38.6" cy="42.4" r="1.6" fill="#ffffff" />
+            <circle cx="60.6" cy="42.4" r="1.6" fill="#ffffff" />
+            <path d="M48 50 L43 58 L53 58 Z" fill="#F0B84B" />
+            <path d="M34 66 q4 5 9 0" fill="none" stroke="#8FC4DE" stroke-width="2.4" stroke-linecap="round" />
+            <path d="M43 70 q4 5 9 0" fill="none" stroke="#8FC4DE" stroke-width="2.4" stroke-linecap="round" />
+            <path d="M52 66 q4 5 9 0" fill="none" stroke="#8FC4DE" stroke-width="2.4" stroke-linecap="round" />
+            <path d="M22 54 q-6 10 2 20 q4 5 10 5 Q24 70 26 56 Z" fill="#6E4A2E" />
+            <path d="M74 54 q6 10 -2 20 q-4 5 -10 5 q10 -9 8 -23 Z" fill="#6E4A2E" />
+            <path d="M40 84 l-3 6 M44 84 l0 6 M52 84 l0 6 M56 84 l3 6" stroke="#F0B84B" stroke-width="2.6" stroke-linecap="round" />
+          </svg>
+          <span class="tutor-pulse" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <!-- Popup d'exercice thematique -->
+      <div id="exercise-overlay" class="exercise-overlay hidden">
+        <div id="exercise-modal" class="exercise-modal" role="dialog" aria-modal="true"></div>
+      </div>
+
+      <!-- Journal de debug (masque, conserve pour l'outillage) -->
+      <section id="debug-panel" class="hidden">
+        <pre id="debug-log" class="debug-log"></pre>
       </section>
-
-      <section id="game-screen" class="game-screen hidden">
-        <header class="panel topbar">
-          <div>
-            <p class="eyebrow">Session en cours</p>
-            <h2 id="session-title">Carte du parcours</h2>
-          </div>
-          <div class="session-meta">
-            <span id="current-level-badge" class="badge">CE1</span>
-            <button id="restart-button" class="ghost-button" type="button">Changer de niveau</button>
-          </div>
-        </header>
-
-        <section class="game-grid">
-          <article class="panel map-panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Carte 2D</p>
-                <h3>Route du parcours</h3>
-              </div>
-              <p id="map-status" class="subtle">Aucune session active.</p>
-            </div>
-            <svg id="map" viewBox="0 0 960 520" aria-label="Carte du parcours"></svg>
-            <div class="legend">
-              <span><i class="dot done"></i> Porte ouverte</span>
-              <span><i class="dot current"></i> Obstacle actif</span>
-              <span><i class="dot locked"></i> Obstacles suivants</span>
-            </div>
-          </article>
-
-          <aside class="side-column">
-            <article class="panel exercise-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Exercice</p>
-                  <h3 id="exercise-title">Obstacle courant</h3>
-                </div>
-                <span id="presentation-badge" class="badge badge-soft">1_guide</span>
-              </div>
-              <p id="progress-copy" class="subtle">
-                Deplace-toi avec les fleches puis appuie sur Entree ou Espace pres de la porte.
-              </p>
-              <div id="exercise-card" class="exercise-card empty-state">
-                <p>Approche-toi du premier obstacle pour lancer l'exercice.</p>
-              </div>
-              <p id="feedback" class="feedback hidden" aria-live="polite"></p>
-            </article>
-
-            <article class="panel tutor-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Tuteur IA</p>
-                  <h3>Besoin d'aide ?</h3>
-                </div>
-                <button id="toggle-chat" class="ghost-button" type="button">Ouvrir</button>
-              </div>
-              <div id="chat-widget" class="chat-widget hidden">
-                <div id="chat-log" class="chat-log">
-                  <p class="message assistant">
-                    Le tuteur repondra ici aux questions sur l'exercice courant.
-                  </p>
-                </div>
-                <form id="chat-form" class="chat-form">
-                  <input
-                    id="chat-input"
-                    type="text"
-                    placeholder="Pose une question sur l'exercice"
-                    autocomplete="off"
-                  />
-                  <button type="submit">Envoyer</button>
-                </form>
-              </div>
-            </article>
-          </aside>
-        </section>
-
-        <section id="debug-panel" class="panel hidden">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Journal de debug</p>
-              <h3>Auto-parcours</h3>
-            </div>
-          </div>
-          <pre id="debug-log" class="debug-log"></pre>
-        </section>
-      </section>
-    </main>
+    </section>
 
     <script src="map.js"></script>
     <script src="chat.js"></script>

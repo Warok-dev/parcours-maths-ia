@@ -10,7 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from evaluation import compare_reponse
-from generation.narrative import generate_narrative_exercise
+from generation.narrative import (
+    generate_narrative_exercise,
+    patterns_narratifs_disponibles_pour_niveau,
+)
 from generation.substitution import (
     generer_exercice,
     generer_lot,
@@ -39,6 +42,7 @@ app.add_middleware(
 
 class SessionStartRequest(BaseModel):
     niveau_scolaire: Literal["CE1", "CE2"]
+    lecon_id: str | None = None
 
 
 class EvaluationRequest(BaseModel):
@@ -92,13 +96,58 @@ def _concepts_for_level(niveau: str) -> list[str]:
     return concepts
 
 
+def _load_lessons() -> list[dict]:
+    lessons = load_json("lessons.json")
+    if not isinstance(lessons, dict) or not isinstance(lessons.get("lessons"), list):
+        raise HTTPException(status_code=500, detail="Structure de lecons invalide.")
+    return lessons["lessons"]
+
+
+def _all_patterns_for_level(niveau: str) -> set[str]:
+    return set(patterns_disponibles_pour_niveau(niveau)) | set(
+        patterns_narratifs_disponibles_pour_niveau(niveau)
+    )
+
+
+def _available_lessons_for_level(niveau: str) -> list[dict]:
+    available_patterns = _all_patterns_for_level(niveau)
+    lessons: list[dict] = []
+    for lesson in _load_lessons():
+        patterns = [pattern for pattern in lesson["patterns"] if pattern in available_patterns]
+        if not patterns:
+            continue
+        lessons.append(
+            {
+                "lecon_id": lesson["lecon_id"],
+                "nom": lesson["nom"],
+                "pattern_count": len(patterns),
+                "patterns": patterns,
+            }
+        )
+    return lessons
+
+
+def _lesson_concepts_for_level(niveau: str, lecon_id: str) -> tuple[dict, list[str]]:
+    for lesson in _available_lessons_for_level(niveau):
+        if lesson["lecon_id"] == lecon_id:
+            return lesson, lesson["patterns"]
+    raise HTTPException(status_code=404, detail="Lecon introuvable pour ce niveau.")
+
+
 def _cache_exercise(exercice: dict) -> dict:
     EXERCICE_CACHE[exercice["id"]] = exercice
     return exercice
 
 
 def _generate_concept_exercise(niveau: str, concept: str) -> dict:
-    return _cache_exercise(generer_exercice(concept, niveau))
+    if concept in patterns_disponibles_pour_niveau(niveau):
+        return _cache_exercise(generer_exercice(concept, niveau))
+    if concept in patterns_narratifs_disponibles_pour_niveau(niveau):
+        return _cache_exercise(generate_narrative_exercise(niveau, concept))
+    raise HTTPException(
+        status_code=500,
+        detail=f"Le concept '{concept}' n'est pas generable pour le niveau {niveau}.",
+    )
 
 
 def _progression_payload(session: dict) -> dict:
@@ -107,6 +156,8 @@ def _progression_payload(session: dict) -> dict:
     payload = {
         "session_id": session["session_id"],
         "niveau_scolaire": session["niveau_scolaire"],
+        "lecon_id": session["lecon_id"],
+        "lecon_nom": session["lecon_nom"],
         "concept_courant": session["concept_courant"],
         "phase": session["phase"],
         "niveau_resolution_courant": current_level,
@@ -126,14 +177,22 @@ def _progression_payload(session: dict) -> dict:
     return payload
 
 
-def _build_session(niveau: str) -> dict:
-    concepts = _concepts_for_level(niveau)
+def _build_session(niveau: str, lecon_id: str | None = None) -> dict:
+    if lecon_id is None:
+        concepts = _concepts_for_level(niveau)
+        lecon_nom = None
+    else:
+        lesson, concepts = _lesson_concepts_for_level(niveau, lecon_id)
+        lecon_nom = lesson["nom"]
+
     concept = concepts[0]
     exercice = _generate_concept_exercise(niveau, concept)
     session_id = uuid4().hex
     session = {
         "session_id": session_id,
         "niveau_scolaire": niveau,
+        "lecon_id": lecon_id,
+        "lecon_nom": lecon_nom,
         "concepts": concepts,
         "concept_index": 0,
         "concept_courant": concept,
@@ -173,13 +232,27 @@ def _mark_chain_broken(session: dict) -> None:
     session["erreurs_sur_chaine_actuelle"] = True
 
 
+def _generate_next_exercise(session: dict, concept: str) -> dict:
+    # La session ne doit etre mutee qu'apres une generation reussie : toute
+    # erreur ici doit laisser l'etat intact et signaler un indisponible au front.
+    try:
+        return _generate_concept_exercise(session["niveau_scolaire"], concept)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Generation de l'exercice suivant indisponible, reessaie.",
+        ) from exc
+
+
 def _start_reinforcement(session: dict, mastery: int) -> dict:
+    exercice = _generate_next_exercise(session, session["concept_courant"])
     session["phase"] = "renforcement"
     session["maitrise_actuelle"] = mastery
     session["niveau_resolution_courant"] = 1
     session["erreurs_sur_chaine_actuelle"] = False
     session["exercices_renforcement_restants"] = REINFORCEMENT_BY_MASTERY[mastery]
-    exercice = _generate_concept_exercise(session["niveau_scolaire"], session["concept_courant"])
     session["exercice_id_courant"] = exercice["id"]
     return exercice
 
@@ -197,16 +270,17 @@ def _unlock_next_concept(session: dict) -> tuple[str, dict | None]:
         session["erreurs_sur_chaine_actuelle"] = False
         return "carte_terminee", None
 
+    next_concept = session["concepts"][next_index]
+    exercice = _generate_next_exercise(session, next_concept)
     session["concept_index"] = next_index
-    session["concept_courant"] = session["concepts"][next_index]
+    session["concept_courant"] = next_concept
     session["phase"] = "detection_maitrise"
     session["niveau_resolution_courant"] = 1
     session["erreurs_sur_chaine_actuelle"] = False
     session["exercices_renforcement_restants"] = 0
     session["maitrise_actuelle"] = 0
     session["terminee"] = False
-    session["etapes_debloquees"].append(session["concept_courant"])
-    exercice = _generate_concept_exercise(session["niveau_scolaire"], session["concept_courant"])
+    session["etapes_debloquees"].append(next_concept)
     session["exercice_id_courant"] = exercice["id"]
     return "correct_concept_debloque", exercice
 
@@ -218,8 +292,8 @@ def _handle_detection_success(session: dict) -> tuple[str, dict | None]:
         exercice = _start_reinforcement(session, locked_mastery)
         return "correct_nouveau_renforcement", exercice
 
-    session["maitrise_actuelle"] = current_level
     if current_level < 3:
+        session["maitrise_actuelle"] = current_level
         _advance_to_next_level(session)
         return "correct_niveau_suivant", EXERCICE_CACHE[session["exercice_id_courant"]]
 
@@ -233,11 +307,11 @@ def _handle_reinforcement_success(session: dict) -> tuple[str, dict | None]:
         _advance_to_next_level(session)
         return "correct_niveau_suivant", EXERCICE_CACHE[session["exercice_id_courant"]]
 
-    session["exercices_renforcement_restants"] -= 1
-    if session["exercices_renforcement_restants"] > 0:
+    if session["exercices_renforcement_restants"] > 1:
+        exercice = _generate_next_exercise(session, session["concept_courant"])
+        session["exercices_renforcement_restants"] -= 1
         session["niveau_resolution_courant"] = 1
         session["erreurs_sur_chaine_actuelle"] = False
-        exercice = _generate_concept_exercise(session["niveau_scolaire"], session["concept_courant"])
         session["exercice_id_courant"] = exercice["id"]
         return "correct_nouveau_renforcement", exercice
 
@@ -287,7 +361,7 @@ def health() -> dict:
 
 @app.post("/session/demarrer")
 def demarrer_session(payload: SessionStartRequest) -> dict:
-    session = _build_session(payload.niveau_scolaire)
+    session = _build_session(payload.niveau_scolaire, payload.lecon_id)
     return {
         "session_id": session["session_id"],
         "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
@@ -299,6 +373,17 @@ def demarrer_session(payload: SessionStartRequest) -> dict:
 def get_session(session_id: str) -> dict:
     session = _get_session(session_id)
     return _progression_payload(session)
+
+
+@app.get("/lecons/{niveau_scolaire}")
+def get_lecons(niveau_scolaire: str) -> dict:
+    if niveau_scolaire not in ALLOWED_LEVELS:
+        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 ou CE2.")
+
+    return {
+        "niveau_scolaire": niveau_scolaire,
+        "lecons": _available_lessons_for_level(niveau_scolaire),
+    }
 
 
 @app.get("/exercices/{niveau}")

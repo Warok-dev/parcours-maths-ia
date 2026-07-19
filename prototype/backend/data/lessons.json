@@ -1,0 +1,59 @@
+{
+  "lessons": [
+    {
+      "lecon_id": "addition",
+      "nom": "Addition",
+      "patterns": [
+        "addition_pas_a_pas_sans_retenue",
+        "partie_tout_addition_non_narratif",
+        "addition_2chiffres_sans_retenue",
+        "probleme_total_partie_tout"
+      ]
+    },
+    {
+      "lecon_id": "soustraction",
+      "nom": "Soustraction",
+      "patterns": [
+        "partie_tout_soustraction_non_narratif",
+        "probleme_reste_partie_tout",
+        "probleme_comparaison_difference"
+      ]
+    },
+    {
+      "lecon_id": "multiplication_par_10",
+      "nom": "Multiplication par 10",
+      "patterns": [
+        "multiplication_par_10",
+        "multiplication_chiffre_x_multiple_de_10",
+        "identifier_multiple_de_10"
+      ]
+    },
+    {
+      "lecon_id": "multiplication_decomposee",
+      "nom": "Multiplication decomposee",
+      "patterns": [
+        "multiplication_decomposee_chiffre_x_2chiffres",
+        "addition_repetee_vers_multiplication",
+        "facteur_manquant_table_de_2",
+        "probleme_groupes_egaux_total",
+        "probleme_groupes_egaux_quotient"
+      ]
+    },
+    {
+      "lecon_id": "moitie_double",
+      "nom": "Moitie et double",
+      "patterns": [
+        "moitie_via_2xn",
+        "double_via_2xn"
+      ]
+    },
+    {
+      "lecon_id": "suites_mesures",
+      "nom": "Suites et mesures",
+      "patterns": [
+        "suite_multiples_de_10_a_completer",
+        "conversion_cm_mm_vers_mm"
+      ]
+    }
+  ]
+}

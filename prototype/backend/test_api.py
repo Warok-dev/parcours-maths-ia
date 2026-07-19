@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import copy
 import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from generation.narrative import NarrativeGenerationError
 from main import EXERCICE_CACHE, SESSION_STATE, app
+
+SESSION_LECON_ID = "addition"
 
 
 def _answer_for(exercice: dict) -> str:
@@ -51,6 +55,18 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Niveau invalide", response.json()["detail"])
 
+    def test_get_lecons_ce1_returns_non_empty_list_with_expected_format(self) -> None:
+        response = self.client.get("/lecons/CE1")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["niveau_scolaire"], "CE1")
+        self.assertTrue(payload["lecons"])
+
+        first_lesson = payload["lecons"][0]
+        self.assertTrue({"lecon_id", "nom", "pattern_count", "patterns"}.issubset(first_lesson.keys()))
+        self.assertIsInstance(first_lesson["patterns"], list)
+        self.assertGreater(first_lesson["pattern_count"], 0)
+
     def test_get_exercices_forced_pattern_returns_requested_pattern(self) -> None:
         response = self.client.get("/exercices/CE2", params={"pattern": "multiplication_par_10"})
         self.assertEqual(response.status_code, 200)
@@ -78,7 +94,10 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertTrue(payload["correct"])
 
     def test_session_perfect_mastery_unlocks_next_concept_after_two_reinforcements(self) -> None:
-        start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+        )
         self.assertEqual(start.status_code, 200)
         payload = start.json()
         session_id = payload["session_id"]
@@ -124,8 +143,50 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertNotEqual(progression["concept_courant"], concept_initial)
         self.assertEqual(progression["exercices_renforcement_restants"], 0)
 
+    def test_generation_failure_on_concept_unlock_keeps_session_state(self) -> None:
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+        )
+        self.assertEqual(start.status_code, 200)
+        payload = start.json()
+        session_id = payload["session_id"]
+        exercice = payload["exercice"]
+
+        # Place la session juste avant le deblocage du concept narratif :
+        # dernier exercice de renforcement du concept precedent, niveau 3.
+        session = SESSION_STATE[session_id]
+        narrative_index = session["concepts"].index("probleme_total_partie_tout")
+        session["concept_index"] = narrative_index - 1
+        session["concept_courant"] = session["concepts"][narrative_index - 1]
+        session["phase"] = "renforcement"
+        session["maitrise_actuelle"] = 3
+        session["niveau_resolution_courant"] = 3
+        session["exercices_renforcement_restants"] = 1
+        before = copy.deepcopy(session)
+
+        with patch(
+            "main.generate_narrative_exercise",
+            side_effect=NarrativeGenerationError("Quota Gemini epuise."),
+        ):
+            response = self.client.post(
+                "/evaluer",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "reponse_donnee": _answer_for(exercice),
+                },
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("indisponible", response.json()["detail"])
+        self.assertEqual(SESSION_STATE[session_id], before)
+
     def test_session_failure_once_at_level_two_leads_to_mastery_one_and_four_reinforcements(self) -> None:
-        start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+        )
         self.assertEqual(start.status_code, 200)
         payload = start.json()
         session_id = payload["session_id"]
@@ -170,7 +231,10 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 4)
 
     def test_session_incorrect_answer_does_not_change_level_or_phase(self) -> None:
-        start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+        )
         self.assertEqual(start.status_code, 200)
         payload = start.json()
         session_id = payload["session_id"]
@@ -205,7 +269,10 @@ class ApiIntegrationTests(unittest.TestCase):
                 "question_recue": "Aide-moi.",
             },
         ):
-            start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+            start = self.client.post(
+                "/session/demarrer",
+                json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+            )
             self.assertEqual(start.status_code, 200)
             payload = start.json()
             session_id = payload["session_id"]
@@ -259,7 +326,10 @@ class ApiIntegrationTests(unittest.TestCase):
                 "question_recue": "Aide-moi.",
             },
         ):
-            start = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"})
+            start = self.client.post(
+                "/session/demarrer",
+                json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+            )
             self.assertEqual(start.status_code, 200)
             payload = start.json()
             session_id = payload["session_id"]

@@ -5,30 +5,45 @@ const SCENE_PADDING_Y = 420;
 const START_X = SCENE_PADDING_X + 250;
 const START_Y = SCENE_PADDING_Y + 38;
 const PLAYER_RADIUS = 20;
-const PLAYER_SPEED = 220;
-const CAMERA_WIDTH = 520;
-const CAMERA_HEIGHT = 360;
-const OBSTACLE_GAP_Y = 190;
-const FIRST_OBSTACLE_Y = SCENE_PADDING_Y + 220;
+const PLAYER_SPEED = 230;
+const CAMERA_WIDTH = 560;
+const CAMERA_HEIGHT = 390;
+const CAMERA_EASE = 5.2;
+const OBSTACLE_GAP_Y = 320;
+const FIRST_OBSTACLE_Y = SCENE_PADDING_Y + 280;
 const BARRIER_OFFSET_Y = 46;
 const INTERACTION_DISTANCE = 118;
 const LANE_XS = [550, 1560, 660, 1480, 600, 1600];
 const OBSTACLE_TYPES = ["castle_gate", "blocked_road", "broken_bridge", "crossroads"];
+const RIVER_HALF_HEIGHT = 62;
+
+const LESSON_ICONS = {
+  addition: "+",
+  soustraction: "−",
+  multiplication_par_10: "×10",
+  multiplication_decomposee: "×",
+  moitie_double: "½",
+  suites_mesures: "…",
+};
 
 const startScreen = document.getElementById("start-screen");
+const lessonScreen = document.getElementById("lesson-screen");
 const gameScreen = document.getElementById("game-screen");
 const startStatus = document.getElementById("start-status");
+const lessonTitle = document.getElementById("lesson-title");
+const lessonActions = document.getElementById("lesson-actions");
+const lessonStatus = document.getElementById("lesson-status");
 const sessionTitle = document.getElementById("session-title");
 const currentLevelBadge = document.getElementById("current-level-badge");
+const changeLessonButton = document.getElementById("change-lesson-button");
+const backToLevelsButton = document.getElementById("back-to-levels-button");
 const restartButton = document.getElementById("restart-button");
+const menuButton = document.getElementById("menu-button");
+const menuDropdown = document.getElementById("menu-dropdown");
 const mapElement = document.getElementById("map");
-const mapStatus = document.getElementById("map-status");
-const exerciseTitle = document.getElementById("exercise-title");
-const presentationBadge = document.getElementById("presentation-badge");
-const progressCopy = document.getElementById("progress-copy");
-const exerciseCard = document.getElementById("exercise-card");
 const feedback = document.getElementById("feedback");
-const debugPanel = document.getElementById("debug-panel");
+const exerciseOverlay = document.getElementById("exercise-overlay");
+const exerciseModal = document.getElementById("exercise-modal");
 const debugLog = document.getElementById("debug-log");
 
 const state = {
@@ -37,17 +52,25 @@ const state = {
   currentExercise: null,
   panelOpen: false,
   playerPosition: { x: START_X, y: START_Y },
+  playerAngle: 0,
+  playerMoving: false,
   keysPressed: new Set(),
   nearObstacle: false,
   scene: null,
   justUnlockedIndex: null,
   justUnlockedUntil: 0,
   lastUnlockedType: null,
-  camera: { x: CAMERA_WIDTH / 2, y: CAMERA_HEIGHT / 2 },
+  camera: { x: START_X, y: START_Y },
+  selectedLevel: null,
+  availableLessons: [],
+  selectedLesson: null,
+  masteryByIndex: {},
 };
 
 let animationFrameId = null;
 let lastTick = 0;
+let feedbackTimer = null;
+let feedbackLeaveTimer = null;
 
 function logDebug(entry) {
   if (debugLog) {
@@ -55,26 +78,34 @@ function logDebug(entry) {
   }
 }
 
+/* ============================================================
+   FEEDBACK : bandeau overlay temporaire (2-3 s puis disparition)
+   ============================================================ */
 function setFeedback(message, tone = "info") {
+  window.clearTimeout(feedbackTimer);
+  window.clearTimeout(feedbackLeaveTimer);
   feedback.textContent = message;
-  feedback.className = `feedback ${tone}`;
+  feedback.className = `feedback-banner ${tone}`;
+  const visibleFor = tone === "warning" || tone === "wait" ? 3200 : 2600;
+  feedbackTimer = window.setTimeout(() => {
+    feedback.classList.add("leaving");
+    feedbackLeaveTimer = window.setTimeout(() => clearFeedback(), 380);
+  }, visibleFor);
 }
 
 function clearFeedback() {
+  window.clearTimeout(feedbackTimer);
+  window.clearTimeout(feedbackLeaveTimer);
   feedback.textContent = "";
-  feedback.className = "feedback hidden";
+  feedback.className = "feedback-banner hidden";
 }
 
 function currentConceptIndex() {
   return state.session ? state.session.concept_index : -1;
 }
 
-function conceptLabel(patternName) {
-  return patternName ? patternName.replaceAll("_", " ") : "Parcours termine";
-}
-
 function levelLabel() {
-  return state.session ? state.session.niveau_scolaire : "";
+  return state.session?.niveau_scolaire || state.selectedLevel || "";
 }
 
 function activeObstacle() {
@@ -88,63 +119,303 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function obstacleTheme(type) {
-  switch (type) {
-    case "castle_gate":
-      return {
-        title: "La porte du chateau est fermee !",
-        intro:
-          "Le gardien attend ton aide. Resol ce probleme pour ouvrir la grande porte du chateau.",
-      };
-    case "blocked_road":
-      return {
-        title: "La route est bloquee !",
-        intro:
-          "Aide ce villageois a degager le passage en resolvant cet exercice.",
-      };
-    case "broken_bridge":
-      return {
-        title: "Le pont est casse !",
-        intro:
-          "Aide a reparer le pont en trouvant la bonne reponse.",
-      };
-    case "crossroads":
-      return {
-        title: "Le chemin est cache !",
-        intro:
-          "Le guide connait la bonne direction. Aide-le pour reveler le passage.",
-      };
-    default:
-      return {
-        title: "Un obstacle t'attend !",
-        intro: "Resol l'exercice pour continuer ton chemin.",
-      };
-  }
-}
-
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+/* ============================================================
+   THEMES D'OBSTACLES (textes + apparence, definis une fois)
+   ============================================================ */
+function obstacleTheme(type) {
+  switch (type) {
+    case "castle_gate":
+      return {
+        name: "Le chateau",
+        modalClass: "theme-castle",
+        title: "La porte du chateau est fermee !",
+        intro: "Le gardien attend ton aide. Resous ce probleme pour ouvrir la grande porte.",
+      };
+    case "blocked_road":
+      return {
+        name: "La cabane",
+        modalClass: "theme-cabin",
+        title: "La route est bloquee !",
+        intro: "Aide ce villageois a degager le passage en resolvant cet exercice.",
+      };
+    case "broken_bridge":
+      return {
+        name: "Le pont",
+        modalClass: "theme-bridge",
+        title: "Le pont est casse !",
+        intro: "Aide a reparer le pont en trouvant la bonne reponse.",
+      };
+    case "crossroads":
+      return {
+        name: "Le carrefour",
+        modalClass: "theme-crossroads",
+        title: "Le chemin est cache !",
+        intro: "Le guide connait la bonne direction. Aide-le pour reveler le passage.",
+      };
+    default:
+      return {
+        name: "L'obstacle",
+        modalClass: "theme-castle",
+        title: "Un obstacle t'attend !",
+        intro: "Resous l'exercice pour continuer ton chemin.",
+      };
+  }
+}
+
+/* ============================================================
+   ASSETS SVG REUTILISABLES
+   Chaque asset est defini UNE fois ici et utilise partout
+   (scene ET icones des popups) sans jamais etre redessine.
+   Tous sont dessines centres sur (0,0), vue du dessus.
+   ============================================================ */
+const ASSETS = {
+  player() {
+    return `
+      <ellipse cx="0" cy="6" rx="20" ry="14" class="player-shadow"></ellipse>
+      <circle cx="-13" cy="14" r="6" class="player-foot left"></circle>
+      <circle cx="13" cy="14" r="6" class="player-foot right"></circle>
+      <ellipse cx="0" cy="2" rx="19" ry="15" class="player-body"></ellipse>
+      <circle cx="-19" cy="2" r="6.5" class="player-hand left"></circle>
+      <circle cx="19" cy="2" r="6.5" class="player-hand right"></circle>
+      <circle cx="0" cy="-3" r="12.5" class="player-head"></circle>
+      <path d="M -12 -6 a 12.5 12.5 0 0 1 24 0 q -6 -7 -12 -7 q -6 0 -12 7 Z" class="player-hair"></path>
+    `;
+  },
+
+  npc() {
+    return `
+      <ellipse cx="0" cy="5" rx="15" ry="10" class="npc-shadow"></ellipse>
+      <ellipse cx="0" cy="1" rx="14" ry="11" class="npc-body"></ellipse>
+      <circle cx="-14" cy="1" r="4.5" class="npc-hand"></circle>
+      <circle cx="14" cy="1" r="4.5" class="npc-hand"></circle>
+      <circle cx="0" cy="-3" r="9.5" class="npc-head"></circle>
+      <path d="M -9 -5 a 9.5 9.5 0 0 1 18 0 q -4.5 -5.5 -9 -5.5 q -4.5 0 -9 5.5 Z" class="npc-hair"></path>
+    `;
+  },
+
+  tree() {
+    return `
+      <ellipse cx="6" cy="8" rx="34" ry="26" class="tree-shadow"></ellipse>
+      <circle cx="0" cy="0" r="32" class="tree-canopy-back"></circle>
+      <circle cx="-9" cy="-7" r="17" class="tree-canopy"></circle>
+      <circle cx="11" cy="4" r="15" class="tree-canopy"></circle>
+      <circle cx="-3" cy="9" r="13" class="tree-canopy"></circle>
+      <circle cx="-11" cy="-9" r="8" class="tree-canopy-light"></circle>
+    `;
+  },
+
+  bush() {
+    return `
+      <ellipse cx="3" cy="4" rx="22" ry="14" class="tree-shadow"></ellipse>
+      <circle cx="-10" cy="0" r="12" class="bush-leaf"></circle>
+      <circle cx="8" cy="-3" r="13" class="bush-leaf"></circle>
+      <circle cx="2" cy="6" r="10" class="bush-leaf-light"></circle>
+    `;
+  },
+
+  flower() {
+    return `
+      <circle cx="-6" cy="0" r="4.5" class="flower-petal"></circle>
+      <circle cx="6" cy="0" r="4.5" class="flower-petal"></circle>
+      <circle cx="0" cy="-6" r="4.5" class="flower-petal"></circle>
+      <circle cx="0" cy="6" r="4.5" class="flower-petal"></circle>
+      <circle cx="0" cy="0" r="3.5" class="flower-center"></circle>
+    `;
+  },
+
+  flowerPink() {
+    return `
+      <circle cx="-6" cy="0" r="4.5" class="flower-petal pink"></circle>
+      <circle cx="6" cy="0" r="4.5" class="flower-petal pink"></circle>
+      <circle cx="0" cy="-6" r="4.5" class="flower-petal pink"></circle>
+      <circle cx="0" cy="6" r="4.5" class="flower-petal pink"></circle>
+      <circle cx="0" cy="0" r="3.5" class="flower-center"></circle>
+    `;
+  },
+
+  rock() {
+    return `
+      <ellipse cx="4" cy="5" rx="24" ry="15" class="tree-shadow"></ellipse>
+      <ellipse cx="0" cy="0" rx="21" ry="15" class="deco-rock"></ellipse>
+      <ellipse cx="14" cy="10" rx="7" ry="5" class="deco-rock-small"></ellipse>
+    `;
+  },
+
+  grassTuft() {
+    return `
+      <path d="M -4 3 q -1.5 -5 1.5 -8 M 0 3.5 q 0 -6.5 0 -9.5 M 4 3 q 1.5 -5 -1.5 -8" class="grass-tuft"></path>
+    `;
+  },
+
+  /* Chateau : bande de muraille + 2 tours rondes + double porte en bois
+     avec cadenas dore. La porte s'ouvre en pivotant (classes CSS). */
+  castle(isOpen) {
+    return `
+      <g class="asset-castle">
+        <rect x="-150" y="-30" width="102" height="60" rx="10" class="castle-wall"></rect>
+        <rect x="48" y="-30" width="102" height="60" rx="10" class="castle-wall"></rect>
+        <rect x="-138" y="-18" width="78" height="36" rx="8" class="castle-wall-inner"></rect>
+        <rect x="60" y="-18" width="78" height="36" rx="8" class="castle-wall-inner"></rect>
+        <circle cx="-118" cy="0" r="34" class="castle-tower"></circle>
+        <circle cx="-118" cy="0" r="18" class="castle-tower-top"></circle>
+        <circle cx="118" cy="0" r="34" class="castle-tower"></circle>
+        <circle cx="118" cy="0" r="18" class="castle-tower-top"></circle>
+        <path d="M -118 -34 l 22 -8 l -22 -8 Z" class="castle-banner"></path>
+        <path d="M 118 -34 l 22 -8 l -22 -8 Z" class="castle-banner"></path>
+        <g class="gate-left">
+          <rect x="-48" y="-9" width="48" height="18" rx="5" class="door-panel"></rect>
+          <line x1="-36" y1="-9" x2="-36" y2="9" class="door-plank"></line>
+          <line x1="-20" y1="-9" x2="-20" y2="9" class="door-plank"></line>
+        </g>
+        <g class="gate-right">
+          <rect x="0" y="-9" width="48" height="18" rx="5" class="door-panel"></rect>
+          <line x1="36" y1="-9" x2="36" y2="9" class="door-plank"></line>
+          <line x1="20" y1="-9" x2="20" y2="9" class="door-plank"></line>
+        </g>
+        ${
+          isOpen
+            ? ""
+            : `
+              <g class="door-lock">
+                <path d="M -7 -6 a 7 7 0 0 1 14 0" class="door-lock-shackle"></path>
+                <rect x="-10" y="-6" width="20" height="16" rx="5" class="door-lock-body"></rect>
+              </g>
+            `
+        }
+      </g>
+    `;
+  },
+
+  /* Cabane vue du dessus : toit a deux pans + cheminee. */
+  cabin() {
+    return `
+      <g class="asset-cabin">
+        <ellipse cx="8" cy="10" rx="66" ry="46" class="tree-shadow"></ellipse>
+        <rect x="-60" y="-45" width="120" height="90" rx="10" class="cabin-roof"></rect>
+        <rect x="-52" y="-37" width="104" height="36" rx="6" class="cabin-roof-half"></rect>
+        <rect x="-52" y="1" width="104" height="36" rx="6" class="cabin-roof-half"></rect>
+        <line x1="-56" y1="0" x2="56" y2="0" class="cabin-ridge"></line>
+        <rect x="26" y="-32" width="18" height="18" rx="4" class="cabin-chimney"></rect>
+      </g>
+    `;
+  },
+
+  /* Pont vue du dessus : tablier a planches horizontales au-dessus de l'eau.
+     Casse = deux planches du milieu manquantes (pointilles). */
+  bridge(isRepaired) {
+    const midPlanks = isRepaired
+      ? `
+        <rect x="-40" y="-10" width="80" height="16" rx="4" class="bridge-plank"></rect>
+        <rect x="-40" y="10" width="80" height="16" rx="4" class="bridge-plank"></rect>
+      `
+      : `
+        <rect x="-40" y="-10" width="80" height="16" rx="4" class="bridge-plank ghost"></rect>
+        <rect x="-40" y="10" width="80" height="16" rx="4" class="bridge-plank ghost"></rect>
+      `;
+    return `
+      <g class="asset-bridge">
+        <rect x="-52" y="-78" width="104" height="156" rx="12" class="bridge-deck"></rect>
+        <rect x="-40" y="-70" width="80" height="16" rx="4" class="bridge-plank"></rect>
+        <rect x="-40" y="-50" width="80" height="16" rx="4" class="bridge-plank"></rect>
+        <rect x="-40" y="-30" width="80" height="16" rx="4" class="bridge-plank"></rect>
+        ${midPlanks}
+        <rect x="-40" y="30" width="80" height="16" rx="4" class="bridge-plank"></rect>
+        <rect x="-40" y="50" width="80" height="16" rx="4" class="bridge-plank"></rect>
+        <line x1="-52" y1="-76" x2="-52" y2="76" class="bridge-rail"></line>
+        <line x1="52" y1="-76" x2="52" y2="76" class="bridge-rail"></line>
+      </g>
+    `;
+  },
+
+  /* Panneau du carrefour : poteau + deux fleches. */
+  signpost(isRevealed) {
+    return `
+      <g class="asset-signpost">
+        <ellipse cx="3" cy="34" rx="16" ry="7" class="tree-shadow"></ellipse>
+        <rect x="-5" y="-38" width="10" height="72" rx="4" class="signpost-pole"></rect>
+        <g transform="translate(0, -26)">
+          <path d="M -44 -12 h 74 l 14 12 l -14 12 h -74 Z" class="signpost-board"></path>
+          <text x="-8" y="8" text-anchor="middle" class="signpost-text">?</text>
+        </g>
+        <g transform="translate(0, 6) scale(-1, 1)">
+          <path d="M -44 -12 h 74 l 14 12 l -14 12 h -74 Z" class="signpost-board"></path>
+          <text x="-6" y="8" text-anchor="middle" transform="scale(-1,1)" class="signpost-text">${isRevealed ? "→" : "..."}</text>
+        </g>
+      </g>
+    `;
+  },
+};
+
+/* Icone d'obstacle pour la popup : le MEME asset que sur la carte. */
+function obstacleIconSvg(type, status) {
+  const done = status === "done";
+  switch (type) {
+    case "castle_gate":
+      return `<svg viewBox="-95 -48 190 96" aria-hidden="true">${ASSETS.castle(done)}</svg>`;
+    case "blocked_road":
+      return `<svg viewBox="-75 -60 150 120" aria-hidden="true">${ASSETS.cabin()}</svg>`;
+    case "broken_bridge":
+      return `<svg viewBox="-70 -90 140 180" aria-hidden="true">${ASSETS.bridge(done)}</svg>`;
+    case "crossroads":
+      return `<svg viewBox="-70 -60 140 110" aria-hidden="true">${ASSETS.signpost(done)}</svg>`;
+    default:
+      return "";
+  }
+}
+
+/* ============================================================
+   CAMERA
+   ============================================================ */
 function clampCamera(cameraTarget) {
   if (!state.scene) {
     return cameraTarget;
   }
-
   return {
     x: clamp(cameraTarget.x, CAMERA_WIDTH / 2, state.scene.width - CAMERA_WIDTH / 2),
     y: clamp(cameraTarget.y, CAMERA_HEIGHT / 2, state.scene.height - CAMERA_HEIGHT / 2),
   };
 }
 
-function cameraViewBox() {
+function applyCameraViewBox() {
   const clamped = clampCamera(state.camera);
-  return {
-    x: clamped.x - CAMERA_WIDTH / 2,
-    y: clamped.y - CAMERA_HEIGHT / 2,
-    width: CAMERA_WIDTH,
-    height: CAMERA_HEIGHT,
+  mapElement.setAttribute(
+    "viewBox",
+    `${clamped.x - CAMERA_WIDTH / 2} ${clamped.y - CAMERA_HEIGHT / 2} ${CAMERA_WIDTH} ${CAMERA_HEIGHT}`,
+  );
+}
+
+/* ============================================================
+   MODELE DE SCENE
+   ============================================================ */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function rand() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function pointSegmentDistance(p, a, b) {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const lengthSq = abx * abx + aby * aby;
+  const t = lengthSq === 0 ? 0 : clamp(((p.x - a.x) * abx + (p.y - a.y) * aby) / lengthSq, 0, 1);
+  return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
+}
+
+function distanceToRoute(point, routePoints) {
+  let best = Infinity;
+  for (let index = 1; index < routePoints.length; index += 1) {
+    best = Math.min(best, pointSegmentDistance(point, routePoints[index - 1], routePoints[index]));
+  }
+  return best;
 }
 
 function createSceneModel(concepts) {
@@ -159,15 +430,13 @@ function createSceneModel(concepts) {
       x,
       y,
       barrierY: y - BARRIER_OFFSET_Y,
-      doorWidth: 116,
-      doorHeight: 128,
     };
   });
 
   const exitY = obstacles.length
-    ? obstacles[obstacles.length - 1].y + 190
-    : FIRST_OBSTACLE_Y + 190;
-  const height = Math.max(920, exitY + 90);
+    ? obstacles[obstacles.length - 1].y + 260
+    : FIRST_OBSTACLE_Y + 260;
+  const height = Math.max(1000, exitY + 120);
 
   const routePoints = [
     { x: START_X, y: START_Y },
@@ -175,63 +444,60 @@ function createSceneModel(concepts) {
     { x: obstacles.length ? obstacles[obstacles.length - 1].x : START_X, y: exitY },
   ];
 
-  const signs = [];
-  for (let index = 1; index < routePoints.length; index += 1) {
-    const previous = routePoints[index - 1];
-    const current = routePoints[index];
-    signs.push({
-      x: (previous.x + current.x) / 2,
-      y: (previous.y + current.y) / 2 - 36,
-      direction:
-        current.x > previous.x ? "↘" : current.x < previous.x ? "↙" : "↓",
-    });
+  /* Decor procedural dense mais deterministe (meme graine => meme monde). */
+  const rand = mulberry32(concepts.length * 7919 + height);
+  const riverBands = obstacles
+    .filter((obstacle) => obstacle.type === "broken_bridge")
+    .map((obstacle) => obstacle.barrierY);
+
+  function placeMany(count, minRouteDist, minMutualDist, existing) {
+    const points = [];
+    let guard = 0;
+    while (points.length < count && guard < count * 40) {
+      guard += 1;
+      const candidate = {
+        x: SCENE_PADDING_X * 0.3 + rand() * (SCENE_WIDTH - SCENE_PADDING_X * 0.6),
+        y: 120 + rand() * (height - 240),
+      };
+      if (distanceToRoute(candidate, routePoints) < minRouteDist) continue;
+      if (riverBands.some((bandY) => Math.abs(candidate.y - bandY) < RIVER_HALF_HEIGHT + 46)) continue;
+      if (obstacles.some((obstacle) => distance(candidate, { x: obstacle.x, y: obstacle.barrierY }) < 210)) continue;
+      if ([...existing, ...points].some((other) => distance(candidate, other) < minMutualDist)) continue;
+      points.push(candidate);
+    }
+    return points;
   }
 
-  const decor = {
-    trees: [
-      { x: SCENE_PADDING_X + 96, y: SCENE_PADDING_Y + 172 },
-      { x: SCENE_PADDING_X + 1460, y: SCENE_PADDING_Y + 160 },
-      { x: SCENE_PADDING_X + 120, y: SCENE_PADDING_Y + 422 },
-      { x: SCENE_PADDING_X + 1450, y: SCENE_PADDING_Y + 458 },
-      { x: SCENE_PADDING_X + 122, y: height - 210 },
-      { x: SCENE_PADDING_X + 1470, y: height - 230 },
-    ],
-    bushes: [
-      { x: SCENE_PADDING_X + 540, y: SCENE_PADDING_Y + 126 },
-      { x: SCENE_PADDING_X + 1080, y: SCENE_PADDING_Y + 260 },
-      { x: SCENE_PADDING_X + 420, y: SCENE_PADDING_Y + 510 },
-      { x: SCENE_PADDING_X + 1140, y: SCENE_PADDING_Y + 650 },
-      { x: SCENE_PADDING_X + 490, y: height - 150 },
-      { x: SCENE_PADDING_X + 1040, y: height - 120 },
-    ],
-    rocks: [
-      { x: SCENE_PADDING_X + 690, y: SCENE_PADDING_Y + 332 },
-      { x: SCENE_PADDING_X + 890, y: SCENE_PADDING_Y + 560 },
-      { x: SCENE_PADDING_X + 720, y: height - 210 },
-    ],
-    flowers: [
-      { x: SCENE_PADDING_X + 300, y: SCENE_PADDING_Y + 138 },
-      { x: SCENE_PADDING_X + 1320, y: SCENE_PADDING_Y + 350 },
-      { x: SCENE_PADDING_X + 280, y: SCENE_PADDING_Y + 640 },
-      { x: SCENE_PADDING_X + 1320, y: height - 140 },
-    ],
-  };
+  const density = height / 300;
+  const trees = placeMany(Math.round(density * 3.4), 110, 95, []);
+  const bushes = placeMany(Math.round(density * 2.6), 82, 70, trees);
+  const rocks = placeMany(Math.round(density * 1.4), 84, 120, [...trees, ...bushes]);
+  const flowers = placeMany(Math.round(density * 3.2), 62, 60, rocks);
+  const tufts = placeMany(Math.round(density * 4.2), 56, 46, []);
+  const patches = Array.from({ length: Math.round(density * 2.2) }, () => ({
+    x: rand() * SCENE_WIDTH,
+    y: 120 + rand() * (height - 240),
+    rx: 90 + rand() * 150,
+    ry: 55 + rand() * 85,
+    dark: rand() > 0.5,
+  }));
 
   return {
     width: SCENE_WIDTH,
     height,
     routePoints,
     obstacles,
-    signs,
-    decor,
+    decor: { trees, bushes, rocks, flowers, tufts, patches },
   };
 }
 
+/* ============================================================
+   ROUTES : chemin principal + variantes courte / longue
+   ============================================================ */
 function buildRoadPath(points) {
   if (!points.length) {
     return "";
   }
-
   let path = `M ${points[0].x} ${points[0].y}`;
   for (let index = 1; index < points.length; index += 1) {
     const previous = points[index - 1];
@@ -242,78 +508,48 @@ function buildRoadPath(points) {
   return path;
 }
 
-function playerMarkup() {
-  return `
-    <g id="player-token" class="player-token" transform="translate(${state.playerPosition.x}, ${state.playerPosition.y})">
-      <circle cx="0" cy="0" r="38" fill="transparent"></circle>
-      <g transform="translate(0, -11)">
-        <ellipse cx="0" cy="42" rx="18" ry="7" class="player-shadow"></ellipse>
-        <circle cx="0" cy="-16" r="14" class="player-head"></circle>
-        <path d="M -18 20 Q 0 -10 18 20 L 12 40 L -12 40 Z" class="player-body"></path>
-        <line x1="-10" y1="7" x2="-23" y2="20" class="player-limb"></line>
-        <line x1="10" y1="7" x2="23" y2="20" class="player-limb"></line>
-        <line x1="-8" y1="40" x2="-16" y2="60" class="player-limb"></line>
-        <line x1="8" y1="40" x2="16" y2="60" class="player-limb"></line>
+/* Trois chemins par troncon : court (direct, dore), moyen (la route),
+   long (tres sinueux, brun). Actif = celui de la maitrise detectee. */
+function branchMarkup(scene) {
+  const segments = [];
+  for (let index = 1; index < scene.routePoints.length; index += 1) {
+    const a = scene.routePoints[index - 1];
+    const b = scene.routePoints[index];
+    const afterObstacleIndex = index - 1; // troncon qui SUIT l'obstacle index-1
+    if (afterObstacleIndex < 0 || afterObstacleIndex >= scene.obstacles.length) continue;
+    const obstacle = scene.obstacles[afterObstacleIndex];
+    const next = scene.obstacles[afterObstacleIndex + 1];
+    if (next && next.type === "broken_bridge") continue; // pas de branche a travers la riviere
+    const mastery = state.masteryByIndex[afterObstacleIndex] || null;
+
+    const start = { x: a.x, y: a.y + 56 };
+    const end = { x: b.x, y: b.y - 72 };
+    const dx = end.x - start.x;
+    const side = dx >= 0 ? 1 : -1;
+
+    const shortPath = `M ${start.x} ${start.y} Q ${(start.x + end.x) / 2 + side * 30} ${(start.y + end.y) / 2 - 40} ${end.x} ${end.y}`;
+    const midY = (start.y + end.y) / 2;
+    const longPath = `M ${start.x} ${start.y}
+      C ${start.x - side * 190} ${start.y + 60} ${start.x - side * 210} ${midY - 30} ${(start.x + end.x) / 2 - side * 60} ${midY}
+      C ${end.x + side * 230} ${midY + 40} ${end.x + side * 190} ${end.y - 70} ${end.x} ${end.y}`;
+
+    segments.push(`
+      <g class="path-branch path-short ${mastery === 3 ? "active-path" : ""}">
+        <path d="${shortPath}" class="path-short-edge"></path>
+        <path d="${shortPath}" class="path-short-surface"></path>
       </g>
-    </g>
-  `;
+      <g class="path-branch path-long ${mastery === 1 ? "active-path" : ""}">
+        <path d="${longPath}" class="path-long-edge"></path>
+        <path d="${longPath}" class="path-long-surface"></path>
+      </g>
+    `);
+  }
+  return segments.join("");
 }
 
-function treeMarkup(tree) {
-  return `
-    <g class="tree" transform="translate(${tree.x}, ${tree.y})">
-      <rect x="-10" y="22" width="20" height="46" rx="6" class="tree-trunk"></rect>
-      <circle cx="0" cy="-8" r="30" class="tree-leaf tree-leaf-back"></circle>
-      <circle cx="-20" cy="12" r="24" class="tree-leaf"></circle>
-      <circle cx="22" cy="10" r="22" class="tree-leaf"></circle>
-      <circle cx="2" cy="20" r="26" class="tree-leaf tree-leaf-front"></circle>
-    </g>
-  `;
-}
-
-function bushMarkup(bush) {
-  return `
-    <g class="bush" transform="translate(${bush.x}, ${bush.y})">
-      <circle cx="-20" cy="0" r="22" class="bush-leaf"></circle>
-      <circle cx="0" cy="-8" r="26" class="bush-leaf"></circle>
-      <circle cx="24" cy="4" r="20" class="bush-leaf"></circle>
-    </g>
-  `;
-}
-
-function rockMarkup(rock) {
-  return `
-    <g class="rock" transform="translate(${rock.x}, ${rock.y})">
-      <ellipse cx="0" cy="12" rx="34" ry="18" class="rock-shape rock-back"></ellipse>
-      <ellipse cx="-18" cy="0" rx="18" ry="14" class="rock-shape"></ellipse>
-      <ellipse cx="14" cy="2" rx="20" ry="16" class="rock-shape rock-front"></ellipse>
-    </g>
-  `;
-}
-
-function flowerMarkup(flower) {
-  return `
-    <g class="flower" transform="translate(${flower.x}, ${flower.y})">
-      <line x1="0" y1="0" x2="0" y2="26" class="flower-stem"></line>
-      <circle cx="0" cy="0" r="5" class="flower-center"></circle>
-      <circle cx="-8" cy="0" r="5" class="flower-petal"></circle>
-      <circle cx="8" cy="0" r="5" class="flower-petal"></circle>
-      <circle cx="0" cy="-8" r="5" class="flower-petal"></circle>
-      <circle cx="0" cy="8" r="5" class="flower-petal"></circle>
-    </g>
-  `;
-}
-
-function directionSignMarkup(sign) {
-  return `
-    <g class="direction-sign" transform="translate(${sign.x}, ${sign.y}) rotate(-4)">
-      <rect x="-38" y="-16" width="76" height="34" rx="10" class="sign-board"></rect>
-      <line x1="-4" y1="18" x2="-4" y2="42" class="sign-pole"></line>
-      <text x="0" y="6" text-anchor="middle" class="sign-arrow">${sign.direction}</text>
-    </g>
-  `;
-}
-
+/* ============================================================
+   OBSTACLES SUR LA CARTE
+   ============================================================ */
 function obstacleStatus(index) {
   const currentIndex = currentConceptIndex();
   if (!state.session || currentIndex < 0) {
@@ -328,11 +564,132 @@ function obstacleStatus(index) {
   return "locked";
 }
 
+function fenceMarkup(fromX, toX, y) {
+  if (toX - fromX < 40) {
+    return "";
+  }
+  const posts = [];
+  for (let x = fromX + 20; x <= toX - 10; x += 64) {
+    posts.push(`<circle cx="${x}" cy="${y}" r="7" class="fence-post"></circle>`);
+  }
+  return `
+    <line x1="${fromX}" y1="${y}" x2="${toX}" y2="${y}" class="fence-rail"></line>
+    ${posts.join("")}
+  `;
+}
+
+const PLATE_OFFSETS = {
+  castle_gate: -260,
+  blocked_road: 250,
+  broken_bridge: -240,
+  crossroads: -290,
+};
+
+function obstaclePlateMarkup(obstacle, status, theme) {
+  const plateY = obstacle.barrierY - 108;
+  const plateX = obstacle.x + (PLATE_OFFSETS[obstacle.type] || -260);
+  const done = status === "done";
+  return `
+    <g class="obstacle-plate-group" transform="translate(${plateX}, ${plateY})">
+      <rect x="-92" y="-22" width="184" height="42" rx="18" class="obstacle-plate"></rect>
+      <text x="${done ? -8 : 0}" y="7" text-anchor="middle" class="obstacle-plate-text">${theme.name}</text>
+      ${
+        done
+          ? `<g transform="translate(66, 0)">
+              <circle cx="0" cy="0" r="13" class="obstacle-done-check"></circle>
+              <path d="M -6 0 l 4 5 l 8 -10" fill="none" stroke="#FBF3E7" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </g>`
+          : ""
+      }
+    </g>
+  `;
+}
+
+function obstacleMarkerMarkup(obstacle, status) {
+  if (status !== "current") {
+    return "";
+  }
+  return `
+    <g transform="translate(${obstacle.x}, ${obstacle.barrierY - 152})">
+      <g class="obstacle-marker">
+        <path d="M 0 22 L -14 -4 A 17 17 0 1 1 14 -4 Z" class="marker-pin"></path>
+        <text x="0" y="0" text-anchor="middle" class="marker-glyph">!</text>
+      </g>
+    </g>
+  `;
+}
+
+function obstacleSceneryMarkup(obstacle, status) {
+  const done = status === "done";
+  const y = obstacle.barrierY;
+  switch (obstacle.type) {
+    case "castle_gate":
+      return `
+        ${fenceMarkup(40, obstacle.x - 165, y)}
+        ${fenceMarkup(obstacle.x + 165, SCENE_WIDTH - 40, y)}
+        <g transform="translate(${obstacle.x}, ${y})">${ASSETS.castle(done)}</g>
+        <g transform="translate(${obstacle.x + 150}, ${y + 52})">${ASSETS.npc()}</g>
+      `;
+    case "blocked_road":
+      return `
+        ${fenceMarkup(40, obstacle.x - 120, y)}
+        ${fenceMarkup(obstacle.x + 120, SCENE_WIDTH - 40, y)}
+        <g transform="translate(${obstacle.x - 190}, ${y - 60})">${ASSETS.cabin()}</g>
+        ${
+          done
+            ? `
+              <g class="log-cleared" transform="translate(${obstacle.x - 130}, ${y + 66}) rotate(18)">
+                <rect x="-46" y="-12" width="92" height="24" rx="12" class="log-shape"></rect>
+                <circle cx="46" cy="0" r="12" class="log-end"></circle>
+              </g>
+            `
+            : `
+              <g class="log-block" transform="translate(${obstacle.x}, ${y}) rotate(-7)">
+                <rect x="-84" y="-14" width="168" height="28" rx="14" class="log-shape"></rect>
+                <circle cx="-84" cy="0" r="14" class="log-end"></circle>
+                <circle cx="84" cy="0" r="14" class="log-end"></circle>
+                <ellipse cx="30" cy="-26" rx="20" ry="14" class="block-rock"></ellipse>
+                <ellipse cx="58" cy="22" rx="15" ry="11" class="block-rock"></ellipse>
+              </g>
+            `
+        }
+        <g transform="translate(${obstacle.x + 108}, ${y + 46})">${ASSETS.npc()}</g>
+      `;
+    case "broken_bridge":
+      return `
+        <g class="river-group">
+          <rect x="0" y="${y - RIVER_HALF_HEIGHT - 7}" width="${SCENE_WIDTH}" height="${RIVER_HALF_HEIGHT * 2 + 14}" class="river-bank"></rect>
+          <rect x="0" y="${y - RIVER_HALF_HEIGHT}" width="${SCENE_WIDTH}" height="${RIVER_HALF_HEIGHT * 2}" class="river"></rect>
+          <path d="M 30 ${y - 24} q 60 -14 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0" class="river-wave"></path>
+          <path d="M 90 ${y + 26} q 60 -14 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0" class="river-wave"></path>
+        </g>
+        <g transform="translate(${obstacle.x}, ${y})">${ASSETS.bridge(done)}</g>
+        <g transform="translate(${obstacle.x + 118}, ${y + 108})">${ASSETS.npc()}</g>
+      `;
+    case "crossroads":
+      return `
+        <line x1="40" y1="${y}" x2="${obstacle.x - 120}" y2="${y}" class="hedge-line"></line>
+        <line x1="${obstacle.x + 120}" y1="${y}" x2="${SCENE_WIDTH - 40}" y2="${y}" class="hedge-line"></line>
+        <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path-edge"></path>
+        <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path"></path>
+        <g transform="translate(${obstacle.x - 110}, ${y - 30})">${ASSETS.signpost(done)}</g>
+        <g class="mist-cloud">
+          <ellipse cx="${obstacle.x + 190}" cy="${y - 74}" rx="72" ry="30" class="mist"></ellipse>
+          <ellipse cx="${obstacle.x + 240}" cy="${y - 120}" rx="56" ry="24" class="mist"></ellipse>
+        </g>
+        <g transform="translate(${obstacle.x + 116}, ${y + 46})">${ASSETS.npc()}</g>
+      `;
+    default:
+      return "";
+  }
+}
+
 function obstacleMarkup(obstacle) {
   const status = obstacleStatus(obstacle.index);
-  const recentlyUnlocked = state.justUnlockedIndex === obstacle.index && Date.now() < state.justUnlockedUntil;
+  const recentlyUnlocked =
+    state.justUnlockedIndex === obstacle.index && Date.now() < state.justUnlockedUntil;
   const theme = obstacleTheme(obstacle.type);
-  const obstacleClasses = [
+  const classes = [
     "obstacle",
     `obstacle-${status}`,
     `obstacle-${obstacle.type}`,
@@ -340,239 +697,107 @@ function obstacleMarkup(obstacle) {
   ]
     .filter(Boolean)
     .join(" ");
-  const doorX = obstacle.x - obstacle.doorWidth / 2;
-  const doorY = obstacle.barrierY - obstacle.doorHeight / 2;
-  const remaining =
-    status === "current" && state.session?.phase === "renforcement"
-      ? state.session.exercices_renforcement_restants
-      : null;
-  const levelCopy =
-    status === "current"
-      ? `Niveau ${state.session.niveau_resolution_courant}`
-      : status === "done"
-        ? "Aide terminee"
-        : "A venir";
-  const scenery = obstacleSceneryMarkup(obstacle, status, theme, { doorX, doorY });
-  const helper = obstacleHelperMarkup(obstacle);
-  const unlockHint = obstacleUnlockHintMarkup(obstacle, status);
 
   return `
-    <g class="${obstacleClasses}" data-obstacle-index="${obstacle.index}">
-      ${scenery}
-      ${helper}
-      <g class="obstacle-label" transform="translate(${obstacle.x}, ${doorY - 44})">
-        <rect x="-118" y="-26" width="236" height="32" rx="12" class="obstacle-chip"></rect>
-        <text x="0" y="-4" text-anchor="middle" class="obstacle-chip-text">${conceptLabel(obstacle.concept)}</text>
-      </g>
-      <g class="obstacle-status" transform="translate(${obstacle.x}, ${doorY + obstacle.doorHeight + 34})">
-        <rect x="-64" y="-20" width="128" height="28" rx="12" class="status-chip"></rect>
-        <text x="0" y="-1" text-anchor="middle" class="status-chip-text">${levelCopy}</text>
-        ${
-          remaining !== null
-            ? `<text x="0" y="24" text-anchor="middle" class="status-chip-subtext">Renfo restants : ${remaining}</text>`
-            : ""
-        }
-      </g>
-      ${unlockHint}
+    <g class="${classes}" data-obstacle-index="${obstacle.index}">
+      ${obstacleSceneryMarkup(obstacle, status)}
+      ${obstaclePlateMarkup(obstacle, status, theme)}
+      ${obstacleMarkerMarkup(obstacle, status)}
     </g>
   `;
 }
 
-function obstacleHelperMarkup(obstacle) {
-  const npcX =
-    obstacle.type === "crossroads" ? obstacle.x + 140 : obstacle.x + 118;
-  const npcY = obstacle.type === "broken_bridge" ? obstacle.barrierY - 6 : obstacle.barrierY + 4;
+/* ============================================================
+   RENDU DE LA SCENE
+   ============================================================ */
+function decorMarkup(scene) {
+  const { decor } = scene;
   return `
-    <g class="npc" transform="translate(${npcX}, ${npcY})">
-      <circle cx="0" cy="-18" r="11" class="npc-head"></circle>
-      <rect x="-12" y="-2" width="24" height="32" rx="9" class="npc-body"></rect>
-      <line x1="-8" y1="30" x2="-14" y2="48" class="npc-limb"></line>
-      <line x1="8" y1="30" x2="14" y2="48" class="npc-limb"></line>
-      <line x1="-10" y1="8" x2="-20" y2="20" class="npc-limb"></line>
-      <line x1="10" y1="8" x2="20" y2="20" class="npc-limb"></line>
-    </g>
+    ${decor.patches
+      .map(
+        (patch) =>
+          `<ellipse cx="${patch.x}" cy="${patch.y}" rx="${patch.rx}" ry="${patch.ry}" class="ground-patch ${patch.dark ? "dark" : ""}" opacity="0.4"></ellipse>`,
+      )
+      .join("")}
   `;
 }
 
-function obstacleUnlockHintMarkup(obstacle, status) {
-  if (obstacle.type !== "crossroads") {
-    return "";
-  }
+function propsMarkup(scene) {
+  const { decor } = scene;
   return `
-    <g class="crossroad-secret ${status === "done" ? "visible" : ""}">
-      <path d="M ${obstacle.x + 34} ${obstacle.barrierY + 12} C ${obstacle.x + 100} ${obstacle.barrierY + 34} ${obstacle.x + 150} ${obstacle.barrierY + 88} ${obstacle.x + 184} ${obstacle.barrierY + 126}" class="secret-path"></path>
-      <path d="M ${obstacle.x + 168} ${obstacle.barrierY + 114} l 20 12 l -24 2 z" class="secret-arrow"></path>
-    </g>
+    ${decor.tufts.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.grassTuft()}</g>`).join("")}
+    ${decor.flowers
+      .map((p, index) => `<g transform="translate(${p.x}, ${p.y})">${index % 3 === 0 ? ASSETS.flowerPink() : ASSETS.flower()}</g>`)
+      .join("")}
+    ${decor.rocks.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.rock()}</g>`).join("")}
+    ${decor.bushes.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.bush()}</g>`).join("")}
+    ${decor.trees.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.tree()}</g>`).join("")}
   `;
-}
-
-function obstacleSceneryMarkup(obstacle, status, theme, positions) {
-  const { doorX, doorY } = positions;
-  switch (obstacle.type) {
-    case "castle_gate":
-      return `
-        <line x1="44" y1="${obstacle.barrierY}" x2="${doorX - 10}" y2="${obstacle.barrierY}" class="fence-line"></line>
-        <line x1="${doorX + obstacle.doorWidth + 10}" y1="${obstacle.barrierY}" x2="${SCENE_WIDTH - 44}" y2="${obstacle.barrierY}" class="fence-line"></line>
-        <g class="castle" transform="translate(${obstacle.x}, ${doorY - 24})">
-          <rect x="-148" y="34" width="296" height="118" rx="14" class="castle-wall"></rect>
-          <rect x="-176" y="8" width="52" height="152" rx="14" class="castle-tower"></rect>
-          <rect x="124" y="8" width="52" height="152" rx="14" class="castle-tower"></rect>
-          <path d="M -176 8 l 26 -22 l 26 22 z" class="castle-roof"></path>
-          <path d="M 124 8 l 26 -22 l 26 22 z" class="castle-roof"></path>
-          <g class="door-frame-group">
-            <rect x="-68" y="24" width="136" height="138" rx="18" class="door-arch"></rect>
-            ${
-              status === "done"
-                ? `
-                  <g class="door-panels open castle-open">
-                    <rect x="-82" y="34" width="58" height="128" class="door-panel left-open"></rect>
-                    <rect x="26" y="34" width="58" height="128" class="door-panel right-open"></rect>
-                  </g>
-                `
-                : `
-                  <g class="door-panels">
-                    <rect x="-58" y="34" width="58" height="128" class="door-panel left"></rect>
-                    <rect x="0" y="34" width="58" height="128" class="door-panel right"></rect>
-                    <circle cx="16" cy="98" r="4" class="door-handle"></circle>
-                    <rect x="-14" y="68" width="28" height="34" rx="6" class="door-lock"></rect>
-                    <path d="M -8 68 a 8 8 0 0 1 16 0" class="door-lock-shackle"></path>
-                  </g>
-                `
-            }
-          </g>
-        </g>
-      `;
-    case "blocked_road":
-      return `
-        <g class="cabin" transform="translate(${obstacle.x - 170}, ${doorY + 14})">
-          <rect x="-50" y="34" width="100" height="88" rx="10" class="cabin-wall"></rect>
-          <path d="M -62 34 L 0 -18 L 62 34 Z" class="cabin-roof"></path>
-          <rect x="-14" y="64" width="28" height="58" rx="8" class="cabin-door"></rect>
-          <rect x="-38" y="56" width="18" height="18" rx="4" class="cabin-window"></rect>
-          <rect x="20" y="56" width="18" height="18" rx="4" class="cabin-window"></rect>
-        </g>
-        <g class="blocked-road-barrier">
-          <line x1="52" y1="${obstacle.barrierY}" x2="${obstacle.x - 94}" y2="${obstacle.barrierY}" class="fence-line"></line>
-          <line x1="${obstacle.x + 94}" y1="${obstacle.barrierY}" x2="${SCENE_WIDTH - 52}" y2="${obstacle.barrierY}" class="fence-line"></line>
-          ${
-            status === "done"
-              ? `
-                <g class="log-cleared">
-                  <ellipse cx="${obstacle.x - 128}" cy="${obstacle.barrierY + 84}" rx="46" ry="16" class="log-shape"></ellipse>
-                  <circle cx="${obstacle.x - 164}" cy="${obstacle.barrierY + 84}" r="15" class="log-end"></circle>
-                </g>
-              `
-              : `
-                <g class="log-block" transform="translate(${obstacle.x}, ${obstacle.barrierY}) rotate(-6)">
-                  <ellipse cx="0" cy="0" rx="88" ry="18" class="log-shape"></ellipse>
-                  <circle cx="-74" cy="0" r="17" class="log-end"></circle>
-                  <circle cx="74" cy="0" r="17" class="log-end"></circle>
-                </g>
-              `
-          }
-          <g class="rock-pile ${status === "done" ? "scattered" : ""}">
-            <circle cx="${obstacle.x + 84}" cy="${obstacle.barrierY - 8}" r="18" class="block-rock"></circle>
-            <circle cx="${obstacle.x + 108}" cy="${obstacle.barrierY + 8}" r="16" class="block-rock"></circle>
-          </g>
-        </g>
-      `;
-    case "broken_bridge":
-      return `
-        <rect x="0" y="${obstacle.barrierY - 54}" width="${SCENE_WIDTH}" height="108" class="river-band"></rect>
-        <g class="bridge" transform="translate(${obstacle.x}, ${obstacle.barrierY})">
-          <line x1="-130" y1="-40" x2="-130" y2="48" class="bridge-post"></line>
-          <line x1="130" y1="-40" x2="130" y2="48" class="bridge-post"></line>
-          <line x1="-130" y1="-36" x2="130" y2="-36" class="bridge-rail"></line>
-          <line x1="-130" y1="42" x2="130" y2="42" class="bridge-rail"></line>
-          <g class="bridge-planks ${status === "done" ? "repaired" : "broken"}">
-            <rect x="-118" y="-10" width="56" height="20" class="bridge-plank"></rect>
-            <rect x="-54" y="-10" width="56" height="20" class="bridge-plank"></rect>
-            ${status === "done" ? '<rect x="10" y="-10" width="56" height="20" class="bridge-plank missing-fixed"></rect>' : ""}
-            <rect x="74" y="-10" width="44" height="20" class="bridge-plank"></rect>
-          </g>
-        </g>
-      `;
-    case "crossroads":
-      return `
-        <g class="crossroad">
-          <path d="M ${obstacle.x - 170} ${obstacle.barrierY} C ${obstacle.x - 64} ${obstacle.barrierY - 18} ${obstacle.x + 36} ${obstacle.barrierY - 44} ${obstacle.x + 136} ${obstacle.barrierY - 12}" class="cross-path-main"></path>
-          <path d="M ${obstacle.x + 16} ${obstacle.barrierY - 4} C ${obstacle.x + 90} ${obstacle.barrierY - 16} ${obstacle.x + 154} ${obstacle.barrierY - 70} ${obstacle.x + 226} ${obstacle.barrierY - 126}" class="cross-path-hidden ${status === "done" ? "revealed" : ""}"></path>
-          <g class="direction-signpost" transform="translate(${obstacle.x - 126}, ${doorY + 28})">
-            <line x1="0" y1="-12" x2="0" y2="68" class="sign-pole"></line>
-            <rect x="-44" y="-22" width="88" height="22" rx="9" class="sign-board"></rect>
-            <text x="0" y="-6" text-anchor="middle" class="sign-arrow">?</text>
-            <rect x="-38" y="12" width="76" height="22" rx="9" class="sign-board lower"></rect>
-            <text x="0" y="28" text-anchor="middle" class="sign-arrow">${status === "done" ? "→" : "..."}</text>
-          </g>
-          <g class="mist-cloud ${status === "done" ? "cleared" : ""}">
-            <ellipse cx="${obstacle.x + 120}" cy="${obstacle.barrierY - 80}" rx="68" ry="28" class="mist puff-a"></ellipse>
-            <ellipse cx="${obstacle.x + 168}" cy="${obstacle.barrierY - 112}" rx="56" ry="22" class="mist puff-b"></ellipse>
-          </g>
-        </g>
-      `;
-    default:
-      return "";
-  }
 }
 
 function sceneMarkup(scene) {
   const roadPath = buildRoadPath(scene.routePoints);
-  const hintObstacle = activeObstacle();
-  const hintText =
-    state.nearObstacle && hintObstacle && !state.panelOpen
-      ? "Appuie sur Entree ou Espace pour aider"
-      : "";
-
   return `
-    <defs>
-      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#d9eef8"></stop>
-        <stop offset="100%" stop-color="#eef8df"></stop>
-      </linearGradient>
-    </defs>
-    <rect x="0" y="0" width="${scene.width}" height="${scene.height}" class="scene-sky"></rect>
-    <rect x="0" y="${scene.height - 130}" width="${scene.width}" height="130" class="scene-grass"></rect>
-    <g class="decor-layer">
-      ${scene.decor.trees.map(treeMarkup).join("")}
-      ${scene.decor.bushes.map(bushMarkup).join("")}
-      ${scene.decor.rocks.map(rockMarkup).join("")}
-      ${scene.decor.flowers.map(flowerMarkup).join("")}
-    </g>
+    <rect x="0" y="0" width="${scene.width}" height="${scene.height}" class="ground"></rect>
+    <g class="patch-layer">${decorMarkup(scene)}</g>
+    <g class="branch-layer">${branchMarkup(scene)}</g>
     <g class="road-layer">
-      <path d="${roadPath}" class="road-outline"></path>
+      <path d="${roadPath}" class="road-edge"></path>
       <path d="${roadPath}" class="road-surface"></path>
-      <path d="${roadPath}" class="road-center-line"></path>
+      <path d="${roadPath}" class="road-paving"></path>
+      <path d="${roadPath}" class="road-paving offset" transform="translate(14, 10)"></path>
+      <path d="${roadPath}" class="road-paving offset" transform="translate(-14, -8)"></path>
     </g>
-    <g class="sign-layer">
-      ${scene.signs.map(directionSignMarkup).join("")}
-    </g>
+    <g class="props-layer">${propsMarkup(scene)}</g>
     <g class="obstacle-layer">
       ${scene.obstacles.map(obstacleMarkup).join("")}
     </g>
-    <g id="interaction-hint" class="interaction-hint ${hintText ? "visible" : ""}" transform="translate(${hintObstacle ? hintObstacle.x : 0}, ${hintObstacle ? hintObstacle.barrierY - 94 : 0})">
-      <rect x="-132" y="-28" width="264" height="40" rx="14" class="hint-bubble"></rect>
-      <text x="0" y="-2" text-anchor="middle" class="hint-text">${hintText}</text>
+    <g id="interaction-hint" class="interaction-hint">
+      <rect x="-118" y="-30" width="236" height="46" rx="20" class="hint-bubble"></rect>
+      <rect x="-104" y="-21" width="64" height="28" rx="8" class="hint-key"></rect>
+      <text x="-72" y="0" text-anchor="middle" class="hint-text">Entree</text>
+      <text x="30" y="0" text-anchor="middle" class="hint-text">pour aider !</text>
     </g>
-    ${playerMarkup()}
+    <g id="fx-layer"></g>
+    <g id="player-token" class="player-token">${ASSETS.player()}</g>
   `;
 }
 
 function renderScene() {
   if (!state.session) {
     mapElement.innerHTML = "";
-    mapStatus.textContent = "Aucune session active.";
     return;
   }
-
   state.scene = createSceneModel(state.session.concepts || []);
-  mapElement.setAttribute("viewBox", `0 0 ${state.scene.width} ${state.scene.height}`);
   mapElement.innerHTML = sceneMarkup(state.scene);
-  mapStatus.textContent = state.session.terminee
-    ? "Toutes les portes sont ouvertes. Le parcours est termine."
-    : `Deplace-toi jusqu'a l'obstacle ${currentConceptIndex() + 1} / ${state.session.concepts.length} avec les fleches, puis appuie sur Entree ou Espace.`;
   updateSceneDynamics();
+  applyCameraViewBox();
 }
 
+/* ============================================================
+   NAVIGATION ENTRE ECRANS
+   ============================================================ */
+function showStartScreen() {
+  startScreen.classList.remove("hidden");
+  lessonScreen.classList.add("hidden");
+  gameScreen.classList.add("hidden");
+}
+
+function showLessonScreen() {
+  startScreen.classList.add("hidden");
+  lessonScreen.classList.remove("hidden");
+  gameScreen.classList.add("hidden");
+}
+
+function showGameScreen() {
+  startScreen.classList.add("hidden");
+  lessonScreen.classList.add("hidden");
+  gameScreen.classList.remove("hidden");
+}
+
+/* ============================================================
+   MOUVEMENT + COLLISIONS (logique inchangee)
+   ============================================================ */
 function clampToBounds(position) {
   return {
     x: clamp(position.x, 40, state.scene.width - 40),
@@ -585,12 +810,10 @@ function applyCurrentBarrier(nextPosition, previousPosition) {
   if (!obstacle || state.panelOpen || state.session.terminee) {
     return nextPosition;
   }
-
   const unresolved = obstacleStatus(obstacle.index) === "current";
   if (!unresolved) {
     return nextPosition;
   }
-
   const barrierY = obstacle.barrierY - PLAYER_RADIUS;
   if (previousPosition.y <= barrierY && nextPosition.y > barrierY) {
     return { ...nextPosition, y: barrierY };
@@ -613,26 +836,76 @@ function updateSceneDynamics() {
 
   const playerNode = document.getElementById("player-token");
   if (playerNode) {
-    playerNode.setAttribute("transform", `translate(${state.playerPosition.x}, ${state.playerPosition.y})`);
+    playerNode.setAttribute(
+      "transform",
+      `translate(${state.playerPosition.x}, ${state.playerPosition.y}) rotate(${state.playerAngle})`,
+    );
+    playerNode.classList.toggle("player-walking", state.playerMoving);
   }
 
   const hintNode = document.getElementById("interaction-hint");
   const obstacle = activeObstacle();
+  const hintVisible = state.nearObstacle && !state.panelOpen;
   if (hintNode && obstacle) {
-    hintNode.setAttribute("transform", `translate(${obstacle.x}, ${obstacle.barrierY - 94})`);
-    hintNode.classList.toggle("visible", state.nearObstacle && !state.panelOpen);
-    const hintTextNode = hintNode.querySelector(".hint-text");
-    if (hintTextNode) {
-      hintTextNode.textContent =
-        state.nearObstacle && !state.panelOpen
-          ? "Appuie sur Entree ou Espace pour aider"
-          : "";
-    }
+    hintNode.setAttribute("transform", `translate(${obstacle.x}, ${obstacle.barrierY - 152})`);
+    hintNode.classList.toggle("visible", hintVisible);
   }
+  /* La bulle remplace le marqueur "!" quand le joueur est assez proche. */
+  mapElement.classList.toggle("hint-visible", hintVisible);
+}
 
-  state.camera = clampCamera({ x: state.playerPosition.x, y: state.playerPosition.y });
-  const view = cameraViewBox();
-  mapElement.setAttribute("viewBox", `${view.x} ${view.y} ${view.width} ${view.height}`);
+/* ============================================================
+   PARTICULES DE REUSSITE
+   ============================================================ */
+function starPathMarkup(radius) {
+  const points = [];
+  for (let index = 0; index < 10; index += 1) {
+    const r = index % 2 === 0 ? radius : radius * 0.45;
+    const angle = (Math.PI / 5) * index - Math.PI / 2;
+    points.push(`${Math.cos(angle) * r},${Math.sin(angle) * r}`);
+  }
+  return points.join(" ");
+}
+
+function spawnUnlockFx(x, y) {
+  const fxLayer = document.getElementById("fx-layer");
+  if (!fxLayer) {
+    return;
+  }
+  const pieces = [];
+  for (let index = 0; index < 16; index += 1) {
+    const angle = (Math.PI * 2 * index) / 16 + Math.random() * 0.5;
+    const range = 90 + Math.random() * 110;
+    const tx = Math.cos(angle) * range;
+    const ty = Math.sin(angle) * range - 40;
+    const isStar = index % 2 === 0;
+    const shape = isStar
+      ? `<polygon points="${starPathMarkup(12)}" class="fx-star"></polygon>`
+      : `<circle r="6" class="fx-dot"></circle>`;
+    pieces.push({ tx, ty, shape });
+  }
+  fxLayer.innerHTML = pieces
+    .map(
+      (piece) =>
+        `<g transform="translate(${x}, ${y})"><g class="fx-particle" style="--tx: ${piece.tx}px; --ty: ${piece.ty}px;">${piece.shape}</g></g>`,
+    )
+    .join("");
+  window.setTimeout(() => {
+    const layer = document.getElementById("fx-layer");
+    if (layer) {
+      layer.innerHTML = "";
+    }
+  }, 1300);
+}
+
+/* ============================================================
+   POPUP D'EXERCICE THEMATIQUE
+   ============================================================ */
+function starsMarkup(level) {
+  const stars = [1, 2, 3]
+    .map((step) => `<span class="star ${step <= level ? "filled" : ""}">★</span>`)
+    .join("");
+  return `<span class="stars" role="img" aria-label="Niveau ${level} sur 3">${stars}</span>`;
 }
 
 function openExercisePanel() {
@@ -640,74 +913,72 @@ function openExercisePanel() {
     return;
   }
   state.panelOpen = true;
-  renderExerciseCard();
+  state.keysPressed.clear();
+  state.playerMoving = false;
+  renderExerciseModal();
+  updateSceneDynamics();
 }
 
 function closeExercisePanel() {
   state.panelOpen = false;
-  renderExerciseCard();
+  exerciseOverlay.classList.add("hidden");
+  exerciseModal.innerHTML = "";
+  updateNearObstacle();
+  updateSceneDynamics();
 }
 
-function renderExerciseCard() {
-  if (!state.currentExercise || !state.panelOpen) {
-    exerciseTitle.textContent = state.session?.terminee
-      ? "Parcours termine"
-      : `Obstacle courant : ${conceptLabel(state.session?.concept_courant)}`;
-    presentationBadge.textContent = state.session?.presentation_courante || "1_guide";
-    exerciseCard.className = "exercise-card empty-state";
-    exerciseCard.innerHTML = "<p>Approche-toi du premier obstacle et appuie sur Entree ou Espace.</p>";
-    progressCopy.textContent =
-      state.session?.phase === "renforcement"
-        ? `Renforcement en cours : ${state.session.exercices_renforcement_restants} exercice(s) restant(s) sur cet obstacle.`
-        : "Avance avec les fleches jusqu'a la porte active, puis appuie sur Entree ou Espace.";
-    updateNearObstacle();
-    updateSceneDynamics();
+function renderExerciseModal() {
+  if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
   }
 
   const exercise = state.currentExercise;
+  const obstacle = activeObstacle();
+  const theme = obstacleTheme(obstacle?.type);
   const resolutionKey = state.session.presentation_courante;
-  const details = exercise.presentations[resolutionKey] || {};
-  const steps = (details.etapes_methode || [])
-    .map((step) => `<li>${step}</li>`)
-    .join("");
-  const theme = obstacleTheme(activeObstacle()?.type);
-
-  exerciseTitle.textContent = `Obstacle : ${conceptLabel(state.session.concept_courant)}`;
-  presentationBadge.textContent = resolutionKey;
-  progressCopy.textContent =
+  const details = exercise.presentations?.[resolutionKey] || {};
+  const steps = (details.etapes_methode || []).map((step) => `<li>${step}</li>`).join("");
+  const level = state.session.niveau_resolution_courant || 1;
+  const phaseChip =
     state.session.phase === "renforcement"
-      ? `Renforcement en cours : ${state.session.exercices_renforcement_restants} exercice(s) restant(s) apres celui-ci.`
-      : `Detection de maitrise en cours. Niveau actuel : ${state.session.niveau_resolution_courant}.`;
+      ? `Entrainement : encore ${state.session.exercices_renforcement_restants}`
+      : "A toi de jouer !";
 
-  exerciseCard.className = "exercise-card";
-  exerciseCard.innerHTML = `
-    <div class="exercise-panel-top">
-      <p class="exercise-meta">Pattern : <strong>${exercise.pattern.pattern_name}</strong></p>
-      <button id="close-exercise" type="button" class="ghost-button">Fermer</button>
-    </div>
-    <div class="story-block">
-      <p class="story-title">${theme.title}</p>
-      <p class="story-text">${theme.intro}</p>
-    </div>
-    <p class="exercise-statement">${exercise.enonce}</p>
-    ${
-      steps
-        ? `<div class="method-block">
-            <p>Methode affichee :</p>
-            <ol>${steps}</ol>
-          </div>`
-        : ""
-    }
-    <form id="exercise-form" class="exercise-form">
-      <label for="answer-input">Ta reponse</label>
-      <input id="answer-input" name="answer" type="text" autocomplete="off" required />
-      <div class="exercise-actions">
-        <button type="submit">Valider</button>
-        <button id="help-button" type="button" class="ghost-button">Besoin d'aide ?</button>
+  exerciseModal.className = `exercise-modal ${theme.modalClass}`;
+  exerciseModal.innerHTML = `
+    <button id="close-exercise" class="modal-close" type="button" aria-label="Fermer">&#10005;</button>
+    <div class="modal-head">
+      <span class="modal-icon">${obstacleIconSvg(obstacle?.type, "current")}</span>
+      <div>
+        <h2 class="modal-title">${theme.title}</h2>
+        <p class="modal-intro">${theme.intro}</p>
       </div>
-    </form>
+    </div>
+    <div class="modal-paper">
+      <div class="modal-meta">
+        ${starsMarkup(level)}
+        <span class="phase-chip">${phaseChip}</span>
+      </div>
+      <p class="exercise-statement">${exercise.enonce}</p>
+      ${
+        steps && details.aide_affichee
+          ? `<div class="method-block">
+              <p class="method-title">La methode :</p>
+              <ol>${steps}</ol>
+            </div>`
+          : ""
+      }
+      <form id="exercise-form" class="exercise-form">
+        <label for="answer-input">Ta reponse</label>
+        <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="numeric" />
+        <div class="exercise-actions">
+          <button type="submit" class="btn-primary">Valider</button>
+          <button id="help-button" type="button" class="btn-help">&#129417; Aide</button>
+        </div>
+      </form>
+    </div>
   `;
+  exerciseOverlay.classList.remove("hidden");
 
   document.getElementById("exercise-form").addEventListener("submit", handleSubmitAnswer);
   document.getElementById("help-button").addEventListener("click", () => {
@@ -715,20 +986,35 @@ function renderExerciseCard() {
     document.getElementById("chat-input")?.focus();
   });
   document.getElementById("close-exercise").addEventListener("click", closeExercisePanel);
-  updateNearObstacle();
-  updateSceneDynamics();
+  document.getElementById("answer-input")?.focus();
 }
 
+/* ============================================================
+   SESSION
+   ============================================================ */
 function applySessionSnapshot(snapshot, exercise = null) {
   state.session = snapshot;
   state.currentExercise = exercise || snapshot.exercice_courant || state.currentExercise;
+  state.selectedLevel = snapshot.niveau_scolaire;
+  state.selectedLesson = snapshot.lecon_id
+    ? { lecon_id: snapshot.lecon_id, nom: snapshot.lecon_nom }
+    : state.selectedLesson;
+
+  /* La maitrise detectee fixe la longueur du chemin de renforcement :
+     on la memorise par obstacle pour colorer le bon chemin sur la carte. */
+  if (snapshot.phase === "renforcement" && snapshot.maitrise_actuelle > 0) {
+    state.masteryByIndex[snapshot.concept_index] = snapshot.maitrise_actuelle;
+  }
+
   sessionTitle.textContent = snapshot.terminee
-    ? "Parcours termine"
-    : `Carte ${snapshot.niveau_scolaire} : ${conceptLabel(snapshot.concept_courant)}`;
+    ? "Parcours termine !"
+    : snapshot.lecon_nom || `Aventure ${snapshot.niveau_scolaire}`;
   currentLevelBadge.textContent = snapshot.niveau_scolaire;
-  presentationBadge.textContent = snapshot.presentation_courante;
+
   renderScene();
-  renderExerciseCard();
+  if (state.panelOpen) {
+    renderExerciseModal();
+  }
   window.dispatchEvent(new CustomEvent("session-updated", { detail: snapshot }));
 }
 
@@ -749,7 +1035,9 @@ async function request(path, options = {}) {
     } catch (_error) {
       message = `${response.status} ${response.statusText}`;
     }
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
@@ -763,22 +1051,71 @@ async function syncSession() {
   applySessionSnapshot(snapshot);
 }
 
-async function startSession(level) {
-  startStatus.textContent = "Creation de la session...";
+function renderLessonChoices() {
+  lessonTitle.textContent = state.selectedLevel
+    ? `Choisis une lecon de ${state.selectedLevel}`
+    : "Choisis ta lecon";
+
+  lessonActions.innerHTML = state.availableLessons
+    .map(
+      (lesson) => `
+        <button class="lesson-card" type="button" data-lesson-id="${lesson.lecon_id}">
+          <span class="lesson-card-icon">${LESSON_ICONS[lesson.lecon_id] || "★"}</span>
+          <span>
+            <span class="lesson-card-title">${lesson.nom}</span><br />
+            <span class="lesson-card-copy">${lesson.pattern_count} defi(s) a relever</span>
+          </span>
+        </button>
+      `,
+    )
+    .join("");
+
+  lessonActions.querySelectorAll(".lesson-card").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await startSession(state.selectedLevel, button.dataset.lessonId);
+      } catch (error) {
+        lessonStatus.textContent = `Impossible de demarrer la session : ${error.message}`;
+      }
+    });
+  });
+}
+
+async function loadLessons(level) {
+  state.selectedLevel = level;
+  lessonStatus.textContent = "Chargement des lecons...";
+  const payload = await request(`/lecons/${level}`, { method: "GET" });
+  state.availableLessons = payload.lecons || [];
+  if (!state.availableLessons.length) {
+    throw new Error("Aucune lecon disponible pour ce niveau.");
+  }
+  renderLessonChoices();
+  lessonStatus.textContent = "Choisis une lecon pour commencer.";
+  showLessonScreen();
+}
+
+async function startSession(level, lessonId) {
+  lessonStatus.textContent = "Creation de la session...";
   const payload = await request("/session/demarrer", {
     method: "POST",
-    body: JSON.stringify({ niveau_scolaire: level }),
+    body: JSON.stringify({ niveau_scolaire: level, lecon_id: lessonId }),
   });
 
   state.sessionId = payload.session_id;
   state.playerPosition = { x: START_X, y: START_Y };
+  state.playerAngle = 0;
   state.panelOpen = false;
   state.justUnlockedIndex = null;
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
+  state.masteryByIndex = {};
+  state.selectedLesson =
+    state.availableLessons.find((lesson) => lesson.lecon_id === lessonId) || {
+      lecon_id: lessonId,
+      nom: lessonId,
+    };
   applySessionSnapshot(payload.progression, payload.exercice);
-  startScreen.classList.add("hidden");
-  gameScreen.classList.remove("hidden");
+  showGameScreen();
   clearFeedback();
 }
 
@@ -786,45 +1123,30 @@ function feedbackFromStatus(status) {
   switch (status) {
     case "correct_niveau_suivant":
       return {
-        message: "Bravo ! Tu aides encore ce personnage au niveau suivant.",
+        message: "Bravo ! Tu gagnes une etoile, continue !",
         tone: "success",
       };
     case "correct_nouveau_renforcement":
       return {
-        message: "Bravo ! Un nouvel exercice du meme obstacle commence.",
+        message: "Bravo ! Voici un nouvel exercice d'entrainement.",
         tone: "success",
       };
     case "correct_concept_debloque":
       switch (state.lastUnlockedType) {
         case "castle_gate":
-          return {
-            message: "Bravo ! La porte du chateau s'ouvre !",
-            tone: "success",
-          };
+          return { message: "Bravo ! La porte du chateau s'ouvre !", tone: "success" };
         case "blocked_road":
-          return {
-            message: "Bravo ! Le passage est degage, la route est libre !",
-            tone: "success",
-          };
+          return { message: "Bravo ! La route est degagee !", tone: "success" };
         case "broken_bridge":
-          return {
-            message: "Bravo ! Le pont est repare, tu peux traverser !",
-            tone: "success",
-          };
+          return { message: "Bravo ! Le pont est repare !", tone: "success" };
         case "crossroads":
-          return {
-            message: "Bravo ! Le bon chemin est maintenant visible !",
-            tone: "success",
-          };
+          return { message: "Bravo ! Le chemin cache apparait !", tone: "success" };
         default:
-          return {
-            message: "Bravo ! L'obstacle est debloque, tu peux continuer !",
-            tone: "success",
-          };
+          return { message: "Bravo ! Tu peux continuer !", tone: "success" };
       }
     case "incorrect":
       return {
-        message: "Essaie encore, la porte reste fermee pour le moment.",
+        message: "Presque ! Essaie encore une fois.",
         tone: "warning",
       };
     case "carte_terminee":
@@ -833,10 +1155,7 @@ function feedbackFromStatus(status) {
         tone: "success",
       };
     default:
-      return {
-        message: status,
-        tone: "info",
-      };
+      return { message: status, tone: "info" };
   }
 }
 
@@ -855,7 +1174,7 @@ async function handleSubmitAnswer(event) {
 
   try {
     const previousConceptIndex = currentConceptIndex();
-    const previousObstacleType = activeObstacle()?.type || null;
+    const previousObstacle = activeObstacle();
     const payload = await request("/evaluer", {
       method: "POST",
       body: JSON.stringify({
@@ -865,34 +1184,48 @@ async function handleSubmitAnswer(event) {
       }),
     });
 
-    if (payload.statut === "correct_concept_debloque") {
-      state.justUnlockedIndex = previousConceptIndex;
-      state.justUnlockedUntil = Date.now() + 1200;
-      state.lastUnlockedType = previousObstacleType;
-      state.panelOpen = false;
-    }
+    const unlocked = payload.statut === "correct_concept_debloque";
+    const finished = payload.statut === "carte_terminee";
 
-    if (payload.statut === "carte_terminee") {
+    if (unlocked || finished) {
+      state.justUnlockedIndex = previousConceptIndex;
+      state.justUnlockedUntil = Date.now() + 1400;
+      state.lastUnlockedType = previousObstacle?.type || null;
       state.panelOpen = false;
+      exerciseOverlay.classList.add("hidden");
+      exerciseModal.innerHTML = "";
     }
 
     const nextExercise = payload.exercice_suivant || state.currentExercise;
     applySessionSnapshot(payload.progression, nextExercise);
     state.currentExercise = nextExercise;
+
+    if ((unlocked || finished) && previousObstacle) {
+      spawnUnlockFx(previousObstacle.x, previousObstacle.barrierY);
+    }
+
     const meta = feedbackFromStatus(payload.statut);
     setFeedback(meta.message, meta.tone);
-    answerInput.value = "";
 
-    if (payload.statut === "carte_terminee") {
-      exerciseCard.className = "exercise-card empty-state";
-      exerciseCard.innerHTML = "<p>Le parcours est termine. Tu peux changer de niveau pour rejouer.</p>";
+    if (state.panelOpen) {
+      const refreshedInput = document.getElementById("answer-input");
+      if (refreshedInput) {
+        refreshedInput.value = "";
+        refreshedInput.focus();
+      }
     }
   } catch (error) {
-    setFeedback(error.message, "warning");
+    /* 503 = generation du prochain exercice indisponible : la session n'a pas
+       bouge cote backend, l'eleve peut simplement revalider la meme reponse. */
+    if (error.status === 503) {
+      setFeedback("Un instant, je prepare la suite... reessaie dans quelques secondes !", "wait");
+    } else {
+      setFeedback(error.message, "warning");
+    }
   }
 }
 
-function resetToStart() {
+function resetSharedState() {
   state.sessionId = null;
   state.session = null;
   state.currentExercise = null;
@@ -901,19 +1234,40 @@ function resetToStart() {
   state.nearObstacle = false;
   state.scene = null;
   state.playerPosition = { x: START_X, y: START_Y };
+  state.playerAngle = 0;
+  state.playerMoving = false;
   state.justUnlockedIndex = null;
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
-  gameScreen.classList.add("hidden");
-  startScreen.classList.remove("hidden");
-  startStatus.textContent = "Choisis un niveau pour demarrer une nouvelle session.";
+  state.masteryByIndex = {};
   mapElement.innerHTML = "";
-  exerciseCard.className = "exercise-card empty-state";
-  exerciseCard.innerHTML = "<p>Approche-toi du premier obstacle pour lancer l'exercice.</p>";
+  exerciseOverlay.classList.add("hidden");
+  exerciseModal.innerHTML = "";
   clearFeedback();
   window.ParcoursChat?.reset();
 }
 
+function resetToStart() {
+  resetSharedState();
+  state.selectedLevel = null;
+  state.availableLessons = [];
+  state.selectedLesson = null;
+  showStartScreen();
+  startStatus.textContent = "Choisis un niveau pour demarrer une nouvelle session.";
+  lessonStatus.textContent = "";
+  lessonActions.innerHTML = "";
+}
+
+function returnToLessonChoice() {
+  resetSharedState();
+  renderLessonChoices();
+  lessonStatus.textContent = "Choisis une lecon pour commencer.";
+  showLessonScreen();
+}
+
+/* ============================================================
+   CLAVIER
+   ============================================================ */
 function handleKeyDown(event) {
   if (!state.session) {
     return;
@@ -933,7 +1287,7 @@ function handleKeyDown(event) {
     return;
   }
 
-  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) && !isTyping) {
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) && !isTyping && !state.panelOpen) {
     event.preventDefault();
     state.keysPressed.add(event.key);
   }
@@ -948,18 +1302,10 @@ function handleKeyUp(event) {
 function movementVector() {
   let dx = 0;
   let dy = 0;
-  if (state.keysPressed.has("ArrowLeft")) {
-    dx -= 1;
-  }
-  if (state.keysPressed.has("ArrowRight")) {
-    dx += 1;
-  }
-  if (state.keysPressed.has("ArrowUp")) {
-    dy -= 1;
-  }
-  if (state.keysPressed.has("ArrowDown")) {
-    dy += 1;
-  }
+  if (state.keysPressed.has("ArrowLeft")) dx -= 1;
+  if (state.keysPressed.has("ArrowRight")) dx += 1;
+  if (state.keysPressed.has("ArrowUp")) dy -= 1;
+  if (state.keysPressed.has("ArrowDown")) dy += 1;
 
   if (dx === 0 && dy === 0) {
     return null;
@@ -969,15 +1315,25 @@ function movementVector() {
   return { dx: dx / length, dy: dy / length };
 }
 
+/* Rotation la plus courte vers l'angle cible (le perso regarde ou il va). */
+function easeAngle(current, target, factor) {
+  let delta = ((target - current + 540) % 360) - 180;
+  return current + delta * factor;
+}
+
+/* ============================================================
+   BOUCLE DE JEU : mouvement, marche, camera avec easing
+   ============================================================ */
 function tick(timestamp) {
   if (!lastTick) {
     lastTick = timestamp;
   }
-  const deltaSeconds = (timestamp - lastTick) / 1000;
+  const deltaSeconds = Math.min((timestamp - lastTick) / 1000, 0.05);
   lastTick = timestamp;
 
   if (state.scene && state.session && !state.panelOpen && !state.session.terminee) {
     const vector = movementVector();
+    state.playerMoving = Boolean(vector);
     if (vector) {
       const proposed = {
         x: state.playerPosition.x + vector.dx * PLAYER_SPEED * deltaSeconds,
@@ -985,25 +1341,73 @@ function tick(timestamp) {
       };
       const bounded = clampToBounds(proposed);
       state.playerPosition = applyCurrentBarrier(bounded, state.playerPosition);
+
+      /* Le personnage est dessine face au sud : on oriente vers la direction. */
+      const targetAngle = (Math.atan2(vector.dy, vector.dx) * 180) / Math.PI - 90;
+      state.playerAngle = easeAngle(state.playerAngle, targetAngle, Math.min(1, deltaSeconds * 14));
     }
     updateNearObstacle();
     updateSceneDynamics();
+  } else {
+    state.playerMoving = false;
+  }
+
+  /* Suivi de camera avec easing doux (jamais de recentrage brutal). */
+  if (state.scene) {
+    const target = clampCamera({ x: state.playerPosition.x, y: state.playerPosition.y });
+    const factor = 1 - Math.exp(-CAMERA_EASE * deltaSeconds);
+    state.camera.x += (target.x - state.camera.x) * factor;
+    state.camera.y += (target.y - state.camera.y) * factor;
+    applyCameraViewBox();
   }
 
   animationFrameId = window.requestAnimationFrame(tick);
 }
 
+/* ============================================================
+   MENU DU HUD
+   ============================================================ */
+function closeMenuDropdown() {
+  menuDropdown.classList.add("hidden");
+  menuButton.setAttribute("aria-expanded", "false");
+}
+
+menuButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const isHidden = menuDropdown.classList.toggle("hidden");
+  menuButton.setAttribute("aria-expanded", String(!isHidden));
+});
+
+document.addEventListener("click", (event) => {
+  if (!menuDropdown.classList.contains("hidden") && !menuDropdown.contains(event.target)) {
+    closeMenuDropdown();
+  }
+});
+
+/* ============================================================
+   BRANCHEMENTS UI
+   ============================================================ */
 document.querySelectorAll(".level-button").forEach((button) => {
   button.addEventListener("click", async () => {
     try {
-      await startSession(button.dataset.level);
+      await loadLessons(button.dataset.level);
     } catch (error) {
       startStatus.textContent = `Impossible de demarrer la session : ${error.message}`;
     }
   });
 });
 
-restartButton.addEventListener("click", resetToStart);
+restartButton.addEventListener("click", () => {
+  closeMenuDropdown();
+  resetToStart();
+});
+
+changeLessonButton.addEventListener("click", () => {
+  closeMenuDropdown();
+  returnToLessonChoice();
+});
+
+backToLevelsButton.addEventListener("click", resetToStart);
 window.addEventListener("keydown", handleKeyDown);
 window.addEventListener("keyup", handleKeyUp);
 
@@ -1015,6 +1419,12 @@ window.ParcoursApp = {
   syncSession,
   setFeedback,
   isPanelOpen: () => state.panelOpen,
+  isNearObstacle: () => state.nearObstacle,
+  getPlayerPosition: () => ({ ...state.playerPosition }),
+  getActiveObstacle: () => {
+    const obstacle = activeObstacle();
+    return obstacle ? { x: obstacle.x, y: obstacle.barrierY, type: obstacle.type } : null;
+  },
   openExercisePanel,
 };
 
