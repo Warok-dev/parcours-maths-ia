@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import random
 import re
 from collections import Counter, defaultdict, deque
@@ -11,13 +13,45 @@ from typing import Callable
 
 import google.generativeai as genai
 
-from tutor import ensure_tutor_configured
+from generation.substitution import (
+    generer_exercice as generer_exercice_procedural,
+    patterns_disponibles_pour_niveau as patterns_proceduraux_pour_niveau,
+)
+from tutor import LOCAL_ENV_PATH, ensure_tutor_configured
 
+LOGGER = logging.getLogger(__name__)
 CATALOG_PATH = Path(__file__).resolve().parents[3] / "pattern_catalog.json"
 LEVEL_MAP = {"CE1": "N1", "CE2": "N2"}
 MODEL_NAME = "gemini-3.5-flash"
+GROQ_MODEL_NAME = "llama-3.3-70b-versatile"
+MISTRAL_MODEL_NAME = "mistral-small-latest"
+PROVIDER_TIMEOUT_SECONDS = 8
 MAX_OUTPUT_TOKENS = 4000
 MAX_ATTEMPTS = 2
+SYSTEM_INSTRUCTION = (
+    "Tu rediges uniquement l'habillage narratif d'un probleme de mathematiques CE1/CE2. "
+    "Tu ne fais jamais le calcul, tu ne choisis jamais les nombres, tu n'ecris jamais de chiffres. "
+    "Tu reponds uniquement en JSON strict sans markdown, avec exactement les cles "
+    '"personnage", "objet", "action", "question". '
+    "Ecris en francais simple, naturel, adapte a un enfant marocain."
+)
+# Chaine de fallback : chaque entree est (nom, nom d'attribut du module), le
+# callable est resolu au moment de l'appel pour rester mockable en test.
+PROVIDERS = (
+    ("gemini", "_call_model_json"),
+    ("groq", "_call_groq_json"),
+    ("mistral", "_call_mistral_json"),
+)
+# Equivalents proceduraux (par proximite pedagogique) pour le dernier
+# recours : premiere entree disponible pour le niveau, sinon n'importe
+# quel pattern procedural du niveau.
+PROCEDURAL_EQUIVALENTS = {
+    "probleme_reste_partie_tout": ["partie_tout_soustraction_non_narratif"],
+    "probleme_total_partie_tout": ["partie_tout_addition_non_narratif", "addition_2chiffres_sans_retenue"],
+    "probleme_comparaison_difference": ["partie_tout_soustraction_non_narratif", "addition_2chiffres_sans_retenue"],
+    "probleme_groupes_egaux_total": ["addition_repetee_vers_multiplication", "multiplication_decomposee_chiffre_x_2chiffres"],
+    "probleme_groupes_egaux_quotient": ["facteur_manquant_table_de_2", "addition_repetee_vers_multiplication"],
+}
 STRICT_KEYS = ("personnage", "objet", "action", "question")
 NUMBER_RE = re.compile(r"\d")
 CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
@@ -262,23 +296,35 @@ def _parse_llm_json(text: str) -> dict[str, str]:
     return _validate_llm_payload(payload)
 
 
+def _ensure_env_loaded() -> None:
+    """Charge le .env du prototype pour les cles de TOUS les fournisseurs.
+
+    Complement de tutor._load_local_env, qui ne lit le fichier que si
+    GEMINI_API_KEY est absente : ici les cles Groq/Mistral doivent etre
+    disponibles meme quand Gemini est configure par ailleurs.
+    """
+    if not LOCAL_ENV_PATH.exists():
+        return
+    for line in LOCAL_ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 @lru_cache(maxsize=1)
 def _build_model() -> genai.GenerativeModel:
     api_key = ensure_tutor_configured()
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel(
-        MODEL_NAME,
-        system_instruction=(
-            "Tu rediges uniquement l'habillage narratif d'un probleme de mathematiques CE1/CE2. "
-            "Tu ne fais jamais le calcul, tu ne choisis jamais les nombres, tu n'ecris jamais de chiffres. "
-            "Tu reponds uniquement en JSON strict sans markdown, avec exactement les cles "
-            '"personnage", "objet", "action", "question". '
-            "Ecris en francais simple, naturel, adapte a un enfant marocain."
-        ),
-    )
+    return genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_INSTRUCTION)
 
 
 def _call_model_json(prompt: str) -> dict[str, str]:
+    """Priorite 1 : Gemini (comportement historique)."""
     model = _build_model()
     response = model.generate_content(
         prompt,
@@ -297,19 +343,147 @@ def _call_model_json(prompt: str) -> dict[str, str]:
                 },
             },
         },
+        request_options={"timeout": PROVIDER_TIMEOUT_SECONDS},
     )
     text = getattr(response, "text", "") or ""
     return _parse_llm_json(text)
 
 
-def _generate_narrative_context(prompt: str) -> dict[str, str]:
+@lru_cache(maxsize=1)
+def _build_groq_client():
+    from groq import Groq
+
+    _ensure_env_loaded()
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise NarrativeGenerationError("GROQ_API_KEY est absente.")
+    return Groq(api_key=api_key, timeout=PROVIDER_TIMEOUT_SECONDS, max_retries=0)
+
+
+def _call_groq_json(prompt: str) -> dict[str, str]:
+    """Priorite 2 : Groq (llama-3.3-70b-versatile)."""
+    client = _build_groq_client()
+    completion = client.chat.completions.create(
+        model=GROQ_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        response_format={"type": "json_object"},
+    )
+    text = completion.choices[0].message.content or ""
+    return _parse_llm_json(text)
+
+
+@lru_cache(maxsize=1)
+def _build_mistral_client():
+    try:
+        from mistralai import Mistral
+    except ImportError:
+        # mistralai >= 2.x expose le client dans le sous-module client.
+        from mistralai.client import Mistral
+
+    _ensure_env_loaded()
+    api_key = os.getenv("MISTRAL_API_KEY")
+    if not api_key:
+        raise NarrativeGenerationError("MISTRAL_API_KEY est absente.")
+    return Mistral(api_key=api_key)
+
+
+def _call_mistral_json(prompt: str) -> dict[str, str]:
+    """Priorite 3 : Mistral (mistral-small-latest)."""
+    client = _build_mistral_client()
+    response = client.chat.complete(
+        model=MISTRAL_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        response_format={"type": "json_object"},
+        timeout_ms=PROVIDER_TIMEOUT_SECONDS * 1000,
+    )
+    text = response.choices[0].message.content or ""
+    return _parse_llm_json(text)
+
+
+def _attempt_provider(
+    provider_name: str,
+    caller_name: str,
+    prompt: str,
+    *,
+    allowed_personnages: tuple[str, ...],
+    allowed_objets: tuple[str, ...],
+) -> dict[str, str]:
+    """Tente un fournisseur avec la MEME validation stricte pour tous :
+    JSON aux 4 cles exactes, aucun chiffre, personnage/objet dans les banques
+    autorisees. Toute sortie invalide compte comme un echec du fournisseur."""
     last_error: Exception | None = None
     for _ in range(MAX_ATTEMPTS):
+        caller = globals()[caller_name]
         try:
-            return _call_model_json(prompt)
+            contexte = caller(prompt)
+            return _validate_allowed_values(
+                contexte,
+                allowed_personnages=allowed_personnages,
+                allowed_objets=allowed_objets,
+            )
         except NarrativeGenerationError as exc:
             last_error = exc
-    raise NarrativeGenerationError("Impossible d'obtenir un habillage narratif fiable.") from last_error
+        except Exception as exc:  # erreur SDK, reseau, quota, timeout...
+            last_error = exc
+    raise NarrativeGenerationError(
+        f"Le fournisseur '{provider_name}' n'a pas produit d'habillage valide."
+    ) from last_error
+
+
+def _generate_narrative_context(
+    prompt: str,
+    *,
+    allowed_personnages: tuple[str, ...],
+    allowed_objets: tuple[str, ...],
+) -> dict[str, str]:
+    for provider_name, caller_name in PROVIDERS:
+        try:
+            contexte = _attempt_provider(
+                provider_name,
+                caller_name,
+                prompt,
+                allowed_personnages=allowed_personnages,
+                allowed_objets=allowed_objets,
+            )
+        except NarrativeGenerationError as exc:
+            LOGGER.warning("Fournisseur narratif '%s' en echec : %s", provider_name, exc)
+            continue
+        LOGGER.info("Habillage narratif fourni par '%s'.", provider_name)
+        return contexte
+    raise NarrativeGenerationError("Tous les fournisseurs narratifs ont echoue.")
+
+
+def _procedural_fallback_exercise(niveau: str, pattern_name: str) -> dict:
+    """Priorite 4 : exercice procedural du meme niveau, en privilegiant un
+    equivalent pedagogique du pattern narratif demande."""
+    disponibles = patterns_proceduraux_pour_niveau(niveau)
+    if not disponibles:
+        raise NarrativeGenerationError(
+            f"Aucun pattern procedural disponible pour {niveau} en dernier recours."
+        )
+    preferes = [
+        candidate
+        for candidate in PROCEDURAL_EQUIVALENTS.get(pattern_name, [])
+        if candidate in disponibles
+    ]
+    choix = preferes[0] if preferes else random.choice(disponibles)
+    LOGGER.warning(
+        "Fallback procedural : pattern '%s' genere a la place du narratif '%s' (%s).",
+        choix,
+        pattern_name,
+        niveau,
+    )
+    return generer_exercice_procedural(choix, niveau)
 
 
 def _build_exercise(
@@ -619,12 +793,20 @@ def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) ->
         recent_personnages=recent_personnages,
         recent_objets=recent_objets,
     )
-    contexte = _generate_narrative_context(prompt)
-    contexte = _validate_allowed_values(
-        contexte,
-        allowed_personnages=allowed_personnages,
-        allowed_objets=allowed_objets,
-    )
+    try:
+        contexte = _generate_narrative_context(
+            prompt,
+            allowed_personnages=allowed_personnages,
+            allowed_objets=allowed_objets,
+        )
+    except NarrativeGenerationError as exc:
+        LOGGER.warning(
+            "Aucun fournisseur narratif n'a repondu pour '%s' (%s) : %s",
+            selected_pattern,
+            niveau,
+            exc,
+        )
+        return _procedural_fallback_exercise(niveau, selected_pattern)
     enonce = builder["assemble"](variables, contexte)
     _remember_context(selected_pattern, contexte)
 

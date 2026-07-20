@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from generation import narrative
+from generation import narrative, substitution
 
 
 LLM_PAYLOADS = {
@@ -103,15 +103,91 @@ class NarrativeGenerationTests(unittest.TestCase):
         self.assertEqual(mocked.call_count, 2)
         self.assertTrue(ex["enonce"].strip())
 
-    def test_generate_raises_after_two_invalid_outputs(self) -> None:
+    def test_groq_used_when_gemini_fails(self) -> None:
         with patch(
             "generation.narrative._call_model_json",
-            side_effect=narrative.NarrativeGenerationError("json invalide"),
-        ):
-            with self.assertRaises(narrative.NarrativeGenerationError):
-                narrative.generate_narrative_exercise("CE2", "probleme_comparaison_difference")
+            side_effect=narrative.NarrativeGenerationError("gemini KO"),
+        ) as gemini_mock, patch(
+            "generation.narrative._call_groq_json",
+            return_value=LLM_PAYLOADS["probleme_reste_partie_tout"],
+        ) as groq_mock, patch(
+            "generation.narrative._call_mistral_json",
+        ) as mistral_mock:
+            ex = narrative.generate_narrative_exercise("CE1", "probleme_reste_partie_tout")
 
-    def test_large_comparison_rejects_implausible_object_outside_allowed_pool(self) -> None:
+        self.assertEqual(gemini_mock.call_count, narrative.MAX_ATTEMPTS)
+        self.assertEqual(groq_mock.call_count, 1)
+        self.assertEqual(mistral_mock.call_count, 0)
+        self.assertEqual(ex["pattern"]["generation_method"], "llm")
+        self.assertIn("donne a sa cousine", ex["enonce"])
+
+    def test_mistral_used_when_gemini_and_groq_fail(self) -> None:
+        with patch(
+            "generation.narrative._call_model_json",
+            side_effect=narrative.NarrativeGenerationError("gemini KO"),
+        ), patch(
+            "generation.narrative._call_groq_json",
+            side_effect=TimeoutError("groq trop lent"),
+        ) as groq_mock, patch(
+            "generation.narrative._call_mistral_json",
+            return_value=LLM_PAYLOADS["probleme_reste_partie_tout"],
+        ) as mistral_mock:
+            ex = narrative.generate_narrative_exercise("CE1", "probleme_reste_partie_tout")
+
+        self.assertEqual(groq_mock.call_count, narrative.MAX_ATTEMPTS)
+        self.assertEqual(mistral_mock.call_count, 1)
+        self.assertEqual(ex["pattern"]["generation_method"], "llm")
+        self.assertIn("donne a sa cousine", ex["enonce"])
+
+    def test_all_providers_fail_returns_procedural_exercise(self) -> None:
+        with patch(
+            "generation.narrative._call_model_json",
+            side_effect=narrative.NarrativeGenerationError("gemini KO"),
+        ), patch(
+            "generation.narrative._call_groq_json",
+            side_effect=RuntimeError("quota Groq depasse"),
+        ), patch(
+            "generation.narrative._call_mistral_json",
+            side_effect=RuntimeError("Mistral en erreur"),
+        ):
+            ex = narrative.generate_narrative_exercise("CE1", "probleme_reste_partie_tout")
+
+        self.assertEqual(ex["pattern"]["generation_method"], "substitution")
+        # Equivalent pedagogique du retrait partie/tout, disponible en CE1.
+        self.assertEqual(ex["pattern"]["pattern_name"], "partie_tout_soustraction_non_narratif")
+        self.assertIn(
+            ex["pattern"]["pattern_name"],
+            substitution.patterns_disponibles_pour_niveau("CE1"),
+        )
+        self.assertTrue(ex["enonce"].strip())
+        self.assertIn("valeur", ex["reponse_attendue"])
+
+    def test_all_providers_fail_without_procedural_equivalent_still_returns_exercise(self) -> None:
+        # probleme_comparaison_difference est un pattern CE2 : son equivalent
+        # privilegie n'existe qu'en CE1, on doit quand meme obtenir un
+        # exercice procedural CE2 valide plutot qu'un blocage.
+        with patch(
+            "generation.narrative._call_model_json",
+            side_effect=narrative.NarrativeGenerationError("gemini KO"),
+        ), patch(
+            "generation.narrative._call_groq_json",
+            side_effect=RuntimeError("groq KO"),
+        ), patch(
+            "generation.narrative._call_mistral_json",
+            side_effect=RuntimeError("mistral KO"),
+        ):
+            ex = narrative.generate_narrative_exercise("CE2", "probleme_comparaison_difference")
+
+        self.assertEqual(ex["pattern"]["generation_method"], "substitution")
+        self.assertIn(
+            ex["pattern"]["pattern_name"],
+            substitution.patterns_disponibles_pour_niveau("CE2"),
+        )
+        self.assertEqual(ex["niveau_scolaire"], "CE2")
+
+    def test_invalid_object_from_gemini_counts_as_provider_failure(self) -> None:
+        # Sortie hors banque autorisee = echec du fournisseur : la chaine
+        # continue avec les suivants au lieu d'accepter la sortie.
         with patch.dict(
             narrative.PATTERN_BUILDERS["probleme_comparaison_difference"],
             {
@@ -130,9 +206,20 @@ class NarrativeGenerationTests(unittest.TestCase):
                     "action": "Son camarade en a",
                     "question": "De combien en a-t-elle de plus ?",
                 },
-            ):
-                with self.assertRaises(narrative.NarrativeGenerationError):
-                    narrative.generate_narrative_exercise("CE2", "probleme_comparaison_difference")
+            ), patch(
+                "generation.narrative._call_groq_json",
+                return_value={
+                    "personnage": "Salma",
+                    "objet": "points",
+                    "action": "Son camarade en a",
+                    "question": "De combien en a-t-elle de plus ?",
+                },
+            ) as groq_mock:
+                ex = narrative.generate_narrative_exercise("CE2", "probleme_comparaison_difference")
+
+        self.assertEqual(groq_mock.call_count, 1)
+        self.assertEqual(ex["pattern"]["generation_method"], "llm")
+        self.assertEqual(ex["contexte_narratif"]["objet"], "points")
 
     def test_diversity_threshold_on_20_comparison_exercises(self) -> None:
         payloads = [

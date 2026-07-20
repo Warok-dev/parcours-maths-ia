@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -36,6 +37,10 @@ REINFORCEMENT_BY_MASTERY = {1: 4, 2: 3, 3: 2}
 # disque (un JSON par session dans data/sessions/), rechargee a la demande.
 EXERCICE_CACHE: dict[str, dict] = {}
 SESSION_STATE: dict[str, dict] = {}
+
+# Rend visibles les logs INFO applicatifs (ex : quel fournisseur narratif a
+# repondu) dans la console uvicorn pendant le developpement.
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Prototype Parcours Maths IA", version="0.1.0")
 

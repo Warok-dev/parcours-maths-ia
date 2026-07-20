@@ -29,7 +29,7 @@ def _load_local_env() -> None:
     if os.getenv("GEMINI_API_KEY") or not LOCAL_ENV_PATH.exists():
         return
 
-    for line in LOCAL_ENV_PATH.read_text(encoding="utf-8").splitlines():
+    for line in LOCAL_ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or "=" not in stripped:
             continue
