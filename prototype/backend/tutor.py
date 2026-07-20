@@ -10,11 +10,59 @@ from google.ai.generativelanguage_v1beta.types import Candidate
 
 LOGGER = logging.getLogger(__name__)
 MODEL_NAME = "gemini-3.5-flash"
+GROQ_MODEL_NAME = "llama-3.3-70b-versatile"
+MISTRAL_MODEL_NAME = "mistral-small-latest"
+PROVIDER_TIMEOUT_SECONDS = 8
 LOCAL_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 THINKING_LEVEL = "low"
 BASE_MAX_OUTPUT_TOKENS = 500
 RETRY_MAX_OUTPUT_TOKENS = 4000
 VALID_ENDINGS = (".", "!", "?", "…")
+
+SYSTEM_INSTRUCTION = (
+    "Tu es un tuteur de mathématiques pour un élève de CE1 ou CE2 (6 à 8 ans). "
+    "Utilise des phrases courtes, un vocabulaire simple, un ton bienveillant et encourageant. "
+    "Reste strictement sur l'exercice de mathématiques en cours. "
+    "Si la question est hors sujet, redirige poliment vers l'exercice. "
+    "N'invente jamais une méthode différente de etapes_methode. "
+    "Réponds en 2 ou 3 phrases maximum. "
+    "Ne demande ni ne stocke aucune information personnelle. "
+    "N'écris pas directement la réponse finale, sauf si le message de l'élève indique clairement plusieurs essais ou blocages répétés ; "
+    "dans ce cas, donne la réponse en l'expliquant avec la méthode fournie."
+)
+
+# Chaine de fallback (meme ordre que la generation narrative). Les callables
+# sont resolus par nom au moment de l'appel pour rester mockables en test.
+TUTOR_PROVIDERS = (
+    ("gemini", MODEL_NAME, "_call_gemini"),
+    ("groq", GROQ_MODEL_NAME, "_call_groq"),
+    ("mistral", MISTRAL_MODEL_NAME, "_call_mistral"),
+)
+
+# Indications injectees dans le prompt selon le diagnostic d'erreur par
+# regles (voir diagnostic.py) memorise dans la session de l'eleve.
+DIAGNOSTIC_HINTS = {
+    "INVERSION_OPERANDES": (
+        "L'élève semble avoir inversé l'ordre de l'opération (il a calculé b - a au lieu de a - b). "
+        "Cible ton aide sur l'ordre correct de l'opération, sans réexpliquer toute la méthode."
+    ),
+    "ERREUR_DISTRACTION": (
+        "L'élève semble avoir fait une erreur d'inattention : sa réponse est très proche de la bonne. "
+        "Encourage-le simplement à revérifier son calcul, sans réexpliquer la méthode depuis le début."
+    ),
+    "ZERO_OUBLIE": (
+        "L'élève semble avoir oublié le zéro final de la multiplication par 10 (ou par un multiple de 10). "
+        "Attire son attention sur le zéro à ajouter à droite du résultat."
+    ),
+    "OPERATION_INVERSEE": (
+        "L'élève semble avoir confondu addition et soustraction. "
+        "Aide-le à repérer quelle opération raconte vraiment l'histoire du problème."
+    ),
+    "TABLE_MULTIPLICATION_PROCHE": (
+        "La réponse de l'élève correspond à une table de multiplication voisine. "
+        "Invite-le à revérifier la table utilisée, sans refaire tout le calcul à sa place."
+    ),
+}
 
 
 class TutorConfigurationError(RuntimeError):
@@ -26,7 +74,9 @@ class TutorServiceError(RuntimeError):
 
 
 def _load_local_env() -> None:
-    if os.getenv("GEMINI_API_KEY") or not LOCAL_ENV_PATH.exists():
+    # Charge toutes les cles manquantes du .env (Gemini, Groq, Mistral...),
+    # sans jamais ecraser une variable deja definie dans l'environnement.
+    if not LOCAL_ENV_PATH.exists():
         return
 
     for line in LOCAL_ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
@@ -54,31 +104,23 @@ def ensure_tutor_configured() -> str:
 def _build_model() -> genai.GenerativeModel:
     api_key = ensure_tutor_configured()
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel(
-        MODEL_NAME,
-        system_instruction=(
-            "Tu es un tuteur de mathématiques pour un élève de CE1 ou CE2 (6 à 8 ans). "
-            "Utilise des phrases courtes, un vocabulaire simple, un ton bienveillant et encourageant. "
-            "Reste strictement sur l'exercice de mathématiques en cours. "
-            "Si la question est hors sujet, redirige poliment vers l'exercice. "
-            "N'invente jamais une méthode différente de etapes_methode. "
-            "Réponds en 2 ou 3 phrases maximum. "
-            "Ne demande ni ne stocke aucune information personnelle. "
-            "N'écris pas directement la réponse finale, sauf si le message de l'élève indique clairement plusieurs essais ou blocages répétés ; "
-            "dans ce cas, donne la réponse en l'expliquant avec la méthode fournie."
-        ),
-    )
+    return genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_INSTRUCTION)
 
 
-def _build_user_prompt(exercice: dict, question: str) -> str:
+def _build_user_prompt(exercice: dict, question: str, diagnostic: str | None = None) -> str:
     steps = exercice.get("presentations", {}).get("1_guide", {}).get("etapes_methode", [])
     steps_text = "\n".join(f"- {step}" for step in steps) if steps else "- Aucune étape fournie."
+    hint = DIAGNOSTIC_HINTS.get(diagnostic) if diagnostic else None
+    diagnostic_block = (
+        f"Diagnostic automatique de la dernière réponse fausse de l'élève :\n{hint}\n\n" if hint else ""
+    )
     return (
         "Exercice en cours :\n"
         f"Énoncé : {exercice.get('enonce', '')}\n"
         f"Réponse attendue : {exercice.get('reponse_attendue', {}).get('valeur', '')}\n"
         "Méthode autorisée :\n"
         f"{steps_text}\n\n"
+        f"{diagnostic_block}"
         "Message de l'élève :\n"
         f"{question}\n\n"
         "Aide l'élève en respectant exactement la méthode fournie."
@@ -134,35 +176,109 @@ def _call_model(
     return _extract_text(response), _extract_finish_reason(response)
 
 
-def build_tutor_reply(exercice: dict, question: str) -> dict:
-    """Call Gemini with a strict tutoring prompt anchored on exercise method steps."""
+def _call_gemini(prompt: str) -> str:
+    """Priorite 1 : Gemini, avec retry sur troncature (comportement historique)."""
     model = _build_model()
-    prompt = _build_user_prompt(exercice, question)
+    text, finish_reason = _call_model(model, prompt, BASE_MAX_OUTPUT_TOKENS)
 
-    try:
-        text, finish_reason = _call_model(model, prompt, BASE_MAX_OUTPUT_TOKENS)
-
-        if _is_max_tokens_finish_reason(finish_reason) or not _is_valid_tutor_text(text):
-            LOGGER.warning(
-                "Réponse Gemini incomplète ou trop courte. finish_reason=%s text=%r",
-                finish_reason,
-                text,
-            )
-            text, finish_reason = _call_model(model, prompt, RETRY_MAX_OUTPUT_TOKENS)
-    except Exception as exc:  # pragma: no cover - covered by manual integration test
-        LOGGER.exception("Erreur Gemini pendant /tuteur/aide")
-        raise TutorServiceError("Le tuteur IA est temporairement indisponible.") from exc
+    if _is_max_tokens_finish_reason(finish_reason) or not _is_valid_tutor_text(text):
+        LOGGER.warning(
+            "Réponse Gemini incomplète ou trop courte. finish_reason=%s text=%r",
+            finish_reason,
+            text,
+        )
+        text, finish_reason = _call_model(model, prompt, RETRY_MAX_OUTPUT_TOKENS)
 
     if _is_max_tokens_finish_reason(finish_reason):
-        LOGGER.error("Gemini a coupé la réponse pour limite de tokens après retry.")
-        raise TutorServiceError("Le tuteur IA est temporairement indisponible.")
+        raise TutorServiceError("Gemini a coupé la réponse pour limite de tokens après retry.")
+    return text
 
-    if not _is_valid_tutor_text(text):
-        LOGGER.error("Gemini a renvoyé une réponse vide ou tronquée: %r", text)
-        raise TutorServiceError("Le tuteur IA est temporairement indisponible.")
 
-    return {
-        "modele": MODEL_NAME,
-        "reponse": text,
-        "question_recue": question,
-    }
+@lru_cache(maxsize=1)
+def _build_groq_client():
+    from groq import Groq
+
+    _load_local_env()
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise TutorServiceError("GROQ_API_KEY est absente.")
+    return Groq(api_key=api_key, timeout=PROVIDER_TIMEOUT_SECONDS, max_retries=0)
+
+
+def _call_groq(prompt: str) -> str:
+    """Priorite 2 : Groq (llama-3.3-70b-versatile)."""
+    client = _build_groq_client()
+    completion = client.chat.completions.create(
+        model=GROQ_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.3,
+        max_tokens=BASE_MAX_OUTPUT_TOKENS,
+    )
+    return (completion.choices[0].message.content or "").strip()
+
+
+@lru_cache(maxsize=1)
+def _build_mistral_client():
+    try:
+        from mistralai import Mistral
+    except ImportError:
+        # mistralai >= 2.x expose le client dans le sous-module client.
+        from mistralai.client import Mistral
+
+    _load_local_env()
+    api_key = os.getenv("MISTRAL_API_KEY")
+    if not api_key:
+        raise TutorServiceError("MISTRAL_API_KEY est absente.")
+    return Mistral(api_key=api_key)
+
+
+def _call_mistral(prompt: str) -> str:
+    """Priorite 3 : Mistral (mistral-small-latest)."""
+    client = _build_mistral_client()
+    response = client.chat.complete(
+        model=MISTRAL_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.3,
+        max_tokens=BASE_MAX_OUTPUT_TOKENS,
+        timeout_ms=PROVIDER_TIMEOUT_SECONDS * 1000,
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
+def build_tutor_reply(exercice: dict, question: str, diagnostic: str | None = None) -> dict:
+    """Reponse du tuteur via la chaine Gemini -> Groq -> Mistral.
+
+    La MEME validation de sortie s'applique a chaque fournisseur ; le
+    diagnostic d'erreur (si present) est injecte dans le prompt commun.
+    """
+    prompt = _build_user_prompt(exercice, question, diagnostic)
+
+    for provider_name, model_name, caller_name in TUTOR_PROVIDERS:
+        caller = globals()[caller_name]
+        try:
+            text = caller(prompt)
+        except Exception as exc:
+            LOGGER.warning("Tuteur : fournisseur '%s' en echec : %s", provider_name, exc)
+            continue
+        if not _is_valid_tutor_text(text):
+            LOGGER.warning(
+                "Tuteur : fournisseur '%s' a renvoye une reponse vide ou tronquee : %r",
+                provider_name,
+                text,
+            )
+            continue
+        LOGGER.info("Tuteur : reponse fournie par '%s'.", provider_name)
+        return {
+            "modele": model_name,
+            "reponse": text,
+            "question_recue": question,
+        }
+
+    LOGGER.error("Tuteur : tous les fournisseurs ont echoue.")
+    raise TutorServiceError("Le tuteur IA est temporairement indisponible.")

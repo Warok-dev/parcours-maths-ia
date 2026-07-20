@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from diagnostic import diagnostiquer_erreur
 from evaluation import compare_reponse
 from generation.narrative import (
     generate_narrative_exercise,
@@ -276,6 +277,7 @@ def _build_session(niveau: str, lecon_id: str | None = None) -> dict:
         "etapes_debloquees": [concept],
         "maitrise_actuelle": 0,
         "terminee": False,
+        "dernier_diagnostic": None,
     }
     SESSION_STATE[session_id] = session
     _save_session(session)
@@ -404,9 +406,20 @@ def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> di
 
     if not result["correct"]:
         _mark_chain_broken(session)
+        # Diagnostic par regles de l'erreur probable, memorise pour que le
+        # tuteur puisse cibler son aide (ecrase a chaque nouvelle tentative).
+        session["dernier_diagnostic"] = diagnostiquer_erreur(
+            exercice["pattern"]["pattern_name"],
+            exercice.get("variables") or {},
+            exercice["reponse_attendue"]["valeur"],
+            reponse,
+        )
         response["statut"] = "incorrect"
+        response["diagnostic"] = session["dernier_diagnostic"]
         response["progression"] = _progression_payload(session)
         return response
+
+    session["dernier_diagnostic"] = None
 
     if session["phase"] == "detection_maitrise":
         statut, next_exercise = _handle_detection_success(session)
@@ -504,6 +517,7 @@ def evaluer(payload: EvaluationRequest) -> dict:
 @app.post("/tuteur/aide")
 def tuteur_aide(payload: TutorRequest) -> dict:
     progression = None
+    diagnostic = None
     if payload.session_id is not None:
         session = _get_session(payload.session_id)
         exercice = _ensure_current_exercise(session, payload.exercice_id)
@@ -511,11 +525,12 @@ def tuteur_aide(payload: TutorRequest) -> dict:
             _mark_chain_broken(session)
             _save_session(session)
         progression = _progression_payload(session)
+        diagnostic = session.get("dernier_diagnostic")
     else:
         exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)
 
     try:
-        tutor_reply = build_tutor_reply(exercice, payload.question)
+        tutor_reply = build_tutor_reply(exercice, payload.question, diagnostic=diagnostic)
     except TutorServiceError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

@@ -315,6 +315,67 @@ class ApiIntegrationTests(unittest.TestCase):
             self.assertEqual(payload["progression"]["phase"], "renforcement")
             self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 4)
 
+    def test_wrong_answer_stores_diagnostic_and_tutor_prompt_mentions_it(self) -> None:
+        # La lecon soustraction demarre sur partie_tout_soustraction_non_narratif
+        # (procedural) : la reponse attendue est tout - partie_connue.
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1", "lecon_id": "soustraction"},
+        )
+        self.assertEqual(start.status_code, 200)
+        payload = start.json()
+        session_id = payload["session_id"]
+        exercice = payload["exercice"]
+        variables = exercice["variables"]
+
+        # Signature d'inversion claire : l'eleve calcule partie_connue - tout.
+        inverted = str(variables["partie_connue"] - variables["tout"])
+        wrong = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": session_id,
+                "exercice_id": exercice["id"],
+                "reponse_donnee": inverted,
+            },
+        )
+        self.assertEqual(wrong.status_code, 200)
+        body = wrong.json()
+        self.assertEqual(body["statut"], "incorrect")
+        self.assertEqual(body["diagnostic"], "INVERSION_OPERANDES")
+        self.assertEqual(SESSION_STATE[session_id]["dernier_diagnostic"], "INVERSION_OPERANDES")
+
+        with patch(
+            "tutor._call_gemini",
+            return_value="Regarde bien l'ordre : commence toujours par le tout.",
+        ) as mocked_llm:
+            tutor = self.client.post(
+                "/tuteur/aide",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "niveau": "CE1",
+                    "question": "Je ne comprends pas mon erreur.",
+                },
+            )
+
+        self.assertEqual(tutor.status_code, 200)
+        self.assertEqual(mocked_llm.call_count, 1)
+        prompt = mocked_llm.call_args[0][0]
+        self.assertIn("Diagnostic automatique", prompt)
+        self.assertIn("inversé l'ordre de l'opération", prompt)
+
+        # Une bonne reponse efface le diagnostic : le prompt suivant est vierge.
+        correct = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": session_id,
+                "exercice_id": exercice["id"],
+                "reponse_donnee": _answer_for(exercice),
+            },
+        )
+        self.assertEqual(correct.status_code, 200)
+        self.assertIsNone(SESSION_STATE[session_id]["dernier_diagnostic"])
+
     def test_tutor_at_level_one_does_not_break_perfect_chain(self) -> None:
         with patch(
             "main.build_tutor_reply",
