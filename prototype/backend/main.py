@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import time
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -23,9 +26,14 @@ from tutor import TutorServiceError, build_tutor_reply
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
+SESSIONS_DIR = DATA_DIR / "sessions"
+SESSION_MAX_AGE_DAYS = 7
+SESSION_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 ALLOWED_LEVELS = {"CE1", "CE2"}
 RESOLUTION_LEVEL_TO_KEY = {1: "1_guide", 2: "2_semi_guide", 3: "3_autonome"}
 REINFORCEMENT_BY_MASTERY = {1: 4, 2: 3, 3: 2}
+# Caches memoire de travail ; la verite persistante des sessions est sur
+# disque (un JSON par session dans data/sessions/), rechargee a la demande.
 EXERCICE_CACHE: dict[str, dict] = {}
 SESSION_STATE: dict[str, dict] = {}
 
@@ -64,6 +72,65 @@ def load_json(name: str) -> list[dict] | dict:
     path = DATA_DIR / name
     with path.open("r", encoding="utf-8") as file:
         return json.load(file)
+
+
+def _session_file_path(session_id: str) -> Path | None:
+    # Les ids sont des uuid4().hex : tout autre format est rejete, ce qui
+    # empeche au passage toute traversee de chemin via l'URL.
+    if not SESSION_ID_PATTERN.fullmatch(session_id):
+        return None
+    return SESSIONS_DIR / f"{session_id}.json"
+
+
+def _save_session(session: dict) -> None:
+    """Persiste la session et son exercice courant (ecriture atomique)."""
+    path = _session_file_path(session["session_id"])
+    if path is None:
+        return
+    exercices = {}
+    exercice_id = session.get("exercice_id_courant")
+    if exercice_id and exercice_id in EXERCICE_CACHE:
+        exercices[exercice_id] = EXERCICE_CACHE[exercice_id]
+    payload = {"session": session, "exercices": exercices}
+    try:
+        SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_suffix(".json.tmp")
+        temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        os.replace(temp_path, path)
+    except OSError:
+        # Persistance en echec : la partie continue sur l'etat memoire.
+        pass
+
+
+def _load_session_from_disk(session_id: str) -> dict | None:
+    path = _session_file_path(session_id)
+    if path is None or not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        session = payload["session"]
+        exercices = payload.get("exercices", {})
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    EXERCICE_CACHE.update(exercices)
+    SESSION_STATE[session_id] = session
+    return session
+
+
+def _cleanup_old_sessions() -> None:
+    """Au demarrage : supprime les fichiers de session de plus de 7 jours."""
+    if not SESSIONS_DIR.is_dir():
+        return
+    cutoff = time.time() - SESSION_MAX_AGE_DAYS * 86400
+    for path in SESSIONS_DIR.glob("*.json"):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+        except OSError:
+            pass
+
+
+_cleanup_old_sessions()
 
 
 def load_exercices(niveau: str) -> list[dict]:
@@ -206,11 +273,15 @@ def _build_session(niveau: str, lecon_id: str | None = None) -> dict:
         "terminee": False,
     }
     SESSION_STATE[session_id] = session
+    _save_session(session)
     return session
 
 
 def _get_session(session_id: str) -> dict:
     session = SESSION_STATE.get(session_id)
+    if session is None:
+        # Pas en memoire (ex : serveur redemarre) : tente le fichier persiste.
+        session = _load_session_from_disk(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session introuvable.")
     return session
@@ -409,7 +480,9 @@ def evaluer(payload: EvaluationRequest) -> dict:
     if payload.session_id is not None:
         session = _get_session(payload.session_id)
         exercice = _ensure_current_exercise(session, payload.exercice_id)
-        return _apply_session_evaluation(session, exercice, reponse)
+        response = _apply_session_evaluation(session, exercice, reponse)
+        _save_session(session)
+        return response
 
     if payload.niveau is None:
         raise HTTPException(status_code=400, detail="Le niveau est obligatoire hors session.")
@@ -431,6 +504,7 @@ def tuteur_aide(payload: TutorRequest) -> dict:
         exercice = _ensure_current_exercise(session, payload.exercice_id)
         if session["niveau_resolution_courant"] >= 2:
             _mark_chain_broken(session)
+            _save_session(session)
         progression = _progression_payload(session)
     else:
         exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)

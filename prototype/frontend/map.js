@@ -1,4 +1,8 @@
 const API_BASE_URL = "http://127.0.0.1:8000";
+/* Reference de session persistee : permet de reprendre l'aventure apres un
+   rafraichissement de page (position et score inclus, le reste de l'etat
+   vit cote backend et se recharge via GET /session/{id}). */
+const SESSION_STORAGE_KEY = "parcours_session_v1";
 const SCENE_WIDTH = 2200;
 const SCENE_PADDING_X = 300;
 const SCENE_PADDING_Y = 420;
@@ -78,6 +82,7 @@ const state = {
 
 let animationFrameId = null;
 let lastTick = 0;
+let lastPositionSaveAt = 0;
 let feedbackTimer = null;
 let feedbackLeaveTimer = null;
 
@@ -111,6 +116,43 @@ function clearFeedback() {
 
 function currentConceptIndex() {
   return state.session ? state.session.concept_index : -1;
+}
+
+/* ============================================================
+   SAUVEGARDE DE SESSION (localStorage)
+   ============================================================ */
+function saveSessionRef() {
+  if (!state.sessionId || !state.session || state.session.terminee) {
+    return;
+  }
+  try {
+    localStorage.setItem(
+      SESSION_STORAGE_KEY,
+      JSON.stringify({
+        sessionId: state.sessionId,
+        playerPosition: { x: state.playerPosition.x, y: state.playerPosition.y },
+        score: state.score,
+      }),
+    );
+  } catch (_error) {
+    /* stockage indisponible : pas de reprise possible, le jeu continue */
+  }
+}
+
+function loadSessionRef() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || "null");
+  } catch (_error) {
+    return null;
+  }
+}
+
+function clearSessionRef() {
+  try {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch (_error) {
+    /* rien a faire */
+  }
 }
 
 /* ============================================================
@@ -1264,6 +1306,11 @@ function applySessionSnapshot(snapshot, exercise = null) {
   if (state.panelOpen) {
     renderExerciseModal();
   }
+  if (snapshot.terminee) {
+    clearSessionRef();
+  } else {
+    saveSessionRef();
+  }
   window.dispatchEvent(new CustomEvent("session-updated", { detail: snapshot }));
 }
 
@@ -1596,6 +1643,7 @@ async function handleSubmitAnswer(event) {
 }
 
 function resetSharedState() {
+  clearSessionRef();
   state.sessionId = null;
   state.session = null;
   state.currentExercise = null;
@@ -1639,6 +1687,58 @@ function returnToLessonChoice() {
   renderLessonChoices();
   lessonStatus.textContent = "Choisis une lecon pour commencer.";
   showLessonScreen();
+}
+
+/* ============================================================
+   REPRISE DE SESSION AU CHARGEMENT
+   Si un session_id est memorise, on tente de recharger l'etat
+   aupres du backend et de reprendre la partie la ou elle etait
+   (meme carte, meme position, meme exercice). Sinon, ecran de
+   choix habituel.
+   ============================================================ */
+async function tryResumeSession() {
+  const saved = loadSessionRef();
+  if (!saved || !saved.sessionId) {
+    return false;
+  }
+  startStatus.textContent = "Reprise de ton aventure en cours...";
+  try {
+    const snapshot = await request(`/session/${saved.sessionId}`, { method: "GET" });
+    if (snapshot.terminee) {
+      clearSessionRef();
+      startStatus.textContent = "Choisis un niveau pour demarrer une nouvelle session.";
+      return false;
+    }
+    state.sessionId = saved.sessionId;
+    state.score = Number.isFinite(saved.score) ? saved.score : 0;
+    refreshScoreDisplay();
+    const position = saved.playerPosition;
+    if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
+      state.playerPosition = { x: position.x, y: position.y };
+      state.camera = { x: position.x, y: position.y };
+    }
+    applySessionSnapshot(snapshot);
+    showGameScreen();
+    window.ParcoursAudio?.setMusicActive(true);
+    /* Liste des lecons du niveau rechargee en arriere-plan pour que
+       "Changer de lecon" fonctionne aussi apres une reprise. */
+    request(`/lecons/${snapshot.niveau_scolaire}`, { method: "GET" })
+      .then((payload) => {
+        state.availableLessons = payload.lecons || [];
+      })
+      .catch(() => {});
+    return true;
+  } catch (error) {
+    if (error.status === 404) {
+      /* Session expiree ou supprimee : on repart proprement. */
+      clearSessionRef();
+      startStatus.textContent = "Choisis un niveau pour demarrer une nouvelle session.";
+    } else {
+      /* Backend injoignable : on garde la sauvegarde pour un prochain essai. */
+      startStatus.textContent = `Impossible de reprendre l'aventure : ${error.message}`;
+    }
+    return false;
+  }
 }
 
 /* ============================================================
@@ -1738,6 +1838,12 @@ function tick(timestamp) {
     applyCameraViewBox();
   }
 
+  /* Position sauvegardee regulierement (le beforeunload couvre le reste). */
+  if (state.sessionId && timestamp - lastPositionSaveAt > 2000) {
+    lastPositionSaveAt = timestamp;
+    saveSessionRef();
+  }
+
   animationFrameId = window.requestAnimationFrame(tick);
 }
 
@@ -1795,6 +1901,14 @@ restartButton.addEventListener("click", () => {
   resetToStart();
 });
 
+document.getElementById("new-adventure-button").addEventListener("click", () => {
+  closeMenuDropdown();
+  /* resetToStart efface aussi la reference de session en localStorage. */
+  resetToStart();
+});
+
+window.addEventListener("beforeunload", saveSessionRef);
+
 changeLessonButton.addEventListener("click", () => {
   closeMenuDropdown();
   returnToLessonChoice();
@@ -1826,3 +1940,6 @@ window.ParcoursApp = {
 if (!animationFrameId) {
   animationFrameId = window.requestAnimationFrame(tick);
 }
+
+/* Au chargement : tentative de reprise de la session sauvegardee. */
+tryResumeSession();
