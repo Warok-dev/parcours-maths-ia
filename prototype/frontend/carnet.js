@@ -34,12 +34,19 @@
     conversion_cm_mm_vers_mm: "Convertir cm et mm",
   };
 
+  /* Badges du bilan de session, generes par regles (aucun appel IA). */
+  const MASTERY_BADGES = { 1: "A retravailler", 2: "En bonne voie", 3: "Acquis" };
+
   const overlay = document.getElementById("carnet-overlay");
   const book = document.getElementById("carnet-book");
   const carnetButton = document.getElementById("carnet-button");
+  const bilanOverlay = document.getElementById("bilan-overlay");
+  const bilanCard = document.getElementById("bilan-card");
 
   let isOpen = false;
   let pageIndex = 0;
+  let bilanOpen = false;
+  let bilanTimer = null;
 
   /* Maitrise max observee par concept, par session (les snapshots ne portent
      que la maitrise du concept courant : on l'accumule au fil de la partie). */
@@ -127,6 +134,10 @@
     if (snapshot.terminee && snapshot.lecon_id && !recordedSessions.has(snapshot.session_id)) {
       recordedSessions.add(snapshot.session_id);
       recordCompletion(snapshot);
+      /* Bilan de session juste apres le bandeau de felicitations, en plus
+         du comportement existant (le bandeau reste affiche derriere). */
+      window.clearTimeout(bilanTimer);
+      bilanTimer = window.setTimeout(() => showBilan(snapshot), 1600);
     }
   });
 
@@ -207,6 +218,68 @@
     `;
   }
 
+  /* ---------- Bilan de session ---------- */
+  function synthesisMarkup(concepts) {
+    const weak = concepts.filter((item) => item.maitrise <= 1);
+    if (weak.length) {
+      const names = weak.map((item) => conceptLabel(item.concept)).join(", ");
+      return `<p class="bilan-synthese attention">Concepts a retravailler : ${names}</p>`;
+    }
+    if (concepts.every((item) => item.maitrise === 3)) {
+      return `<p class="bilan-synthese positive">Tous les concepts sont acquis, bravo !</p>`;
+    }
+    return `<p class="bilan-synthese encore">Beau parcours ! Encore un peu d'entrainement et tout sera acquis.</p>`;
+  }
+
+  function showBilan(snapshot) {
+    const mastery = masteryBySession[snapshot.session_id] || {};
+    const concepts = (snapshot.concepts || []).map((concept) => ({
+      concept,
+      maitrise: mastery[concept] || 1,
+    }));
+    if (!concepts.length) {
+      return;
+    }
+    const rows = concepts
+      .map(
+        (item) => `
+          <li>
+            <span class="bilan-concept-name">${conceptLabel(item.concept)}</span>
+            ${conceptStarsMarkup(item.maitrise)}
+            <span class="bilan-badge level-${item.maitrise}">${MASTERY_BADGES[item.maitrise]}</span>
+          </li>
+        `,
+      )
+      .join("");
+    bilanCard.innerHTML = `
+      <p class="bilan-eyebrow">Bilan de session</p>
+      <h2 class="bilan-title">${snapshot.lecon_nom || snapshot.lecon_id} <span class="hud-level">${snapshot.niveau_scolaire}</span></h2>
+      <ul class="bilan-concepts">${rows}</ul>
+      ${synthesisMarkup(concepts)}
+      <div class="bilan-actions">
+        <button id="bilan-continue" class="btn-primary" type="button">Continuer</button>
+        <button id="bilan-open-carnet" class="ghost-button" type="button">&#128212; Voir le carnet</button>
+      </div>
+    `;
+    bilanOpen = true;
+    bilanOverlay.classList.remove("hidden");
+  }
+
+  function closeBilan() {
+    bilanOpen = false;
+    bilanOverlay.classList.add("hidden");
+    bilanCard.innerHTML = "";
+  }
+
+  bilanOverlay.addEventListener("click", (event) => {
+    if (event.target === bilanOverlay || event.target.closest("#bilan-continue")) {
+      closeBilan();
+    } else if (event.target.closest("#bilan-open-carnet")) {
+      closeBilan();
+      openCarnet();
+    }
+  });
+
   function turnPage(delta) {
     const count = loadEntries().length;
     const next = pageIndex + delta;
@@ -251,6 +324,12 @@
   window.addEventListener(
     "keydown",
     (event) => {
+      if (bilanOpen && event.key === "Escape") {
+        closeBilan();
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (!isOpen) {
         return;
       }
@@ -274,5 +353,7 @@
     close: closeCarnet,
     isOpen: () => isOpen,
     getEntries: loadEntries,
+    isBilanOpen: () => bilanOpen,
+    closeBilan,
   };
 })();

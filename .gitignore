@@ -220,3 +220,6 @@ __marimo__/
 # Project data assets not meant for Git
 *.pptx
 ~$*.pptx
+
+# Sessions de jeu persistees (prototype)
+prototype/backend/data/sessions/

@@ -2336,6 +2336,136 @@ input {
   color: var(--ink-soft);
 }
 
+/* ============================================================
+   BILAN DE SESSION : recapitulatif apres une lecon terminee
+   ============================================================ */
+.bilan-overlay {
+  z-index: 58; /* sous le carnet, qui peut s'ouvrir par-dessus */
+}
+
+.bilan-card {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 24px 26px 22px;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bilan-eyebrow {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--road-dark);
+}
+
+.bilan-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  font-size: 1.35rem;
+  color: var(--ink);
+  text-align: center;
+}
+
+.bilan-concepts {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.bilan-concepts li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 2px solid var(--cream-dark);
+  border-radius: 14px;
+  font-weight: 500;
+}
+
+.bilan-concept-name {
+  flex: 1;
+}
+
+.bilan-concepts .stars {
+  font-size: 1.05rem;
+}
+
+.bilan-badge {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 2px solid;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bilan-badge.level-3 {
+  background: var(--success);
+  border-color: #2c8440;
+  color: var(--cream);
+}
+
+.bilan-badge.level-2 {
+  background: var(--gold);
+  border-color: var(--gold-dark);
+  color: var(--wood-dark);
+}
+
+.bilan-badge.level-1 {
+  background: var(--danger);
+  border-color: #b03c28;
+  color: var(--cream);
+}
+
+.bilan-synthese {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 2px solid;
+  font-weight: 600;
+  text-align: center;
+}
+
+.bilan-synthese.positive {
+  background: rgba(58, 171, 82, 0.14);
+  border-color: var(--success);
+  color: #2c8440;
+}
+
+.bilan-synthese.attention {
+  background: rgba(224, 86, 63, 0.12);
+  border-color: var(--danger);
+  color: #b03c28;
+}
+
+.bilan-synthese.encore {
+  background: rgba(255, 194, 62, 0.18);
+  border-color: var(--gold-dark);
+  color: var(--wood-dark);
+}
+
+.bilan-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .debug-log {
   display: none;
 }
