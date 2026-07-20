@@ -101,6 +101,17 @@ window.ParcoursChat = {
   open() {
     ensureOpen();
   },
+  isOpen() {
+    return !chatWidget.classList.contains("hidden");
+  },
+  appendAssistant(text) {
+    appendMessage(`Tuteur : ${text}`, "assistant");
+  },
+  /* Ouverture proactive : message d'accueil contextualise du hibou. */
+  openWithGreeting(text) {
+    appendMessage(`Tuteur : ${text}`, "assistant");
+    ensureOpen();
+  },
   reset() {
     chatLog.innerHTML = `
       <p class="message assistant">

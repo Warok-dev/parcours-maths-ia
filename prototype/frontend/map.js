@@ -1198,6 +1198,7 @@ function closeExercisePanel() {
   /* Si une correction attendait le bouton "Continuer", on applique quand
      meme la progression : le backend a deja avance. */
   finalizePendingEvaluation();
+  window.ParcoursProactive?.panelClosed();
   state.panelOpen = false;
   exerciseOverlay.classList.add("hidden");
   exerciseModal.innerHTML = "";
@@ -1286,6 +1287,9 @@ function renderExerciseModal() {
     document.getElementById("chat-input")?.focus();
   });
   document.getElementById("close-exercise").addEventListener("click", closeExercisePanel);
+  /* Tuteur proactif : suit l'exercice affiche et le niveau de guidage
+     (seuils plus prudents au niveau 3 autonome). */
+  window.ParcoursProactive?.exerciseShown(exercise.id, level);
   if (mechanic === "clavier") {
     /* Reponse a la voix en COMPLEMENT du clavier (retire le bouton si
        l'API Web Speech est absente ou si le micro a ete refuse). */
@@ -1511,6 +1515,7 @@ function applyEvaluationResult(payload, context) {
 
   if (statut === "incorrect") {
     window.ParcoursAudio?.playWrong();
+    window.ParcoursProactive?.wrongAnswer();
   } else if (opensObstacle || unlocked || finished) {
     window.ParcoursAudio?.playUnlock();
   } else {
@@ -1617,6 +1622,10 @@ async function handleSubmitAnswer(event) {
     return;
   }
 
+  /* Toute soumission (juste ou fausse) compte comme une interaction pour
+     le detecteur d'inactivite du tuteur proactif. */
+  window.ParcoursProactive?.activity();
+
   const context = {
     previousConceptIndex: currentConceptIndex(),
     previousObstacle: activeObstacle(),
@@ -1684,6 +1693,7 @@ function resetSharedState() {
   exerciseModal.innerHTML = "";
   clearFeedback();
   window.ParcoursChat?.reset();
+  window.ParcoursProactive?.panelClosed();
 }
 
 function resetToStart() {

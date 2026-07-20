@@ -599,7 +599,9 @@ input {
 /* ---------- Mascotte hibou + bulle du tuteur ---------- */
 .tutor-dock {
   position: absolute;
-  z-index: 30;
+  /* Au-dessus de l'overlay d'exercice (50) : le hibou, son chat et la
+     bulle proactive restent cliquables pendant qu'un exercice est ouvert. */
+  z-index: 55;
   right: 18px;
   bottom: 16px;
   display: grid;
@@ -633,6 +635,79 @@ input {
 @keyframes owlBob {
   0%, 100% { translate: 0 0; }
   50% { translate: 0 -6px; }
+}
+
+/* ---------- Tuteur proactif : bulle de proposition + hibou qui s'agite ---------- */
+.proactive-bubble {
+  position: relative;
+  max-width: 230px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border: 3px solid var(--water-dark);
+  border-radius: 16px;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-round);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  box-shadow: var(--shadow-pop);
+  animation: bubbleIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.proactive-bubble::after {
+  content: "";
+  position: absolute;
+  right: 30px;
+  bottom: -12px;
+  border: 6px solid transparent;
+  border-top-color: var(--water-dark);
+}
+
+.proactive-bubble:hover {
+  background: var(--cream-dark);
+}
+
+@keyframes bubbleIn {
+  from {
+    transform: scale(0.7) translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.tutor-button.tutor-attention {
+  animation: tutorAttention 0.75s ease-in-out infinite;
+}
+
+.tutor-button.tutor-attention::after {
+  content: "!";
+  position: absolute;
+  z-index: 2;
+  top: -8px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 3px solid var(--gold-dark);
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--wood-dark);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+@keyframes tutorAttention {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -9px;
+  }
 }
 
 .tutor-pulse {
