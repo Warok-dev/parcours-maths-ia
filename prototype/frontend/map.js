@@ -71,7 +71,6 @@ const state = {
   selectedLevel: null,
   availableLessons: [],
   selectedLesson: null,
-  masteryByIndex: {},
   reinforcement: null,
   pendingEvaluation: null,
   score: 0,
@@ -611,24 +610,35 @@ function reinforcementRouteD(geometry, mastery) {
 }
 
 function branchMarkup(scene) {
-  const segments = [];
-  for (const obstacle of scene.obstacles) {
-    const geometry = branchGeometry(scene, obstacle.index);
-    if (!geometry) continue;
-    const mastery = state.masteryByIndex[obstacle.index] || null;
-
-    segments.push(`
-      <g class="path-branch path-short ${mastery === 3 ? "active-path" : ""}">
+  /* Seule la route de renforcement ACTIVE est dessinee : le troncon du
+     concept en cours, dans la variante correspondant a la maitrise detectee.
+     Les autres troncons n'affichent que la route principale, pour ne jamais
+     montrer de segments deconnectes du chemin reellement emprunte. */
+  if (!state.session || state.session.phase !== "renforcement") {
+    return "";
+  }
+  const geometry = branchGeometry(scene, state.session.concept_index);
+  if (!geometry) {
+    return "";
+  }
+  const mastery = state.session.maitrise_actuelle || 2;
+  if (mastery === 3) {
+    return `
+      <g class="path-branch path-short active-path">
         <path d="${geometry.short}" class="path-short-edge"></path>
         <path d="${geometry.short}" class="path-short-surface"></path>
       </g>
-      <g class="path-branch path-long ${mastery === 1 ? "active-path" : ""}">
+    `;
+  }
+  if (mastery === 1) {
+    return `
+      <g class="path-branch path-long active-path">
         <path d="${geometry.long}" class="path-long-edge"></path>
         <path d="${geometry.long}" class="path-long-surface"></path>
       </g>
-    `);
+    `;
   }
-  return segments.join("");
+  return ""; /* maitrise 2 : la route principale est le chemin de renforcement */
 }
 
 /* ============================================================
@@ -767,15 +777,15 @@ function obstacleSceneryMarkup(obstacle, status) {
   switch (obstacle.type) {
     case "castle_gate":
       return `
-        ${fenceMarkup(40, obstacle.x - 165, y)}
-        ${fenceMarkup(obstacle.x + 165, SCENE_WIDTH - 40, y)}
+        ${fenceMarkup(Math.max(40, obstacle.x - 560), obstacle.x - 165, y)}
+        ${fenceMarkup(obstacle.x + 165, Math.min(SCENE_WIDTH - 40, obstacle.x + 560), y)}
         <g transform="translate(${obstacle.x}, ${y})">${ASSETS.castle(done)}</g>
         <g transform="translate(${obstacle.x + 150}, ${y + 52})">${ASSETS.npc()}</g>
       `;
     case "blocked_road":
       return `
-        ${fenceMarkup(40, obstacle.x - 120, y)}
-        ${fenceMarkup(obstacle.x + 120, SCENE_WIDTH - 40, y)}
+        ${fenceMarkup(Math.max(40, obstacle.x - 520), obstacle.x - 120, y)}
+        ${fenceMarkup(obstacle.x + 120, Math.min(SCENE_WIDTH - 40, obstacle.x + 520), y)}
         <g transform="translate(${obstacle.x - 190}, ${y - 60})">${ASSETS.cabin()}</g>
         ${
           done
@@ -810,8 +820,8 @@ function obstacleSceneryMarkup(obstacle, status) {
       `;
     case "crossroads":
       return `
-        <line x1="40" y1="${y}" x2="${obstacle.x - 120}" y2="${y}" class="hedge-line"></line>
-        <line x1="${obstacle.x + 120}" y1="${y}" x2="${SCENE_WIDTH - 40}" y2="${y}" class="hedge-line"></line>
+        <line x1="${Math.max(40, obstacle.x - 520)}" y1="${y}" x2="${obstacle.x - 120}" y2="${y}" class="hedge-line"></line>
+        <line x1="${obstacle.x + 120}" y1="${y}" x2="${Math.min(SCENE_WIDTH - 40, obstacle.x + 520)}" y2="${y}" class="hedge-line"></line>
         <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path-edge"></path>
         <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path"></path>
         <g transform="translate(${obstacle.x - 110}, ${y - 30})">${ASSETS.signpost(done)}</g>
@@ -1245,12 +1255,6 @@ function applySessionSnapshot(snapshot, exercise = null) {
     ? { lecon_id: snapshot.lecon_id, nom: snapshot.lecon_nom }
     : state.selectedLesson;
 
-  /* La maitrise detectee fixe la longueur du chemin de renforcement :
-     on la memorise par obstacle pour colorer le bon chemin sur la carte. */
-  if (snapshot.phase === "renforcement" && snapshot.maitrise_actuelle > 0) {
-    state.masteryByIndex[snapshot.concept_index] = snapshot.maitrise_actuelle;
-  }
-
   sessionTitle.textContent = snapshot.terminee
     ? "Parcours termine !"
     : snapshot.lecon_nom || `Aventure ${snapshot.niveau_scolaire}`;
@@ -1353,7 +1357,6 @@ async function startSession(level, lessonId) {
   state.justUnlockedIndex = null;
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
-  state.masteryByIndex = {};
   state.reinforcement = null;
   state.pendingEvaluation = null;
   resetScore();
@@ -1606,7 +1609,6 @@ function resetSharedState() {
   state.justUnlockedIndex = null;
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
-  state.masteryByIndex = {};
   state.reinforcement = null;
   state.pendingEvaluation = null;
   resetScore();

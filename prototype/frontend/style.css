@@ -3,25 +3,25 @@
    Palette unique, utilisee partout. Aucune couleur ad hoc.
    ============================================================ */
 :root {
-  /* Palette principale */
-  --grass: #7cb668;
-  --road: #d97748;
-  --water: #8fc4de;
+  /* Palette principale (saturation et contraste pousses pour les enfants) */
+  --grass: #6fbe53;
+  --road: #e8703a;
+  --water: #6fc2ec;
   --cream: #fbf3e7;
-  --gold: #f0b84b;
-  --wood: #8b5e3c;
+  --gold: #ffc23e;
+  --wood: #8b5834;
 
   /* Declinaisons fixes derivees de la palette */
-  --grass-light: #8cc47a;
-  --grass-dark: #6aa657;
-  --road-light: #e6976c;
-  --road-dark: #b85c33;
-  --water-light: #b3d9ea;
-  --water-dark: #5f9fc0;
-  --cream-dark: #f1e3cc;
-  --gold-dark: #c9922e;
-  --wood-light: #a97b52;
-  --wood-dark: #6e4a2e;
+  --grass-light: #85d066;
+  --grass-dark: #55a53d;
+  --road-light: #f5905c;
+  --road-dark: #c14e1e;
+  --water-light: #a5dcf7;
+  --water-dark: #3d9cd4;
+  --cream-dark: #f3e2c6;
+  --gold-dark: #d9930f;
+  --wood-light: #ab7443;
+  --wood-dark: #653f21;
 
   /* Couleurs dominantes des obstacles (identite au premier coup d'oeil) */
   --stone: #b8bfc7;      /* chateau  = pierre grise  */
@@ -39,8 +39,8 @@
   /* Encre et etats */
   --ink: #3d2c1e;
   --ink-soft: #6b5744;
-  --success: #4b8f56;
-  --danger: #c05b4a;
+  --success: #3aab52;
+  --danger: #e0563f;
 
   --font-round: "Fredoka", "Comic Sans MS", "Arial Rounded MT Bold", "Segoe UI", sans-serif;
   --shadow-pop: 0 18px 44px rgba(61, 44, 30, 0.28);
@@ -833,9 +833,11 @@ input {
 /* Zone de contenu toujours creme : lisibilite maximale pour l'enfant */
 .modal-paper {
   padding: 18px;
-  background: var(--cream);
+  background: linear-gradient(180deg, #fffdf6, var(--cream));
   border-radius: 18px;
-  border: 2px solid rgba(61, 44, 30, 0.18);
+  border: 3px solid rgba(61, 44, 30, 0.22);
+  border-top: 6px solid var(--gold);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.8);
 }
 
 .modal-meta {
@@ -860,24 +862,28 @@ input {
 }
 
 .star.filled {
-  color: var(--gold-dark);
-  text-shadow: 0 1px 0 rgba(61, 44, 30, 0.25);
+  color: var(--gold);
+  text-shadow:
+    0 1px 0 var(--gold-dark),
+    0 0 10px rgba(255, 194, 62, 0.65);
 }
 
 .phase-chip {
   padding: 5px 12px;
   border-radius: 999px;
-  background: var(--cream-dark);
-  color: var(--ink-soft);
+  background: var(--gold);
+  border: 2px solid var(--gold-dark);
+  color: var(--wood-dark);
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .exercise-statement {
   margin: 0 0 14px;
-  font-size: 1.45rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 700;
   line-height: 1.4;
+  color: var(--ink);
   font-variant-numeric: lining-nums;
 }
 
@@ -971,7 +977,7 @@ input {
 .btn-primary:hover,
 .btn-help:hover {
   transform: translateY(-2px);
-  filter: brightness(1.04);
+  filter: brightness(1.06) drop-shadow(0 0 8px rgba(255, 194, 62, 0.5));
 }
 
 .btn-primary:active,
@@ -1602,6 +1608,10 @@ input {
   opacity: 0;
 }
 
+.reinforcement-stop.stop-current {
+  filter: drop-shadow(0 0 7px rgba(255, 194, 62, 0.85));
+}
+
 .reinforcement-stop.stop-current .stop-pulse-ring {
   animation: stopPulse 1.6s ease-out infinite;
 }
@@ -1947,6 +1957,7 @@ input {
 /* ---------- Joueur (defini une fois) ---------- */
 .player-token {
   pointer-events: none;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.55));
 }
 
 .player-shadow {
@@ -2053,6 +2064,10 @@ input {
   stroke-width: 3;
 }
 
+.obstacle-marker {
+  filter: drop-shadow(0 0 8px rgba(255, 194, 62, 0.75));
+}
+
 .marker-glyph {
   fill: var(--wood-dark);
   font-family: var(--font-round);
@@ -2134,6 +2149,191 @@ input {
 
 .fx-dot {
   fill: var(--cream);
+}
+
+/* ============================================================
+   CARNET D'AVENTURIER : livre des lecons completees
+   ============================================================ */
+.carnet-overlay {
+  position: absolute;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(61, 44, 30, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/* Couverture en bois/cuir avec couture apparente, page creme a l'interieur. */
+.carnet-book {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 16px;
+  background: linear-gradient(160deg, var(--wood-light), var(--wood) 55%, var(--wood-dark));
+  border: 4px solid var(--wood-dark);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.carnet-book::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 2px dashed rgba(251, 243, 231, 0.5);
+  border-radius: 15px;
+  pointer-events: none;
+}
+
+.carnet-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 360px;
+  padding: 20px 22px 16px;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 2px solid rgba(61, 44, 30, 0.18);
+  border-radius: 12px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.8);
+}
+
+.carnet-eyebrow {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--road-dark);
+}
+
+.carnet-page-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.carnet-lesson-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--gold);
+  border: 3px solid var(--gold-dark);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--wood-dark);
+  box-shadow: var(--shadow-chip);
+}
+
+.carnet-lesson-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+
+.carnet-date {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.carnet-stars-total {
+  align-self: flex-start;
+  margin: 14px 0 10px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--gold);
+  border: 2px solid var(--gold-dark);
+  color: var(--wood-dark);
+  font-weight: 700;
+}
+
+.carnet-concepts {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.carnet-concepts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 2px solid var(--cream-dark);
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.carnet-concepts .stars {
+  font-size: 1.05rem;
+}
+
+.carnet-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.carnet-nav-button {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
+.carnet-nav-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.carnet-nav-button:disabled:hover {
+  background: transparent;
+}
+
+.carnet-page-count {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.carnet-empty {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.carnet-empty-icon {
+  font-size: 3rem;
+}
+
+.carnet-empty p {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.carnet-empty .carnet-empty-hint {
+  max-width: 320px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink-soft);
 }
 
 .debug-log {

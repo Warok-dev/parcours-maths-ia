@@ -250,7 +250,11 @@ def _start_reinforcement(session: dict, mastery: int) -> dict:
     exercice = _generate_next_exercise(session, session["concept_courant"])
     session["phase"] = "renforcement"
     session["maitrise_actuelle"] = mastery
-    session["niveau_resolution_courant"] = 1
+    # En renforcement, chaque exercice se joue UNE fois, au niveau de
+    # presentation correspondant a la maitrise detectee (1 = guide,
+    # 2 = semi-guide, 3 = autonome) : l'echelle 1->2->3 est reservee a la
+    # detection, sinon chaque exercice serait rejoue trois fois.
+    session["niveau_resolution_courant"] = mastery
     session["erreurs_sur_chaine_actuelle"] = False
     session["exercices_renforcement_restants"] = REINFORCEMENT_BY_MASTERY[mastery]
     session["exercice_id_courant"] = exercice["id"]
@@ -302,15 +306,10 @@ def _handle_detection_success(session: dict) -> tuple[str, dict | None]:
 
 
 def _handle_reinforcement_success(session: dict) -> tuple[str, dict | None]:
-    current_level = session["niveau_resolution_courant"]
-    if current_level < 3:
-        _advance_to_next_level(session)
-        return "correct_niveau_suivant", EXERCICE_CACHE[session["exercice_id_courant"]]
-
     if session["exercices_renforcement_restants"] > 1:
         exercice = _generate_next_exercise(session, session["concept_courant"])
         session["exercices_renforcement_restants"] -= 1
-        session["niveau_resolution_courant"] = 1
+        session["niveau_resolution_courant"] = session["maitrise_actuelle"]
         session["erreurs_sur_chaine_actuelle"] = False
         session["exercice_id_courant"] = exercice["id"]
         return "correct_nouveau_renforcement", exercice

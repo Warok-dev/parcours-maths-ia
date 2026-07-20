@@ -125,9 +125,10 @@ def simulate_concept(
         concept_behavior(context, trace)
         after = context.progression
 
+        # Chaque exercice de renforcement se joue en une seule validation :
+        # il est complete des qu'une reponse correcte fait avancer la session.
         if (
             before["phase"] == "renforcement"
-            and before["niveau_resolution_courant"] == 3
             and trace.statuses
             and trace.statuses[-1] in {"correct_nouveau_renforcement", "correct_concept_debloque", "carte_terminee"}
         ):

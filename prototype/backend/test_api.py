@@ -105,7 +105,7 @@ class ApiIntegrationTests(unittest.TestCase):
         exercice = payload["exercice"]
 
         statuses: list[str] = []
-        for _ in range(9):
+        for _ in range(5):
             response = self.client.post(
                 "/evaluer",
                 json={
@@ -120,17 +120,15 @@ class ApiIntegrationTests(unittest.TestCase):
             if "exercice_suivant" in body:
                 exercice = body["exercice_suivant"]
 
+        # Detection en 3 niveaux, puis chaque exercice de renforcement se joue
+        # UNE seule fois (regle 2/3/4) au niveau de la maitrise detectee.
         self.assertEqual(
             statuses,
             [
                 "correct_niveau_suivant",
                 "correct_niveau_suivant",
                 "correct_nouveau_renforcement",
-                "correct_niveau_suivant",
-                "correct_niveau_suivant",
                 "correct_nouveau_renforcement",
-                "correct_niveau_suivant",
-                "correct_niveau_suivant",
                 "correct_concept_debloque",
             ],
         )

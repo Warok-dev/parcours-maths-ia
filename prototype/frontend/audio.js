@@ -8,7 +8,7 @@
 (function () {
   const MUSIC_VOLUME = 0.3;
   const SFX_VOLUME = 0.55;
-  const STEP_VOLUME = 0.35;
+  const STEP_VOLUME = 0.12; /* discret, en retrait des SFX et de la musique */
   const STEP_INTERVAL_MS = 280;
   const STORAGE_KEY = "parcours-audio-muted";
 
