@@ -1254,7 +1254,19 @@ function renderExerciseModal() {
         ${
           mechanic === "clavier"
             ? `<label for="answer-input">Ta reponse</label>
-               <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="numeric" />`
+               <div class="answer-row">
+                 <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="numeric" />
+                 <button id="mic-button" class="mic-button" type="button" aria-label="Repondre a la voix" title="Reponds a la voix">
+                   <svg viewBox="0 0 32 32" aria-hidden="true">
+                     <rect x="12" y="4" width="8" height="15" rx="4" fill="currentColor"></rect>
+                     <path d="M8 15 a 8 8 0 0 0 16 0" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path>
+                     <line x1="16" y1="23" x2="16" y2="27" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></line>
+                     <line x1="11" y1="27" x2="21" y2="27" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></line>
+                   </svg>
+                   <span class="mic-pulse" aria-hidden="true"></span>
+                 </button>
+               </div>
+               <p id="mic-status" class="mic-status"></p>`
             : `<input id="answer-input" name="answer" type="hidden" />
                <div id="mechanic-area" class="mechanic-area"></div>`
         }
@@ -1275,6 +1287,9 @@ function renderExerciseModal() {
   });
   document.getElementById("close-exercise").addEventListener("click", closeExercisePanel);
   if (mechanic === "clavier") {
+    /* Reponse a la voix en COMPLEMENT du clavier (retire le bouton si
+       l'API Web Speech est absente ou si le micro a ete refuse). */
+    window.ParcoursVoice?.attach();
     document.getElementById("answer-input")?.focus();
   } else {
     window.ParcoursMechanics.mount(document.getElementById("mechanic-area"), mechanic, exercise, {
