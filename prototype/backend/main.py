@@ -34,6 +34,34 @@ SESSION_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 ALLOWED_LEVELS = {"CE1", "CE2"}
 RESOLUTION_LEVEL_TO_KEY = {1: "1_guide", 2: "2_semi_guide", 3: "3_autonome"}
 REINFORCEMENT_BY_MASTERY = {1: 4, 2: 3, 3: 2}
+
+# --- Detection de decouragement ----------------------------------------
+# A ne pas confondre avec le tuteur proactif (frontend, proactive.js) : lui
+# detecte un blocage sur UN exercice donne et remet ses compteurs a zero des
+# qu'on change d'exercice. Ici on regarde la TENDANCE sur plusieurs
+# exercices et plusieurs concepts, pour inserer un aparte de reconstruction
+# de confiance. Les deux signaux sont independants et se completent.
+DECOURAGEMENT_FENETRE = 5
+DECOURAGEMENT_MIN_ECHECS = 4
+DECOURAGEMENT_MAITRISES_BASSES = 2
+# Nombre d'exercices normaux distincts a jouer avant qu'un nouvel aparte
+# puisse se declencher : sans cela un eleve en difficulte enchainerait les
+# pauses et perdrait le fil du parcours.
+CONFIANCE_ESPACEMENT_MIN = 3
+# L'exercice de confiance est toujours presente au niveau le plus accompagne.
+CONFIANCE_PRESENTATION_NIVEAU = 1
+
+# Repli quand l'eleve n'a encore rien maitrise a 3 : patterns proceduraux
+# du plus simple au moins simple. Aucun probleme narratif (lecture longue,
+# generation LLM) ni pattern a plusieurs etapes.
+CONFIANCE_PATTERNS_SIMPLES = [
+    "partie_tout_addition_non_narratif",
+    "addition_pas_a_pas_sans_retenue",
+    "partie_tout_soustraction_non_narratif",
+    "double_via_2xn",
+    "multiplication_par_10",
+    "moitie_via_2xn",
+]
 # Caches memoire de travail ; la verite persistante des sessions est sur
 # disque (un JSON par session dans data/sessions/), rechargee a la demande.
 EXERCICE_CACHE: dict[str, dict] = {}
@@ -94,9 +122,15 @@ def _save_session(session: dict) -> None:
     if path is None:
         return
     exercices = {}
-    exercice_id = session.get("exercice_id_courant")
-    if exercice_id and exercice_id in EXERCICE_CACHE:
-        exercices[exercice_id] = EXERCICE_CACHE[exercice_id]
+    # L'exercice de confiance est persiste avec l'exercice normal : sinon un
+    # redemarrage pendant l'aparte perdrait l'un ou l'autre.
+    confiance = session.get("exercice_confiance")
+    ids = [session.get("exercice_id_courant")]
+    if confiance is not None:
+        ids.append(confiance.get("exercice_id"))
+    for exercice_id in ids:
+        if exercice_id and exercice_id in EXERCICE_CACHE:
+            exercices[exercice_id] = EXERCICE_CACHE[exercice_id]
     payload = {"session": session, "exercices": exercices}
     try:
         SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -223,6 +257,132 @@ def _generate_concept_exercise(niveau: str, concept: str) -> dict:
     )
 
 
+def _ensure_session_fields(session: dict) -> dict:
+    """Complete une session d'une version anterieure du schema.
+
+    Les sessions vivent 7 jours sur disque : une session commencee avant
+    l'ajout du suivi de decouragement doit continuer sans planter.
+    """
+    session.setdefault("tentatives_recentes", [])
+    session.setdefault("maitrises_concepts_terminees", [])
+    session.setdefault("patterns_maitrises", [])
+    session.setdefault("exercice_confiance", None)
+    session.setdefault("exercices_depuis_confiance", [])
+    session.setdefault("confiance_deja_inseree", False)
+    session.setdefault("confiance_maitrises_vues", 0)
+    return session
+
+
+def _record_attempt(session: dict, correct: bool, exercice_id: str) -> None:
+    """Memorise une tentative sur un exercice NORMAL (jamais un aparte)."""
+    fenetre = session["tentatives_recentes"]
+    fenetre.append(bool(correct))
+    del fenetre[:-DECOURAGEMENT_FENETRE]
+
+    # Espacement compte les exercices distincts, pas les tentatives : rester
+    # bloque dix fois sur le meme exercice releve du tuteur proactif, pas
+    # d'un nouvel aparte.
+    vus = session["exercices_depuis_confiance"]
+    if exercice_id not in vus and len(vus) < CONFIANCE_ESPACEMENT_MIN:
+        vus.append(exercice_id)
+
+
+def _signal_decouragement(session: dict) -> str | None:
+    """Retourne le motif du decouragement detecte, ou None.
+
+    Deux signaux independants : une serie d'echecs recents toutes activites
+    confondues, ou deux concepts d'affilee acheves au plus bas niveau de
+    maitrise.
+    """
+    if session["tentatives_recentes"].count(False) >= DECOURAGEMENT_MIN_ECHECS:
+        return "echecs_repetes"
+
+    maitrises = session["maitrises_concepts_terminees"]
+    # Un concept doit avoir ete termine DEPUIS le dernier aparte, sinon deux
+    # vieilles maitrises 1 rallumeraient le signal pour le reste de la partie.
+    if (
+        len(maitrises) >= DECOURAGEMENT_MAITRISES_BASSES
+        and len(maitrises) > session["confiance_maitrises_vues"]
+        and all(niveau == 1 for niveau in maitrises[-DECOURAGEMENT_MAITRISES_BASSES:])
+    ):
+        return "maitrises_basses"
+
+    return None
+
+
+def _pattern_pour_confiance(session: dict) -> str | None:
+    """Choisit le pattern de l'exercice de confiance.
+
+    On cherche une reussite quasi certaine, donc d'abord un pattern deja
+    maitrise a 3 dans cette session. Le pattern sur lequel l'eleve bute est
+    ecarte tant qu'il existe une autre option, y compris au profit du repli
+    simple : lui reservir le concept qui vient de le mettre en echec irait
+    contre le but meme de l'aparte.
+    """
+    niveau = session["niveau_scolaire"]
+    proceduraux = patterns_disponibles_pour_niveau(niveau)
+    generables = set(proceduraux) | set(patterns_narratifs_disponibles_pour_niveau(niveau))
+    maitrises = [pattern for pattern in session["patterns_maitrises"] if pattern in generables]
+    simples = [pattern for pattern in CONFIANCE_PATTERNS_SIMPLES if pattern in proceduraux]
+    courant = session["concept_courant"]
+
+    # Parmi les patterns maitrises on prend le plus recent (maitrise encore
+    # fraiche) ; parmi les replis, le plus simple, qui est le premier de la
+    # liste. Du plus souhaitable au dernier recours.
+    preferences = (
+        ("recent", [p for p in maitrises if p != courant and p in proceduraux]),
+        ("recent", [p for p in maitrises if p != courant]),
+        ("simple", [p for p in simples if p != courant]),
+        ("recent", maitrises),
+        ("simple", simples),
+    )
+    for choix, candidats in preferences:
+        if candidats:
+            return candidats[-1] if choix == "recent" else candidats[0]
+    return None
+
+
+def _inserer_exercice_confiance(session: dict, motif: str) -> dict | None:
+    pattern = _pattern_pour_confiance(session)
+    if pattern is None:
+        return None
+    try:
+        exercice = _generate_concept_exercise(session["niveau_scolaire"], pattern)
+    except Exception:
+        # Un aparte de confort ne doit jamais casser la progression : si la
+        # generation echoue, l'eleve poursuit simplement son parcours.
+        logging.warning("Exercice de confiance indisponible (pattern %s).", pattern)
+        return None
+
+    session["exercice_confiance"] = {
+        "exercice_id": exercice["id"],
+        "pattern": pattern,
+        "motif": motif,
+    }
+    session["confiance_deja_inseree"] = True
+    session["exercices_depuis_confiance"] = []
+    session["confiance_maitrises_vues"] = len(session["maitrises_concepts_terminees"])
+    return exercice
+
+
+def _maybe_inserer_confiance(session: dict) -> dict | None:
+    """Insere un exercice de confiance si le decouragement se confirme."""
+    if session["terminee"] or session["exercice_confiance"] is not None:
+        return None
+    if session["exercice_id_courant"] is None:
+        return None
+    if (
+        session["confiance_deja_inseree"]
+        and len(session["exercices_depuis_confiance"]) < CONFIANCE_ESPACEMENT_MIN
+    ):
+        return None
+
+    motif = _signal_decouragement(session)
+    if motif is None:
+        return None
+    return _inserer_exercice_confiance(session, motif)
+
+
 def _progression_payload(session: dict) -> dict:
     exercice = EXERCICE_CACHE.get(session["exercice_id_courant"])
     current_level = session["niveau_resolution_courant"]
@@ -247,6 +407,22 @@ def _progression_payload(session: dict) -> dict:
     if exercice is not None:
         payload["exercice_courant"] = exercice
         payload["presentation_courante_detail"] = exercice["presentations"][_resolution_key(current_level)]
+
+    # Aparte de confiance : c'est lui que l'eleve joue maintenant, mais la
+    # progression annoncee reste celle du parcours (concept, phase, maitrise
+    # inchanges) pour qu'il reprenne exactement au meme point ensuite.
+    confiance = session.get("exercice_confiance")
+    exercice_confiance = (
+        EXERCICE_CACHE.get(confiance["exercice_id"]) if confiance is not None else None
+    )
+    payload["exercice_confiance_actif"] = exercice_confiance is not None
+    if exercice_confiance is not None:
+        presentation = _resolution_key(CONFIANCE_PRESENTATION_NIVEAU)
+        payload["exercice_id_courant"] = exercice_confiance["id"]
+        payload["exercice_courant"] = exercice_confiance
+        payload["niveau_resolution_courant"] = CONFIANCE_PRESENTATION_NIVEAU
+        payload["presentation_courante"] = presentation
+        payload["presentation_courante_detail"] = exercice_confiance["presentations"][presentation]
     return payload
 
 
@@ -279,6 +455,7 @@ def _build_session(niveau: str, lecon_id: str | None = None) -> dict:
         "terminee": False,
         "dernier_diagnostic": None,
     }
+    _ensure_session_fields(session)
     SESSION_STATE[session_id] = session
     _save_session(session)
     return session
@@ -291,13 +468,17 @@ def _get_session(session_id: str) -> dict:
         session = _load_session_from_disk(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session introuvable.")
-    return session
+    return _ensure_session_fields(session)
 
 
 def _ensure_current_exercise(session: dict, exercice_id: str) -> dict:
     if session["terminee"]:
         raise HTTPException(status_code=400, detail="La carte est deja terminee.")
-    if exercice_id != session["exercice_id_courant"]:
+    # Pendant un aparte de confiance, l'exercice de confiance est le seul
+    # jouable : l'exercice normal attend, inchange, la fin de la pause.
+    confiance = session.get("exercice_confiance")
+    attendu = confiance["exercice_id"] if confiance is not None else session["exercice_id_courant"]
+    if exercice_id != attendu:
         raise HTTPException(status_code=409, detail="Exercice courant invalide pour cette session.")
     return get_exercice_by_id(session["niveau_scolaire"], exercice_id)
 
@@ -336,12 +517,18 @@ def _start_reinforcement(session: dict, mastery: int) -> dict:
     session["erreurs_sur_chaine_actuelle"] = False
     session["exercices_renforcement_restants"] = REINFORCEMENT_BY_MASTERY[mastery]
     session["exercice_id_courant"] = exercice["id"]
+    # Un concept detecte au meilleur niveau devient un candidat ideal pour un
+    # futur exercice de confiance : l'eleve a prouve qu'il le reussit.
+    if mastery == 3 and session["concept_courant"] not in session["patterns_maitrises"]:
+        session["patterns_maitrises"].append(session["concept_courant"])
     return exercice
 
 
 def _unlock_next_concept(session: dict) -> tuple[str, dict | None]:
     next_index = session["concept_index"] + 1
+    maitrise_terminee = max(1, session["maitrise_actuelle"])
     if next_index >= len(session["concepts"]):
+        session["maitrises_concepts_terminees"].append(maitrise_terminee)
         session["terminee"] = True
         session["concept_index"] = next_index
         session["concept_courant"] = None
@@ -353,7 +540,9 @@ def _unlock_next_concept(session: dict) -> tuple[str, dict | None]:
         return "carte_terminee", None
 
     next_concept = session["concepts"][next_index]
+    # La generation peut echouer : rien ne doit etre mute avant sa reussite.
     exercice = _generate_next_exercise(session, next_concept)
+    session["maitrises_concepts_terminees"].append(maitrise_terminee)
     session["concept_index"] = next_index
     session["concept_courant"] = next_concept
     session["phase"] = "detection_maitrise"
@@ -395,7 +584,13 @@ def _handle_reinforcement_success(session: dict) -> tuple[str, dict | None]:
     return _unlock_next_concept(session)
 
 
-def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> dict:
+def _apply_confidence_evaluation(session: dict, exercice: dict, reponse: str) -> dict:
+    """Evalue l'aparte de confiance.
+
+    Un aparte ne touche a RIEN de la progression : ni maitrise du concept en
+    cours, ni chaine parfaite, ni fenetre de decouragement. Un echec laisse
+    simplement l'exercice en place (reessai illimite, comme ailleurs).
+    """
     result = compare_reponse(reponse, exercice["reponse_attendue"])
     response = {
         "session_id": session["session_id"],
@@ -405,9 +600,6 @@ def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> di
     }
 
     if not result["correct"]:
-        _mark_chain_broken(session)
-        # Diagnostic par regles de l'erreur probable, memorise pour que le
-        # tuteur puisse cibler son aide (ecrase a chaque nouvelle tentative).
         session["dernier_diagnostic"] = diagnostiquer_erreur(
             exercice["pattern"]["pattern_name"],
             exercice.get("variables") or {},
@@ -420,7 +612,49 @@ def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> di
         return response
 
     session["dernier_diagnostic"] = None
+    session["exercice_confiance"] = None
+    response["statut"] = "confiance_reussie"
+    response["progression"] = _progression_payload(session)
+    exercice_normal = EXERCICE_CACHE.get(session["exercice_id_courant"])
+    if exercice_normal is not None:
+        response["exercice_suivant"] = exercice_normal
+    return response
 
+
+def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> dict:
+    confiance = session.get("exercice_confiance")
+    if confiance is not None and exercice["id"] == confiance["exercice_id"]:
+        return _apply_confidence_evaluation(session, exercice, reponse)
+
+    result = compare_reponse(reponse, exercice["reponse_attendue"])
+    response = {
+        "session_id": session["session_id"],
+        "exercice_id": exercice["id"],
+        "niveau": session["niveau_scolaire"],
+        **result,
+    }
+
+    if not result["correct"]:
+        _record_attempt(session, False, exercice["id"])
+        _mark_chain_broken(session)
+        # Diagnostic par regles de l'erreur probable, memorise pour que le
+        # tuteur puisse cibler son aide (ecrase a chaque nouvelle tentative).
+        session["dernier_diagnostic"] = diagnostiquer_erreur(
+            exercice["pattern"]["pattern_name"],
+            exercice.get("variables") or {},
+            exercice["reponse_attendue"]["valeur"],
+            reponse,
+        )
+        response["statut"] = "incorrect"
+        response["diagnostic"] = session["dernier_diagnostic"]
+        _finaliser_avec_confiance(session, response)
+        return response
+
+    session["dernier_diagnostic"] = None
+
+    # Ces handlers peuvent lever un 503 (generation de l'exercice suivant
+    # indisponible) en laissant la session intacte : la tentative n'est donc
+    # enregistree qu'apres, sinon un reessai la compterait deux fois.
     if session["phase"] == "detection_maitrise":
         statut, next_exercise = _handle_detection_success(session)
     elif session["phase"] == "renforcement":
@@ -428,11 +662,25 @@ def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> di
     else:
         raise HTTPException(status_code=400, detail="Session terminee.")
 
+    _record_attempt(session, True, exercice["id"])
     response["statut"] = statut
-    response["progression"] = _progression_payload(session)
     if next_exercise is not None:
         response["exercice_suivant"] = next_exercise
+    _finaliser_avec_confiance(session, response)
     return response
+
+
+def _finaliser_avec_confiance(session: dict, response: dict) -> None:
+    """Publie la progression, en glissant un aparte de confiance si besoin.
+
+    L'insertion se fait juste avant de servir l'exercice suivant : c'est donc
+    l'exercice de confiance que l'eleve joue maintenant, l'exercice normal
+    restant en attente tel quel.
+    """
+    exercice_confiance = _maybe_inserer_confiance(session)
+    if exercice_confiance is not None:
+        response["exercice_suivant"] = exercice_confiance
+    response["progression"] = _progression_payload(session)
 
 
 def _extract_answer(payload: EvaluationRequest) -> str:
@@ -521,7 +769,9 @@ def tuteur_aide(payload: TutorRequest) -> dict:
     if payload.session_id is not None:
         session = _get_session(payload.session_id)
         exercice = _ensure_current_exercise(session, payload.exercice_id)
-        if session["niveau_resolution_courant"] >= 2:
+        # Pendant un aparte de confiance, l'aide du tuteur ne coute rien : la
+        # chaine parfaite appartient au concept du parcours, pas a la pause.
+        if session["exercice_confiance"] is None and session["niveau_resolution_courant"] >= 2:
             _mark_chain_broken(session)
             _save_session(session)
         progression = _progression_payload(session)

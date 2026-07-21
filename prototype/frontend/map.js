@@ -241,6 +241,45 @@ function obstacleTheme(type) {
   }
 }
 
+/* ============================================================
+   EXERCICE DE CONFIANCE
+   Aparte propose par le backend quand il detecte du decouragement
+   sur PLUSIEURS exercices d'affilee (a distinguer du tuteur
+   proactif, qui ne regarde qu'un exercice). Ce n'est pas un
+   obstacle du parcours : il a sa propre scene, sans etoiles ni
+   compteur d'entrainement, et le hibou y accompagne l'eleve.
+   ============================================================ */
+/* Le titre porte deja "Petite pause !" : l'intro enchaine sans le repeter. */
+const CONFIANCE_INTRO = "Essayons celui-ci ensemble, tu vas y arriver.";
+const CONFIANCE_REUSSITE = "Tu vois, tu es capable ! On continue.";
+const CONFIANCE_RETRY = "Prends ton temps, je reste avec toi.";
+
+function isConfidenceExercise() {
+  return Boolean(state.session?.exercice_confiance_actif);
+}
+
+/* Le hibou tuteur, en version compacte pour l'entete de la scene. */
+function confidenceOwlSvg() {
+  return `
+    <svg viewBox="0 0 96 96" aria-hidden="true">
+      <path d="M20 46 Q14 34 22 26 L32 34 Z" fill="#8B5E3C"></path>
+      <path d="M76 46 Q82 34 74 26 L64 34 Z" fill="#8B5E3C"></path>
+      <ellipse cx="48" cy="52" rx="30" ry="34" fill="#8B5E3C"></ellipse>
+      <ellipse cx="48" cy="60" rx="21" ry="24" fill="#FBF3E7"></ellipse>
+      <path d="M27 40 Q48 24 69 40 Q66 22 48 20 Q30 22 27 40 Z" fill="#6E4A2E"></path>
+      <circle cx="37" cy="44" r="11" fill="#FBF3E7" stroke="#6E4A2E" stroke-width="2"></circle>
+      <circle cx="59" cy="44" r="11" fill="#FBF3E7" stroke="#6E4A2E" stroke-width="2"></circle>
+      <circle cx="37" cy="45" r="5" fill="#203845"></circle>
+      <circle cx="59" cy="45" r="5" fill="#203845"></circle>
+      <circle cx="38.6" cy="43.4" r="1.6" fill="#ffffff"></circle>
+      <circle cx="60.6" cy="43.4" r="1.6" fill="#ffffff"></circle>
+      <path d="M48 50 L43 58 L53 58 Z" fill="#F0B84B"></path>
+      <path d="M34 66 q4 5 9 0" fill="none" stroke="#8FC4DE" stroke-width="2.4" stroke-linecap="round"></path>
+      <path d="M52 66 q4 5 9 0" fill="none" stroke="#8FC4DE" stroke-width="2.4" stroke-linecap="round"></path>
+    </svg>
+  `;
+}
+
 /* Theme des points d'arret d'entrainement le long des routes. */
 function stopTheme() {
   return {
@@ -1272,9 +1311,14 @@ function renderExerciseModal() {
   }
 
   const exercise = state.currentExercise;
+  const confidence = isConfidenceExercise();
   const obstacle = activeObstacle();
   const atStop = Boolean(state.reinforcement);
-  const theme = atStop ? stopTheme() : obstacleTheme(obstacle?.type);
+  const theme = confidence
+    ? { modalClass: "theme-confiance", title: "Petite pause !", intro: CONFIANCE_INTRO }
+    : atStop
+      ? stopTheme()
+      : obstacleTheme(obstacle?.type);
   const mechanic = window.ParcoursMechanics
     ? window.ParcoursMechanics.choose(exercise, state.session.concept_index || 0)
     : "clavier";
@@ -1291,17 +1335,25 @@ function renderExerciseModal() {
   exerciseModal.innerHTML = `
     <button id="close-exercise" class="modal-close" type="button" aria-label="Fermer">&#10005;</button>
     <div class="modal-head">
-      <span class="modal-icon">${atStop ? stopIconSvg() : obstacleIconSvg(obstacle?.type, "current")}</span>
+      <span class="modal-icon">${
+        confidence ? confidenceOwlSvg() : atStop ? stopIconSvg() : obstacleIconSvg(obstacle?.type, "current")
+      }</span>
       <div>
         <h2 class="modal-title">${theme.title}</h2>
         <p class="modal-intro">${theme.intro}</p>
       </div>
     </div>
     <div class="modal-paper">
-      <div class="modal-meta">
-        ${starsMarkup(level)}
-        <span class="phase-chip">${phaseChip}</span>
-      </div>
+      ${
+        /* L'aparte ne compte pas dans la progression : ni etoiles de niveau,
+           ni compteur d'entrainement, juste un mot rassurant du hibou. */
+        confidence
+          ? `<p class="confiance-chip">Cet exercice ne compte pas dans ton parcours.</p>`
+          : `<div class="modal-meta">
+              ${starsMarkup(level)}
+              <span class="phase-chip">${phaseChip}</span>
+            </div>`
+      }
       <p class="exercise-statement">${exercise.enonce}</p>
       ${
         steps && details.aide_affichee
@@ -1536,10 +1588,17 @@ function feedbackFromStatus(status, context) {
         tone: "success",
       };
     case "incorrect":
+      if (context.confidenceOpening) {
+        /* L'aparte s'ouvre : sa scene porte deja le message du hibou, un
+           bandeau "Presque !" par-dessus brouillerait l'intention. */
+        return null;
+      }
       return {
-        message: "Presque ! Essaie encore une fois.",
-        tone: "warning",
+        message: context.confidenceBefore ? CONFIANCE_RETRY : "Presque ! Essaie encore une fois.",
+        tone: context.confidenceBefore ? "info" : "warning",
       };
+    case "confiance_reussie":
+      return { message: CONFIANCE_REUSSITE, tone: "success" };
     case "carte_terminee":
       return {
         message: "Felicitations, tout le parcours est termine !",
@@ -1561,6 +1620,11 @@ function applyEvaluationResult(payload, context) {
     statut === "correct_nouveau_renforcement" && context.previousPhase === "renforcement";
   const unlocked = statut === "correct_concept_debloque";
   const finished = statut === "carte_terminee";
+  /* Aparte de confiance : etat avant/apres, pour distinguer son ouverture
+     (le backend vient de l'inserer) d'un reessai a l'interieur. */
+  context.confidenceBefore = isConfidenceExercise();
+  context.confidenceOpening =
+    !context.confidenceBefore && Boolean(payload.progression?.exercice_confiance_actif);
 
   if (opensObstacle || stopCompleted || unlocked || finished) {
     state.panelOpen = false;
@@ -1589,8 +1653,10 @@ function applyEvaluationResult(payload, context) {
 
   /* Score : 10 points par bonne reponse sur une chaine sans erreur ni tuteur
      (5 sinon), bonus de detection proportionnel a la maitrise calculee par le
-     backend (x10), bonus de deblocage de concept (+20). */
-  if (statut !== "incorrect") {
+     backend (x10), bonus de deblocage de concept (+20). L'aparte de confiance
+     ne rapporte rien : il est hors comptabilite du parcours, comme la
+     maitrise et la progression sur la carte. */
+  if (statut !== "incorrect" && statut !== "confiance_reussie") {
     let points = context.chainClean ? 10 : 5;
     if (opensObstacle) {
       points += (payload.progression?.maitrise_actuelle || 1) * 10;
@@ -1612,7 +1678,11 @@ function applyEvaluationResult(payload, context) {
   }
 
   const meta = feedbackFromStatus(statut, context);
-  setFeedback(meta.message, meta.tone);
+  if (meta) {
+    setFeedback(meta.message, meta.tone);
+  } else {
+    clearFeedback();
+  }
 
   if (state.panelOpen) {
     /* Seule la saisie clavier se vide manuellement : les autres mecaniques
