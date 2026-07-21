@@ -173,12 +173,37 @@
     pieceNodes[0]?.focus();
   }
 
+  /* Suites a trous : les positions a deviner ne doivent PAS afficher leur
+     valeur sur la ligne numerique (sinon la reponse est deja ecrite dessus).
+     Elles montrent un "?" ; les valeurs donnees dans l'enonce restent
+     visibles et servent de reperes pour retrouver le pas de la suite.
+     Fonction pure, exportee pour les tests (test_mechanics.js). */
+  function maskedLinePositions(exercise) {
+    const reponse = exercise?.reponse_attendue || {};
+    if (reponse.format !== "liste_ordonnee") {
+      return new Set();
+    }
+    const positions = exercise?.variables?.positions_manquantes;
+    if (!Array.isArray(positions)) {
+      /* Pas d'information sur les trous : on masque tout sauf les deux
+         premieres valeurs, qui suffisent a donner le pas de la suite. */
+      const length = Array.isArray(reponse.valeur) ? reponse.valeur.length : 0;
+      const fallback = new Set();
+      for (let index = 2; index < length; index += 1) {
+        fallback.add(index);
+      }
+      return fallback;
+    }
+    return new Set(positions.filter((index) => Number.isInteger(index) && index >= 0));
+  }
+
   /* ----- Ligne numerique : sauter jusqu'au bon nombre ---------- */
   function mountLine(container, exercise, api) {
     const info = answerInfo(exercise);
     const isListe = info.format === "liste_ordonnee";
     const values = isListe ? info.raw.map(Number) : null;
     const step = isListe && values.length > 1 ? values[1] - values[0] : 1;
+    const maskedPositions = maskedLinePositions(exercise);
 
     let start;
     let end;
@@ -209,10 +234,10 @@
           ${ticks
             .map(
               (value, i) =>
-                `<button type="button" class="line-tick" data-value="${value}" data-index="${i}" tabindex="-1">
+                `<button type="button" class="line-tick" data-index="${i}" tabindex="-1" ${maskedPositions.has(i) ? 'aria-label="Nombre a trouver"' : `data-value="${value}"`}>
                   <span class="line-hop" aria-hidden="true"></span>
                   <span class="line-notch" aria-hidden="true"></span>
-                  <span class="line-label">${value}</span>
+                  <span class="line-label${maskedPositions.has(i) ? " masked" : ""}">${maskedPositions.has(i) ? "?" : value}</span>
                 </button>`,
             )
             .join("")}
@@ -428,14 +453,24 @@
     panier: mountBasket,
   };
 
-  window.ParcoursMechanics = {
+  const api = {
     choose,
-    mount(container, mechanic, exercise, api) {
+    mount(container, mechanic, exercise, handlers) {
       const mounter = MOUNTERS[mechanic];
       if (!mounter) {
         return;
       }
-      mounter(container, exercise, api);
+      mounter(container, exercise, handlers);
     },
+    /* Exposes pour les tests */
+    compatibleMechanics,
+    maskedLinePositions,
   };
+
+  if (typeof window !== "undefined") {
+    window.ParcoursMechanics = api;
+  }
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
 })();

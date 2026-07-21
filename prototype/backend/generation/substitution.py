@@ -192,7 +192,14 @@ def generer_addition_repetee_vers_multiplication(niveau: str = "CE2") -> dict:
         variables={"k": k, "n": n, "total": total, "termes": [k] * n},
         valeur=f"{total} = {n} x {k}",
         format_reponse="expression",
-        equivalences=[f"{n} x {k}", f"{total}={n}x{k}"],
+        equivalences=[
+            f"{n} x {k}",
+            f"{total}={n}x{k}",
+            # La multiplication est commutative : l'ordre inverse est accepte.
+            f"{k} x {n}",
+            f"{total} = {k} x {n}",
+            f"{total}={k}x{n}",
+        ],
         steps=[
             f"Repère que {k} est répété {n} fois.",
             f"Addition répétée : {termes} = {total}.",

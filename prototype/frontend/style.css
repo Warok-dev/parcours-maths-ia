@@ -832,9 +832,11 @@ input {
   place-items: center;
   padding: 20px;
   overflow-y: auto;
-  background: rgba(61, 44, 30, 0.4);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  /* Voile dense plutot qu'un backdrop-filter : le flou obligeait le
+     navigateur a recalculer tout l'ecran a chaque frame tant qu'un element
+     bougeait devant ou derriere (pire frame mesuree : 97 ms contre 7 ms
+     sans flou). Le voile assombri donne la meme mise au point sur la popup. */
+  background: rgba(61, 44, 30, 0.52);
 }
 
 .exercise-modal {
@@ -1418,6 +1420,11 @@ input {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--ink-soft);
+}
+
+/* Position a deviner d'une suite a trous : "?" au lieu de la valeur. */
+.line-label.masked {
+  color: var(--water);
 }
 
 .line-hop {
@@ -2202,6 +2209,13 @@ input {
   100% { opacity: 0; transform: translate(-130px, 46px) rotate(-30deg); }
 }
 
+/* Carte en pause derriere un panneau plein ecran (exercice, carnet, bilan) :
+   ses animations infinies repeindraient la scene en continu alors que le
+   voile de l'overlay la masque. */
+#map.scene-paused * {
+  animation-play-state: paused;
+}
+
 /* Pastille "ici !" au-dessus de l'obstacle actif */
 .obstacle-marker {
   animation: markerBounce 1.4s ease-in-out infinite;
@@ -2322,9 +2336,8 @@ input {
   place-items: center;
   padding: 20px;
   overflow-y: auto;
-  background: rgba(61, 44, 30, 0.45);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  /* Meme raison que .exercise-overlay : voile dense au lieu d'un flou. */
+  background: rgba(61, 44, 30, 0.56);
 }
 
 /* Couverture en bois/cuir avec couture apparente, page creme a l'interieur. */

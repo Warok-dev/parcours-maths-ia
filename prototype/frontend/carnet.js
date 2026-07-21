@@ -263,12 +263,14 @@
     `;
     bilanOpen = true;
     bilanOverlay.classList.remove("hidden");
+    window.ParcoursApp?.refreshScenePaused?.();
   }
 
   function closeBilan() {
     bilanOpen = false;
     bilanOverlay.classList.add("hidden");
     bilanCard.innerHTML = "";
+    window.ParcoursApp?.refreshScenePaused?.();
   }
 
   bilanOverlay.addEventListener("click", (event) => {
@@ -294,12 +296,14 @@
     isOpen = true;
     render();
     overlay.classList.remove("hidden");
+    window.ParcoursApp?.refreshScenePaused?.();
   }
 
   function closeCarnet() {
     isOpen = false;
     overlay.classList.add("hidden");
     book.innerHTML = "";
+    window.ParcoursApp?.refreshScenePaused?.();
   }
 
   /* ---------- Branchements ---------- */

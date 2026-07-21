@@ -483,12 +483,19 @@ function clampCamera(cameraTarget) {
   };
 }
 
+/* Reecrire le viewBox repeint TOUTE la scene SVG, meme quand la camera n'a
+   pas bouge. On arrondit au dixieme d'unite et on n'ecrit que si la valeur
+   change reellement : camera immobile => plus aucun repaint de la carte. */
+let lastViewBox = "";
+
 function applyCameraViewBox() {
   const clamped = clampCamera(state.camera);
-  mapElement.setAttribute(
-    "viewBox",
-    `${clamped.x - CAMERA_WIDTH / 2} ${clamped.y - CAMERA_HEIGHT / 2} ${CAMERA_WIDTH} ${CAMERA_HEIGHT}`,
-  );
+  const viewBox = `${(clamped.x - CAMERA_WIDTH / 2).toFixed(1)} ${(clamped.y - CAMERA_HEIGHT / 2).toFixed(1)} ${CAMERA_WIDTH} ${CAMERA_HEIGHT}`;
+  if (viewBox === lastViewBox) {
+    return;
+  }
+  lastViewBox = viewBox;
+  mapElement.setAttribute("viewBox", viewBox);
 }
 
 /* ============================================================
@@ -1006,10 +1013,47 @@ function renderMinimap() {
   updateMinimapPlayer();
 }
 
+/* Dernieres valeurs ecrites dans le DOM par la boucle de jeu : evite de
+   reecrire des attributs identiques a chaque frame (chaque setAttribute
+   invalide le rendu du SVG). Invalide apres chaque re-rendu de la scene. */
+const dynamicsCache = {
+  playerTransform: null,
+  playerWalking: null,
+  hintTransform: null,
+  hintVisible: null,
+  hintText: null,
+  minimapTransform: null,
+};
+
+function invalidateDynamicsCache() {
+  for (const key of Object.keys(dynamicsCache)) {
+    dynamicsCache[key] = null;
+  }
+}
+
+/* Derriere un panneau plein ecran, la carte n'est plus qu'un decor masque
+   par le voile de l'overlay. Ses animations infinies (marqueur de
+   l'obstacle, anneau des fanions d'entrainement) continueraient pourtant de
+   la repeindre en boucle sans que personne ne les voie : on les met en
+   pause tant qu'un panneau est ouvert. */
+function refreshScenePaused() {
+  const overlays = [
+    exerciseOverlay,
+    document.getElementById("carnet-overlay"),
+    document.getElementById("bilan-overlay"),
+  ];
+  const overlayOpen = overlays.some((node) => node && !node.classList.contains("hidden"));
+  mapElement.classList.toggle("scene-paused", overlayOpen);
+}
+
 function updateMinimapPlayer() {
   const node = document.getElementById("minimap-player");
   if (node) {
-    node.setAttribute("transform", `translate(${state.playerPosition.x}, ${state.playerPosition.y})`);
+    const transform = `translate(${state.playerPosition.x.toFixed(1)}, ${state.playerPosition.y.toFixed(1)})`;
+    if (transform !== dynamicsCache.minimapTransform) {
+      dynamicsCache.minimapTransform = transform;
+      node.setAttribute("transform", transform);
+    }
   }
 }
 
@@ -1022,6 +1066,7 @@ function renderScene() {
   state.scene = createSceneModel(state.session.concepts || []);
   state.reinforcement = computeReinforcementStops();
   mapElement.innerHTML = sceneMarkup(state.scene);
+  invalidateDynamicsCache();
   renderMinimap();
   updateSceneDynamics();
   applyCameraViewBox();
@@ -1105,11 +1150,15 @@ function updateSceneDynamics() {
 
   const playerNode = document.getElementById("player-token");
   if (playerNode) {
-    playerNode.setAttribute(
-      "transform",
-      `translate(${state.playerPosition.x}, ${state.playerPosition.y}) rotate(${state.playerAngle})`,
-    );
-    playerNode.classList.toggle("player-walking", state.playerMoving);
+    const playerTransform = `translate(${state.playerPosition.x.toFixed(1)}, ${state.playerPosition.y.toFixed(1)}) rotate(${state.playerAngle.toFixed(1)})`;
+    if (playerTransform !== dynamicsCache.playerTransform) {
+      dynamicsCache.playerTransform = playerTransform;
+      playerNode.setAttribute("transform", playerTransform);
+    }
+    if (state.playerMoving !== dynamicsCache.playerWalking) {
+      dynamicsCache.playerWalking = state.playerMoving;
+      playerNode.classList.toggle("player-walking", state.playerMoving);
+    }
   }
 
   const hintNode = document.getElementById("interaction-hint");
@@ -1117,15 +1166,24 @@ function updateSceneDynamics() {
   const hintVisible = state.nearObstacle && !state.panelOpen;
   if (hintNode && target) {
     const hintY = target.kind === "stop" ? target.y - 84 : target.y - 152;
-    hintNode.setAttribute("transform", `translate(${target.x}, ${hintY})`);
-    hintNode.classList.toggle("visible", hintVisible);
+    const hintTransform = `translate(${target.x.toFixed(1)}, ${hintY.toFixed(1)})`;
+    if (hintTransform !== dynamicsCache.hintTransform) {
+      dynamicsCache.hintTransform = hintTransform;
+      hintNode.setAttribute("transform", hintTransform);
+    }
     const actionText = document.getElementById("hint-action-text");
-    if (actionText) {
-      actionText.textContent = target.kind === "stop" ? "s'entrainer !" : "pour aider !";
+    const hintText = target.kind === "stop" ? "s'entrainer !" : "pour aider !";
+    if (actionText && hintText !== dynamicsCache.hintText) {
+      dynamicsCache.hintText = hintText;
+      actionText.textContent = hintText;
     }
   }
   /* La bulle remplace le marqueur "!" quand le joueur est assez proche. */
-  mapElement.classList.toggle("hint-visible", hintVisible);
+  if (hintVisible !== dynamicsCache.hintVisible) {
+    dynamicsCache.hintVisible = hintVisible;
+    hintNode?.classList.toggle("visible", hintVisible);
+    mapElement.classList.toggle("hint-visible", hintVisible);
+  }
   updateMinimapPlayer();
 }
 
@@ -1192,6 +1250,7 @@ function openExercisePanel() {
   state.playerMoving = false;
   renderExerciseModal();
   updateSceneDynamics();
+  refreshScenePaused();
 }
 
 function closeExercisePanel() {
@@ -1204,6 +1263,7 @@ function closeExercisePanel() {
   exerciseModal.innerHTML = "";
   updateNearObstacle();
   updateSceneDynamics();
+  refreshScenePaused();
 }
 
 function renderExerciseModal() {
@@ -1506,6 +1566,11 @@ function applyEvaluationResult(payload, context) {
     state.panelOpen = false;
     exerciseOverlay.classList.add("hidden");
     exerciseModal.innerHTML = "";
+    /* Fermeture directe (sans closeExercisePanel) : previent aussi le tuteur
+       proactif, sinon son intervalle d'inactivite continue de tourner et le
+       hibou peut proposer de l'aide alors qu'aucun exercice n'est ouvert. */
+    window.ParcoursProactive?.panelClosed();
+    refreshScenePaused();
   }
   if (opensObstacle) {
     state.justUnlockedIndex = context.previousConceptIndex;
@@ -1694,6 +1759,7 @@ function resetSharedState() {
   clearFeedback();
   window.ParcoursChat?.reset();
   window.ParcoursProactive?.panelClosed();
+  refreshScenePaused();
 }
 
 function resetToStart() {
@@ -1854,12 +1920,16 @@ function tick(timestamp) {
     state.playerMoving = false;
   }
 
-  /* Suivi de camera avec easing doux (jamais de recentrage brutal). */
+  /* Suivi de camera avec easing doux (jamais de recentrage brutal). Sous un
+     dixieme de pixel, la camera s'aimante sur la cible : l'easing s'arrete
+     vraiment et applyCameraViewBox cesse d'ecrire (donc de repeindre). */
   if (state.scene) {
     const target = clampCamera({ x: state.playerPosition.x, y: state.playerPosition.y });
     const factor = 1 - Math.exp(-CAMERA_EASE * deltaSeconds);
     state.camera.x += (target.x - state.camera.x) * factor;
     state.camera.y += (target.y - state.camera.y) * factor;
+    if (Math.abs(target.x - state.camera.x) < 0.1) state.camera.x = target.x;
+    if (Math.abs(target.y - state.camera.y) < 0.1) state.camera.y = target.y;
     applyCameraViewBox();
   }
 
@@ -1960,6 +2030,7 @@ window.ParcoursApp = {
   getReinforcement: () => state.reinforcement,
   getInteractionTarget: () => interactionTarget(),
   openExercisePanel,
+  refreshScenePaused,
 };
 
 if (!animationFrameId) {
