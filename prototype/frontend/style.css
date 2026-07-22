@@ -789,6 +789,16 @@ input {
   color: var(--ink-soft);
 }
 
+/* Panne du tuteur : distinguee d'une explication de l'exercice, sans
+   dramatiser (l'enfant n'y est pour rien). */
+.message.tutor-error {
+  color: var(--ink);
+  padding: 8px 11px;
+  border-left: 4px solid var(--gold);
+  border-radius: 0 10px 10px 0;
+  background: var(--cream-dark);
+}
+
 .chat-form {
   display: flex;
   gap: 8px;
