@@ -167,12 +167,21 @@ def _call_model(
     # directly in GenerationConfig. We keep the intended value visible in logs
     # and compensate with a generous output budget plus retry-on-truncation.
     LOGGER.debug(
-        "Appel Gemini: model=%s max_output_tokens=%s thinking_level=%s",
+        "Appel Gemini: model=%s max_output_tokens=%s thinking_level=%s timeout=%ss",
         MODEL_NAME,
         max_output_tokens,
         THINKING_LEVEL,
+        PROVIDER_TIMEOUT_SECONDS,
     )
-    response = model.generate_content(prompt, generation_config=generation_config)
+    # Timeout explicite, comme pour Groq et Mistral : sans lui, le SDK
+    # applique son defaut de 600 s. Un Gemini qui traine (typiquement en
+    # limite de quota) bloquerait alors toute la chaine de fallback pendant
+    # dix minutes au lieu de laisser la main au fournisseur suivant.
+    response = model.generate_content(
+        prompt,
+        generation_config=generation_config,
+        request_options={"timeout": PROVIDER_TIMEOUT_SECONDS},
+    )
     return _extract_text(response), _extract_finish_reason(response)
 
 
