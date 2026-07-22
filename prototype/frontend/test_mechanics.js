@@ -2,7 +2,12 @@
    Lancer avec : node test_mechanics.js
    Couvre surtout le masquage des trous d'une suite sur la ligne numerique :
    la ligne ne doit jamais afficher les nombres que l'eleve doit trouver. */
-const { maskedLinePositions, compatibleMechanics } = require("./mechanics.js");
+const {
+  maskedLinePositions,
+  compatibleMechanics,
+  missingLineValues,
+  shuffleMissingValues,
+} = require("./mechanics.js");
 
 let failures = 0;
 let total = 0;
@@ -71,6 +76,63 @@ function suiteExercise(valeurs, positionsManquantes) {
   check(compatibleMechanics(suite).includes("ligne"), "une suite reste jouable sur la ligne");
   const grand = suiteExercise([100, 110, 120], [1]);
   check(compatibleMechanics(grand).includes("ligne"), "une liste ordonnee va toujours sur la ligne");
+}
+
+/* --- 6. Valeurs manquantes proposees a l'eleve --- */
+{
+  const exercise = suiteExercise([0, 10, 20, 30, 40, 50, 60, 70], [1, 4, 6]);
+  check(
+    JSON.stringify(missingLineValues(exercise)) === JSON.stringify([10, 40, 60]),
+    "les valeurs manquantes sont extraites dans l'ordre de la suite",
+  );
+  check(
+    missingLineValues({ reponse_attendue: { valeur: 30, format: "nombre_entier" } }).length === 0,
+    "un calcul direct n'a aucune valeur manquante",
+  );
+}
+
+/* --- 7. L'ordre propose n'est jamais l'ordre croissant --- */
+{
+  const valeurs = [10, 40, 60];
+  let toujoursCroissant = true;
+  let jamaisCroissant = true;
+  const ordresVus = new Set();
+
+  /* Plusieurs generations successives du meme exercice : l'ordre doit
+     varier reellement, et ne jamais livrer la suite deja triee. */
+  for (let i = 0; i < 200; i += 1) {
+    const propose = shuffleMissingValues(valeurs);
+    ordresVus.add(propose.join(","));
+    const croissant = propose.join(",") === "10,40,60";
+    if (croissant) jamaisCroissant = false;
+    else toujoursCroissant = false;
+  }
+
+  check(!toujoursCroissant, "l'ordre propose n'est pas systematiquement croissant");
+  check(jamaisCroissant, "l'ordre croissant n'est jamais propose (il donnerait la reponse)");
+  check(ordresVus.size >= 3, `l'ordre varie d'une generation a l'autre (${ordresVus.size} ordres vus)`);
+  check(
+    [...ordresVus].every((ordre) => ordre.split(",").sort((a, b) => a - b).join(",") === "10,40,60"),
+    "chaque tirage contient exactement les valeurs manquantes",
+  );
+}
+
+/* --- 8. Cas limites du melange --- */
+{
+  check(
+    JSON.stringify(shuffleMissingValues([40, 80])) === JSON.stringify([80, 40]),
+    "avec deux trous, seul l'ordre decroissant evite l'ordre croissant",
+  );
+  check(JSON.stringify(shuffleMissingValues([50])) === JSON.stringify([50]), "un seul trou : inchange");
+  check(JSON.stringify(shuffleMissingValues([])) === JSON.stringify([]), "aucun trou : liste vide");
+
+  /* Un generateur pseudo-aleatoire degenere ne doit pas rendre l'ordre trie. */
+  const propose = shuffleMissingValues([10, 20, 30], () => 0);
+  check(propose.join(",") !== "10,20,30", "un tirage degenere ne laisse pas l'ordre croissant");
+  check(
+    propose.slice().sort((a, b) => a - b).join(",") === "10,20,30",
+    "le repli conserve toutes les valeurs",
+  );
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);

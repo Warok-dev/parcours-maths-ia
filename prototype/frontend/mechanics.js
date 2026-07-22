@@ -197,96 +197,226 @@
     return new Set(positions.filter((index) => Number.isInteger(index) && index >= 0));
   }
 
-  /* ----- Ligne numerique : sauter jusqu'au bon nombre ---------- */
-  function mountLine(container, exercise, api) {
-    const info = answerInfo(exercise);
-    const isListe = info.format === "liste_ordonnee";
-    const values = isListe ? info.raw.map(Number) : null;
-    const step = isListe && values.length > 1 ? values[1] - values[0] : 1;
-    const maskedPositions = maskedLinePositions(exercise);
+  /* Indices des trous, dans l'ordre de la suite (gauche a droite). */
+  function holeIndexes(exercise) {
+    return [...maskedLinePositions(exercise)].sort((a, b) => a - b);
+  }
 
-    let start;
-    let end;
-    if (isListe) {
-      start = Math.min(...values);
-      end = Math.max(...values);
-    } else {
-      const offset = 3 + (hashString(exercise.id) % 5);
-      start = Math.max(0, info.numeric - offset);
-      end = start + 12;
+  /* Valeurs a retrouver, dans l'ordre naturel de la suite. */
+  function missingLineValues(exercise) {
+    const valeurs = exercise?.reponse_attendue?.valeur;
+    if (!Array.isArray(valeurs)) {
+      return [];
     }
-    const ticks = [];
-    for (let value = start; value <= end; value += step) {
-      ticks.push(value);
-    }
+    return holeIndexes(exercise)
+      .filter((index) => index < valeurs.length)
+      .map((index) => Number(valeurs[index]));
+  }
 
-    let position = 0;
-    const collected = [];
+  /* Melange les nombres proposes a l'eleve. L'ordre croissant naturel est
+     exclu : il donnerait la reponse par simple lecture de gauche a droite.
+     Consequence assumee : avec deux trous, la seule permutation valide est
+     l'ordre decroissant. A partir de trois trous, l'ordre varie reellement
+     d'une generation a l'autre. Fonction pure, exportee pour les tests. */
+  function shuffleMissingValues(valeurs, random = Math.random) {
+    const melange = [...valeurs];
+    if (melange.length < 2) {
+      return melange;
+    }
+    const croissant = [...valeurs].sort((a, b) => a - b);
+    const estCroissant = (liste) => liste.every((valeur, i) => valeur === croissant[i]);
+
+    for (let essai = 0; essai < 12; essai += 1) {
+      for (let i = melange.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(random() * (i + 1));
+        [melange[i], melange[j]] = [melange[j], melange[i]];
+      }
+      if (!estCroissant(melange)) {
+        return melange;
+      }
+    }
+    /* Tirages malchanceux (ou liste de 2) : on force un ordre non croissant. */
+    [melange[0], melange[1]] = [melange[1], melange[0]];
+    return melange;
+  }
+
+  /* Graduations de la ligne : valeurs connues lisibles, trous en "?". */
+  function lineTicksMarkup(ticks, masked) {
+    return ticks
+      .map((value, i) => {
+        const trou = masked.has(i);
+        return `<button type="button" class="line-tick" data-index="${i}" tabindex="-1" ${
+          trou ? 'aria-label="Nombre a trouver"' : `data-value="${value}" disabled`
+        }>
+          <span class="line-hop" aria-hidden="true"></span>
+          <span class="line-notch" aria-hidden="true"></span>
+          <span class="line-label${trou ? " masked" : ""}">${trou ? "?" : value}</span>
+        </button>`;
+      })
+      .join("");
+  }
+
+  /* ----- Ligne numerique, suite a trous ------------------------
+     L'eleve choisit parmi des nombres MELANGES et les place dans les
+     trous, de gauche a droite. Il doit donc reconstituer l'ordre de la
+     suite, la ligne ne le lui donne plus. */
+  function mountLineSequence(container, exercise, api) {
+    const values = answerInfo(exercise).raw.map(Number);
+    const masked = maskedLinePositions(exercise);
+    const holes = holeIndexes(exercise).filter((index) => index < values.length);
+    const pool = shuffleMissingValues(missingLineValues(exercise));
+    /* filled[rang du trou] = index du bouton pose, ou null. */
+    const filled = new Array(holes.length).fill(null);
 
     container.innerHTML = `
-      <p class="mech-hint">${
-        isListe
-          ? "Saute sur chaque nombre de la suite dans l'ordre, puis ajoute-le (Entree ou bouton)."
-          : "Saute avec les fleches jusqu'au bon nombre, puis valide avec Entree."
-      }</p>
-      <div class="mech-line" tabindex="0" data-mode="${isListe ? "liste" : "simple"}" aria-label="Ligne numerique">
-        <div class="line-track">
-          ${ticks
+      <p class="mech-hint">Clique les nombres pour completer la suite, de gauche a droite.</p>
+      <div class="mech-line" tabindex="0" data-mode="liste" aria-label="Ligne numerique a completer">
+        <div class="line-track">${lineTicksMarkup(values, masked)}</div>
+        <div class="line-pool" role="group" aria-label="Nombres a placer">
+          ${pool
             .map(
-              (value, i) =>
-                `<button type="button" class="line-tick" data-index="${i}" tabindex="-1" ${maskedPositions.has(i) ? 'aria-label="Nombre a trouver"' : `data-value="${value}"`}>
-                  <span class="line-hop" aria-hidden="true"></span>
-                  <span class="line-notch" aria-hidden="true"></span>
-                  <span class="line-label${maskedPositions.has(i) ? " masked" : ""}">${maskedPositions.has(i) ? "?" : value}</span>
-                </button>`,
+              (valeur, i) =>
+                `<button type="button" class="line-number" data-pool="${i}">${valeur}</button>`,
             )
             .join("")}
         </div>
-        ${
-          isListe
-            ? `<div class="line-actions">
-                <button type="button" class="line-add btn-help">Ajouter</button>
-                <button type="button" class="line-remove btn-help">Retirer</button>
-                <span class="line-progress" aria-live="polite"></span>
-              </div>`
-            : ""
-        }
+        <div class="line-actions">
+          <button type="button" class="line-remove btn-help">Retirer</button>
+          <span class="line-progress" aria-live="polite"></span>
+        </div>
       </div>
     `;
 
     const root = container.querySelector(".mech-line");
     const tickNodes = [...container.querySelectorAll(".line-tick")];
+    const poolNodes = [...container.querySelectorAll(".line-number")];
     const progressNode = container.querySelector(".line-progress");
+    const removeNode = container.querySelector(".line-remove");
 
-    function refresh() {
-      tickNodes.forEach((node, i) => node.classList.toggle("on", i === position));
-      if (isListe) {
-        api.setValue(collected.join(", "));
-        progressNode.textContent = collected.length
-          ? `Ta suite : ${collected.join(", ")} (${collected.length}/${values.length})`
-          : `Ta suite : ... (0/${values.length})`;
-      } else {
-        api.setValue(String(ticks[position]));
-      }
+    const usedPoolIndexes = () => new Set(filled.filter((index) => index !== null));
+    const nextHoleRank = () => filled.indexOf(null);
+    const filledCount = () => filled.filter((index) => index !== null).length;
+
+    /* Suite telle que l'eleve l'a reconstituee ; les trous vides valent null. */
+    function rebuiltSequence() {
+      const suite = [...values];
+      holes.forEach((position, rang) => {
+        const poolIndex = filled[rang];
+        suite[position] = poolIndex === null ? null : pool[poolIndex];
+      });
+      return suite;
     }
 
-    function addCurrent() {
-      if (!isListe || collected.length >= values.length) return;
-      collected.push(ticks[position]);
+    function refresh() {
+      const suite = rebuiltSequence();
+      const used = usedPoolIndexes();
+      const cible = nextHoleRank();
+
+      holes.forEach((position, rang) => {
+        const node = tickNodes[position];
+        const label = node.querySelector(".line-label");
+        const valeur = suite[position];
+        const rempli = valeur !== null;
+        label.textContent = rempli ? String(valeur) : "?";
+        label.classList.toggle("masked", !rempli);
+        label.classList.toggle("placed", rempli);
+        /* Seul un trou deja rempli se reclique, pour retirer sa valeur. */
+        node.disabled = !rempli;
+        node.classList.toggle("on", rang === cible);
+      });
+
+      poolNodes.forEach((node, i) => {
+        node.disabled = used.has(i);
+        node.classList.toggle("used", used.has(i));
+      });
+
+      const complet = cible === -1;
+      /* La reponse attendue est la suite ENTIERE : on ne la transmet qu'une
+         fois tous les trous remplis, sinon la validation part incomplete. */
+      api.setValue(complet ? suite.join(", ") : "");
+      removeNode.disabled = filledCount() === 0;
+      progressNode.textContent = `Ta suite : ${suite
+        .map((valeur) => (valeur === null ? "?" : valeur))
+        .join(", ")} (${filledCount()}/${holes.length})`;
+    }
+
+    function placeNumber(poolIndex) {
+      if (usedPoolIndexes().has(poolIndex)) return;
+      const rang = nextHoleRank();
+      if (rang === -1) return;
+      filled[rang] = poolIndex;
       refresh();
     }
 
+    function removeAt(rang) {
+      if (rang < 0 || filled[rang] === null) return;
+      filled[rang] = null;
+      refresh();
+    }
+
+    /* "Retirer" annule le dernier trou rempli ; comme le remplissage va
+       toujours de gauche a droite, c'est le trou rempli le plus a droite. */
+    function removeLast() {
+      for (let rang = filled.length - 1; rang >= 0; rang -= 1) {
+        if (filled[rang] !== null) {
+          removeAt(rang);
+          return;
+        }
+      }
+    }
+
+    poolNodes.forEach((node, i) => node.addEventListener("click", () => placeNumber(i)));
+    holes.forEach((position, rang) => {
+      tickNodes[position].addEventListener("click", () => removeAt(rang));
+    });
+    removeNode.addEventListener("click", removeLast);
+
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        removeLast();
+      }
+    });
+
+    refresh();
+    poolNodes[0]?.focus();
+  }
+
+  /* ----- Ligne numerique : sauter jusqu'au bon nombre ---------- */
+  function mountLineSimple(container, exercise, api) {
+    const info = answerInfo(exercise);
+    const offset = 3 + (hashString(exercise.id) % 5);
+    const start = Math.max(0, info.numeric - offset);
+    const ticks = [];
+    for (let value = start; value <= start + 12; value += 1) {
+      ticks.push(value);
+    }
+
+    let position = 0;
+
+    container.innerHTML = `
+      <p class="mech-hint">Saute avec les fleches jusqu'au bon nombre, puis valide avec Entree.</p>
+      <div class="mech-line" tabindex="0" data-mode="simple" aria-label="Ligne numerique">
+        <div class="line-track">${lineTicksMarkup(ticks, new Set())}</div>
+      </div>
+    `;
+
+    const root = container.querySelector(".mech-line");
+    const tickNodes = [...container.querySelectorAll(".line-tick")];
+
+    function refresh() {
+      tickNodes.forEach((node, i) => node.classList.toggle("on", i === position));
+      api.setValue(String(ticks[position]));
+    }
+
     tickNodes.forEach((node, i) => {
+      /* Les graduations d'une ligne simple restent cliquables. */
+      node.disabled = false;
       node.addEventListener("click", () => {
         position = i;
         refresh();
         root.focus();
       });
-    });
-    container.querySelector(".line-add")?.addEventListener("click", addCurrent);
-    container.querySelector(".line-remove")?.addEventListener("click", () => {
-      collected.pop();
-      refresh();
     });
 
     root.addEventListener("keydown", (event) => {
@@ -300,20 +430,20 @@
         refresh();
       } else if (event.key === "Enter") {
         event.preventDefault();
-        if (isListe) {
-          addCurrent();
-        } else {
-          api.submit();
-        }
-      } else if (event.key === "Backspace" && isListe) {
-        event.preventDefault();
-        collected.pop();
-        refresh();
+        api.submit();
       }
     });
 
     refresh();
     root.focus();
+  }
+
+  function mountLine(container, exercise, api) {
+    if (answerInfo(exercise).format === "liste_ordonnee") {
+      mountLineSequence(container, exercise, api);
+      return;
+    }
+    mountLineSimple(container, exercise, api);
   }
 
   /* ----- Cadenas a combinaison : molettes chiffre par chiffre -- */
@@ -465,6 +595,8 @@
     /* Exposes pour les tests */
     compatibleMechanics,
     maskedLinePositions,
+    missingLineValues,
+    shuffleMissingValues,
   };
 
   if (typeof window !== "undefined") {
