@@ -1297,12 +1297,33 @@ function closeExercisePanel() {
      meme la progression : le backend a deja avance. */
   finalizePendingEvaluation();
   window.ParcoursProactive?.panelClosed();
+  /* Le popup se ferme : on coupe une eventuelle lecture d'enonce en cours. */
+  window.ParcoursSpeech?.cancel?.();
   state.panelOpen = false;
   exerciseOverlay.classList.add("hidden");
   exerciseModal.innerHTML = "";
   updateNearObstacle();
   updateSceneDynamics();
   refreshScenePaused();
+}
+
+/* Bouton "ecouter" (haut-parleur) pour lire un texte du popup a voix haute.
+   Rendu seulement si la synthese vocale est disponible : sinon rien, aucun
+   bouton mort. La lecture est declenchee a la main par l'eleve, jamais
+   automatiquement (il rouvre souvent le popup, on ne repete pas l'enonce). */
+function listenButtonMarkup(id, label) {
+  if (!window.ParcoursSpeech?.isSupported?.()) {
+    return "";
+  }
+  return `
+    <button id="${id}" class="listen-button" type="button" aria-label="${label}" title="${label}">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M6 12 h5 l6 -5 v18 l-6 -5 h-5 Z" fill="currentColor"></path>
+        <path d="M22 11 a 7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
+        <path d="M25 8 a 12 12 0 0 1 0 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
+      </svg>
+    </button>
+  `;
 }
 
 function renderExerciseModal() {
@@ -1354,11 +1375,17 @@ function renderExerciseModal() {
               <span class="phase-chip">${phaseChip}</span>
             </div>`
       }
-      <p class="exercise-statement">${exercise.enonce}</p>
+      <div class="statement-row">
+        <p class="exercise-statement">${exercise.enonce}</p>
+        ${listenButtonMarkup("listen-enonce", "Ecouter l'enonce")}
+      </div>
       ${
         steps && details.aide_affichee
           ? `<div class="method-block">
-              <p class="method-title">La methode :</p>
+              <p class="method-title">
+                <span>La methode :</span>
+                ${listenButtonMarkup("listen-methode", "Ecouter la methode")}
+              </p>
               <ol>${steps}</ol>
             </div>`
           : ""
@@ -1399,6 +1426,19 @@ function renderExerciseModal() {
     document.getElementById("chat-input")?.focus();
   });
   document.getElementById("close-exercise").addEventListener("click", closeExercisePanel);
+  /* Ecoute de l'enonce (et de la methode guidee si affichee) : lecture forcee
+     car declenchee explicitement par l'eleve, meme si le tuteur est en sourdine.
+     Chaque clic interrompt la lecture precedente (pas de chevauchement). */
+  document.getElementById("listen-enonce")?.addEventListener("click", () => {
+    window.ParcoursSpeech?.speak(exercise.enonce, { force: true, source: "enonce" });
+  });
+  const listenMethode = document.getElementById("listen-methode");
+  if (listenMethode) {
+    const methodeTexte = ["La methode.", ...(details.etapes_methode || [])].join(" ");
+    listenMethode.addEventListener("click", () => {
+      window.ParcoursSpeech?.speak(methodeTexte, { force: true, source: "enonce" });
+    });
+  }
   /* Tuteur proactif : suit l'exercice affiche et le niveau de guidage
      (seuils plus prudents au niveau 3 autonome). */
   window.ParcoursProactive?.exerciseShown(exercise.id, level);

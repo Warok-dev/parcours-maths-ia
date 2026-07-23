@@ -71,6 +71,47 @@ const chatWidget = hasDom ? document.getElementById("chat-widget") : null;
 const chatForm = hasDom ? document.getElementById("chat-form") : null;
 const chatInput = hasDom ? document.getElementById("chat-input") : null;
 const chatLog = hasDom ? document.getElementById("chat-log") : null;
+const tutorMuteButton = hasDom ? document.getElementById("tutor-mute") : null;
+
+/* Haut-parleur : plein = voix active, barre = voix coupee. Un seul bouton
+   dont l'icone suit l'etat mute persiste par ParcoursSpeech. */
+function speakerIconSvg(muted) {
+  const slash = muted
+    ? `<line x1="4" y1="4" x2="28" y2="28" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></line>`
+    : `<path d="M22 11 a 7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>
+       <path d="M25 8 a 12 12 0 0 1 0 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path>`;
+  return `
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M6 12 h5 l6 -5 v18 l-6 -5 h-5 Z" fill="currentColor"></path>
+      ${slash}
+    </svg>
+  `;
+}
+
+function refreshMuteButton() {
+  if (!tutorMuteButton) {
+    return;
+  }
+  /* Pas de synthese vocale sur ce navigateur : le bouton mute n'a aucun sens,
+     on le retire (aucune erreur, aucun blocage). */
+  if (!window.ParcoursSpeech?.isSupported?.()) {
+    tutorMuteButton.remove();
+    return;
+  }
+  const muted = window.ParcoursSpeech.isMuted();
+  tutorMuteButton.classList.toggle("muted", muted);
+  tutorMuteButton.setAttribute("aria-pressed", muted ? "true" : "false");
+  const label = muted ? "Activer la voix du tuteur" : "Couper la voix du tuteur";
+  tutorMuteButton.setAttribute("aria-label", label);
+  tutorMuteButton.title = label;
+  tutorMuteButton.innerHTML = speakerIconSvg(muted);
+}
+
+/* Chaque reponse du hibou est lue a voix haute (sauf si l'eleve a coupe le
+   son). Une nouvelle reponse interrompt la lecture precedente. */
+function speakTutor(text) {
+  window.ParcoursSpeech?.speak?.(text, { source: "tuteur" });
+}
 
 function appendMessage(text, role) {
   const entry = document.createElement("p");
@@ -147,6 +188,12 @@ async function askTutor(question) {
 }
 
 if (hasDom) {
+  refreshMuteButton();
+  tutorMuteButton?.addEventListener("click", () => {
+    window.ParcoursSpeech?.toggleMuted?.();
+    refreshMuteButton();
+  });
+
   toggleChatButton.addEventListener("click", () => {
     if (chatWidget.classList.contains("hidden")) {
       ensureOpen();
@@ -169,6 +216,7 @@ if (hasDom) {
     try {
       const data = await askTutor(question);
       appendMessage(`Tuteur : ${data.reponse}`, "assistant");
+      speakTutor(data.reponse);
       if (data.progression?.niveau_resolution_courant >= 2) {
         window.ParcoursApp?.setFeedback?.(
           "Le tuteur a aide sur ce niveau : la chaine parfaite est desormais interrompue pour cette detection de maitrise.",
@@ -190,10 +238,12 @@ const api = {
   },
   appendAssistant(text) {
     appendMessage(`Tuteur : ${text}`, "assistant");
+    speakTutor(text);
   },
   /* Ouverture proactive : message d'accueil contextualise du hibou. */
   openWithGreeting(text) {
     appendMessage(`Tuteur : ${text}`, "assistant");
+    speakTutor(text);
     ensureOpen();
   },
   reset() {

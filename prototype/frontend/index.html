@@ -127,7 +127,10 @@
           On dirait que tu bloques, je peux t'aider ?
         </button>
         <div id="chat-widget" class="chat-bubble hidden">
-          <p class="chat-bubble-title">Le hibou tuteur</p>
+          <div class="chat-bubble-head">
+            <p class="chat-bubble-title">Le hibou tuteur</p>
+            <button id="tutor-mute" class="tutor-mute" type="button" aria-pressed="false" aria-label="Couper la voix du tuteur" title="Couper la voix du tuteur"></button>
+          </div>
           <div id="chat-log" class="chat-log">
             <p class="message assistant">Hou hou ! Pose-moi une question sur l'exercice.</p>
           </div>
@@ -198,3 +201,8 @@
     <script src="proactive.js"></script>
   </body>
 </html>
+    <script src="speech.js"></script>
+    <script src="theme.js"></script>
+    <script src="faiblesses.js"></script>
+    <script src="personnage.js"></script>
+    <script src="tresor.js"></script>
