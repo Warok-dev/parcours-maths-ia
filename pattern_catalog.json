@@ -1,7 +1,7 @@
 {
   "source_file": "analysis/data/pptx_analysis_all_levels_v2.json",
   "filters": {
-    "levels": ["N1", "N2"],
+    "levels": ["N1", "N2", "N3"],
     "correction_found": true
   },
   "summary": {
@@ -16,6 +16,302 @@
     "normalization_note": "Dans plusieurs corrections N1, la phrase explicative inverse l'ordre de la soustraction (ex. '3 = 7 - 10'). Le template canonique à générer doit être normalisé en '10 - 7 = 3'."
   },
   "pure_substitution_patterns": [
+    {
+      "pattern_name": "division_exacte_partage",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{tout} ÷ {diviseur} = {quotient}",
+      "constraints": {
+        "operation": "division exacte (partage)",
+        "operand_count": 2,
+        "operand_sizes": ["diviseur 1 chiffre (2 a 9)", "tout <= 100"],
+        "carry_or_borrow": "non applicable",
+        "generation_rules": [
+          "{tout} = {diviseur} x {quotient} (reste nul)",
+          "le corpus reste sur des tables usuelles (24÷6, 56÷7, 20÷4)"
+        ]
+      },
+      "occurrence_count": 8,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM2_S3.pptx", "question": "56 | 7 | 7 | ... | ?", "correction": "56 ÷ 7 = 8"},
+        {"file": "MATH_N3_P4_SEM3_S1.pptx", "question": "أستخدم القسمة في متساوية الحل", "correction": "24 ÷ 6 = 4"}
+      ]
+    },
+    {
+      "pattern_name": "multiplication_posee_2chiffres",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{f1} x {f2} = {produit}",
+      "constraints": {
+        "operation": "multiplication posee",
+        "operand_count": 2,
+        "operand_sizes": ["2 a 3 chiffres", "2 chiffres"],
+        "carry_or_borrow": "retenues attendues (produits partiels + somme)",
+        "generation_rules": [
+          "produit = f1 x f2 ; le corpus montre les deux produits partiels puis leur somme",
+          "corpus : 32x12=384 ; 85x32=2720 ; 145x26=3770 ; 43x21"
+        ]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM4_S1.pptx", "question": "32 × 12 = ...", "correction": "32 × 12 = 384"},
+        {"file": "MATH_N3_P4_SEM4_S2.pptx", "question": "145 × 26 = ...", "correction": "145 × 26 = 3770"}
+      ]
+    },
+    {
+      "pattern_name": "multiplication_groupes_egaux_modele",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{total} = {n} x {k}  (modele : {k} repete {n} fois)",
+      "constraints": {
+        "operation": "multiplication (groupes egaux depuis un modele)",
+        "operand_count": 2,
+        "operand_sizes": ["{n} nombre de groupes 3 a 8", "{k} taille de groupe 2 chiffres"],
+        "carry_or_borrow": "non applicable",
+        "generation_rules": [
+          "total = n x k ; ecrire l'egalite multiplicative depuis le modele",
+          "corpus : 3x12=36 ; 6x32=192 ; 8x24 ; 6x25"
+        ]
+      },
+      "occurrence_count": 8,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM3_S4.pptx", "question": "12 | 12 | 12 | 3 مرات | ?", "correction": "3 × 12 = 36"},
+        {"file": "MATH_N3_P4_SEM3_S5.pptx", "question": "32 | 32 | 32 | 32 | 32 | 32 | 6 علب", "correction": "6 × 32 = 192"}
+      ]
+    },
+    {
+      "pattern_name": "conversion_kg_g",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{kg} kg = {grammes} g",
+      "constraints": {
+        "rule_type": "conversion d'unites de masse (1 kg = 1000 g)",
+        "generation_rules": [
+          "{grammes} = 1000 x {kg}",
+          "{kg} entier de 1 a 9 ; corpus : 3 kg = 3000 g ; 5 kg = 5000 g"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM1_S3.pptx", "question": "3 kg = ... g", "correction": "3 kg = 3 000 g"},
+        {"file": "MATH_N3_P4_SEM1_S5.pptx", "question": "5 kg = ... g", "correction": "5 kg = 5 000 g"}
+      ]
+    },
+    {
+      "pattern_name": "addition_durees_min",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} min + {b} min = {total} min",
+      "constraints": {
+        "rule_type": "somme de durees en minutes (reste sous l'heure)",
+        "generation_rules": [
+          "total = a + b ; a et b multiples de 5 ; total <= 55",
+          "corpus : 30 min + 15 min = 45 min"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM5_S2.pptx", "question": "30 min + 15 min = ... min", "correction": "45 min"}
+      ]
+    },
+    {
+      "pattern_name": "lecture_heure_analogique",
+      "levels": ["N1", "N3"],
+      "pattern_family": "lecture_horloge",
+      "template": "Horloge (heure={heure}, minute={minute}) -> reponse {heure}:{minute} (MM sur 2 chiffres)",
+      "constraints": {
+        "rule_type": "lecture de l'heure sur une horloge analogique (visuel generable)",
+        "generation_rules": [
+          "CE1 (N1) : heures pleines et demi-heures (minute dans {0, 30})",
+          "CE3 (N3) : pas de 5 minutes (minute multiple de 5)",
+          "heure entre 1 et 12 ; reponse digitale au format H:MM"
+        ]
+      },
+      "occurrence_count": 12,
+      "examples": [
+        {"file": "MATH_N1_P4 (قراءة الساعة)", "question": "اقرؤوا الساعة العقربية", "correction": "الساعة الخامسة تماما (5:00)"},
+        {"file": "MATH_N3_P4_SEM5_S1 (قراءة الساعات)", "question": "قراءة الساعات: الساعات والدقائق", "correction": "7:30"}
+      ]
+    },
+    {
+      "pattern_name": "completer_ligne_graduee",
+      "levels": ["N1"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{v0}, {v1}, ..., {vn} (ligne graduee de pas constant)",
+      "constraints": {
+        "rule_type": "completer une ligne graduee de pas constant (2, 5 ou 10)",
+        "generation_rules": [
+          "pas dans {2, 5, 10} ; valeurs <= 90 ; depart multiple du pas",
+          "reutilise la mecanique 'ligne' (format liste_ordonnee + positions_manquantes)",
+          "corpus : 'نضيف 5 كل مرة' -> 55,60,65,70,75,80 ; 'نضيف 2' ; 'نضيف 10' -> 30..90"
+        ]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM2_S2.pptx", "question": "أكملوا ملء خانات الشريط العددي (نضيف 5 كل مرة)", "correction": "55 | 60 | 65 | 70 | 75 | 80"},
+        {"file": "MATH_N1_P4_SEM2_S1.pptx", "question": "أكملوا ملء خانات الشريط العددي (نضيف 10 كل مرة)", "correction": "30 | 40 | 50 | 60 | 70 | 80 | 90"}
+      ]
+    },
+    {
+      "pattern_name": "completer_tableau_proportionnalite",
+      "levels": ["N4", "N5", "N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Tableau 2 lignes (haut / bas), bas = coefficient x haut ; une case masquee",
+      "constraints": {
+        "rule_type": "proportionnalite a coefficient constant (tableau a completer)",
+        "generation_rules": [
+          "2 lignes etiquetees (ex. tours/km, stylos/prix) ; 3 a 4 colonnes",
+          "ligne du bas = coefficient (2 a 10) x ligne du haut ; produits <= ~120",
+          "une seule case masquee dans la derniere colonne ; reponse = 1 entier",
+          "les colonnes precedentes restent completes pour retrouver le coefficient"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM1_S1.pptx", "question": "معامل التناسب : 6 دورات تمثل 12 كيلومترا (نضرب في 2)", "correction": "15 -> 30"},
+        {"file": "MATH_N4_P4_SEM3_S4.pptx", "question": "املأوا جدول الأعداد المتناسبة (1 -> 450)", "correction": "5 -> 2250"}
+      ]
+    },
+    {
+      "pattern_name": "figure_cotee_simple",
+      "levels": ["N4", "N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Figure basique cotee (rectangle/carre/triangle/polygone regulier) -> perimetre ou aire",
+      "constraints": {
+        "rule_type": "perimetre ou aire d'une forme simple aux dimensions donnees",
+        "generation_rules": [
+          "formes : rectangle (2*(L+l) ou L*l), carre (4*c ou c*c), triangle (a+b+c), polygone regulier (n*cote)",
+          "dimensions entieres ; reponse = 1 entier",
+          "PAS de cercle/compas ni de figure complexe (visuel generable uniquement)",
+          "CE4 : rectangle/carre ; CE5 : triangle, polygone regulier, aires"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM1_S4.pptx", "question": "مستطيل طوله 6 cm ... احسب المحيط (محيط = مرتين مجموع الطول والعرض)", "correction": "P = 2 x (L + l)"},
+        {"file": "MATH_N5_P4_SEM3_S5.pptx", "question": "احسبوا محيط المضلع الخماسي المنتظم (côté 15)", "correction": "5 x 15 = 75"}
+      ]
+    },
+    {
+      "pattern_name": "echelle_plan",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "1 cm sur le plan = {echelle} m ; longueur {plan_cm} cm -> reel {plan_cm} x {echelle} m",
+      "constraints": {
+        "rule_type": "calcul d'echelle (regle de trois) — pattern TEXTE, aucun visuel",
+        "generation_rules": [
+          "1 cm sur le plan represente 'echelle' metres (2 a 100)",
+          "longueur sur le plan 'plan_cm' cm ; reel = plan_cm x echelle metres ; reel <= 999",
+          "le corpus exprime l'echelle en cm (1 cm : 10000 cm) = 1 cm : 100 m"
+        ]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM3_S3.pptx", "question": "المسافة على التصميم 1 cm / المسافة الحقيقية 10000 cm ; 5 cm -> ?", "correction": "5 x 10000 = 50000 cm = 500 m"}
+      ]
+    },
+    {
+      "pattern_name": "comparaison_decimaux",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{a} (< | > | =) {b}  (deux nombres decimaux)",
+      "constraints": {
+        "rule_type": "comparaison de deux nombres decimaux (reponse < > =)",
+        "generation_rules": [
+          "souvent meme partie entiere, decimales differentes (piege 24,93 vs 24,90)",
+          "cas d'egalite parfois ; reponse au format choix_multiple (< > =)"
+        ]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {"file": "MATH_N4_P4 (الأعداد العشرية)", "question": "قارنوا 24,93 و 24,90", "correction": "24,93 > 24,90"},
+        {"file": "MATH_N4_P4 (الأعداد العشرية)", "question": "قارنوا 6 و 6,12", "correction": "6 < 6,12"}
+      ]
+    },
+    {
+      "pattern_name": "addition_decimaux",
+      "levels": ["N4"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} + {b} = {total}  (nombres decimaux)",
+      "constraints": {
+        "rule_type": "addition posee de nombres decimaux (alignement de la virgule)",
+        "generation_rules": ["valeurs en centiemes ; melange entier/decimal possible", "corpus : 34,6 + 29,85 = 64,45"]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4 (جمع الأعداد العشرية)", "question": "34,6 + 29,85 = ...", "correction": "64,45"}
+      ]
+    },
+    {
+      "pattern_name": "soustraction_decimaux",
+      "levels": ["N4"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} - {b} = {difference}  (nombres decimaux)",
+      "constraints": {
+        "rule_type": "soustraction posee de nombres decimaux",
+        "generation_rules": ["a > b ; completer par des zeros pour aligner", "corpus : 45,73 - 19,6 = 26,13"]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4 (طرح الأعداد العشرية)", "question": "45,73 - 19,6 = ...", "correction": "26,13"}
+      ]
+    },
+    {
+      "pattern_name": "conversion_duree_min",
+      "levels": ["N5"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{heures} h {minutes} min = {total} min",
+      "constraints": {
+        "rule_type": "conversion d'une duree h:min en minutes",
+        "generation_rules": ["total = heures x 60 + minutes", "corpus : 10 h 5 min = 605 min"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM4_S1.pptx", "question": "10 h 5 min = ... min", "correction": "605 min"}
+      ]
+    },
+    {
+      "pattern_name": "duree_entre_horaires",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "duree (min) entre {depart} et {arrivee}",
+      "constraints": {
+        "rule_type": "duree entre deux horaires (reponse en minutes)",
+        "generation_rules": ["arrivee > depart le meme jour ; reponse = arrivee - depart en minutes", "corpus : 5h47 -> 7h52 = 125 min"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM4_S2.pptx", "question": "الانطلاق 5:47 الوصول 7:52 : احسبوا المدة", "correction": "2 h 5 min = 125 min"}
+      ]
+    },
+    {
+      "pattern_name": "pourcentage_d_une_quantite",
+      "levels": ["N5", "N6"],
+      "pattern_family": "calcul_direct",
+      "template": "{pourcentage} % de {total} = {resultat}",
+      "constraints": {
+        "rule_type": "pourcentage d'une quantite (regle de trois)",
+        "generation_rules": ["resultat = total x p / 100 ; total choisi pour un resultat entier", "corpus : 32 eleves, 25% -> 8 ; 520 g, 25% -> 130"]
+      },
+      "occurrence_count": 11,
+      "examples": [
+        {"file": "MATH_N5/N6_P4 (النسبة المئوية)", "question": "في قسم 32 تلميذا، 25% إناث : ما عدد الإناث؟", "correction": "8"}
+      ]
+    },
+    {
+      "pattern_name": "vitesse_distance_duree",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "distance = vitesse x duree (trouver l'une des trois)",
+      "constraints": {
+        "rule_type": "vitesse moyenne : d = v x t ; trouver d, v ou t",
+        "generation_rules": ["d = v x t (tous entiers) ; on masque une des trois grandeurs", "corpus : 240 km en 3 h -> 80 km/h"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM3_S1.pptx", "question": "قطعت سيارة 240 km في 3 ساعات : ما السرعة المتوسطة؟", "correction": "240 / 3 = 80 km/h"}
+      ]
+    },
     {
       "pattern_name": "multiplication_decomposee_chiffre_x_2chiffres",
       "levels": ["N2"],

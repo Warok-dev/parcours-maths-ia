@@ -223,3 +223,6 @@ __marimo__/
 
 # Sessions de jeu persistees (prototype)
 prototype/backend/data/sessions/
+
+# Credentials du compte de service Google Cloud (Text-to-Speech) — jamais commit
+prototype/backend/google-tts-credentials.json

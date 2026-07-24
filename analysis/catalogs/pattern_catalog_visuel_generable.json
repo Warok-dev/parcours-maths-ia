@@ -1,0 +1,102 @@
+{
+  "titre": "Patterns nouvellement retenus par le cadre corrige (visuel generable + calcul deduit)",
+  "cadre": {
+    "correction_1_confiance": {
+      "confirme": "correction du corpus appariee ET conforme au calcul attendu (fiabilite maximale)",
+      "deduit": "aucune correction appariee, mais reponse calculable sans ambiguite depuis l'enonce (calcul_direct / trous numeriques uniquement ; fiabilite haute, non verifiee contre le corpus)"
+    },
+    "correction_2_visuel": {
+      "visuel_generable": "descriptible par quelques parametres numeriques et rendu en SVG procedural (coherent avec le rendu du jeu : decor, personnage, tresor)",
+      "visuel_complexe": "diagramme/photo/trace precis (compas, regle), solide 3D non simplement generable -> reste exclu"
+    },
+    "note": "Analyse uniquement. Aucun code de generation n'est modifie a ce stade."
+  },
+  "patterns_visuel_generable": [
+    {
+      "pattern_name": "lecture_heure_analogique",
+      "categorie": "visuel_generable",
+      "priorite": 1,
+      "niveaux": {
+        "N1": {"lecons": ["قراءة الساعة (1)", "قراءة الساعة (2)"], "occurrences": 29, "confiance": "confirme(14)+deduit(15)", "granularite": "heures pleines et demi-heures"},
+        "N3": {"lecons": ["قراءة الساعات: الساعات والدقائق (L17)"], "occurrences": 8, "confiance": "confirme(1)+deduit(7)", "granularite": "heures + minutes (pas de 5 min)"}
+      },
+      "parametres_svg": ["heure (0-11)", "minute (0, 30, ou multiples de 5)"],
+      "rendu": "cadran + 2 aiguilles ; angle_heures = heure*30 + minute*0.5 ; angle_minutes = minute*6",
+      "template": "Quelle heure indique cette horloge ? (aiguilles a heure={h}, minute={m}) -> {h}:{m:02d}",
+      "reponse": "heure numerique H:MM (ou choix parmi 3 horloges digitales, comme dans le corpus)",
+      "justification": "Explicitement ecarte au tout debut de l'analyse comme 'reconnaissance visuelle'. Un cadran analogique = 2 parametres, deterministe, rendu SVG trivial. C'est le pattern generable le plus frequent du corpus CE1.",
+      "exemples_corpus": [
+        {"file": "N1", "q": "اكتبوا العدد الذي يشير إليه العقرب الصغير", "c": "يشير العقرب الصغير إلى 4"},
+        {"file": "N1", "q": "اقرؤوا الساعة العقربية واكتبوا رقم الساعة الرقمية الموافقة", "c": "الخامسة تماما إذن الساعة الرقمية رقم 1"},
+        {"file": "N3", "q": "حددوا عدد الدقائق التي يشير إليها العقرب الكبير", "c": "..."}
+      ]
+    },
+    {
+      "pattern_name": "completer_ligne_graduee",
+      "categorie": "visuel_generable",
+      "priorite": 2,
+      "niveaux": {
+        "N1": {"lecons": ["الشريط العددي (suites)"], "occurrences": 2, "confiance": "confirme(2)"}
+      },
+      "parametres_svg": ["depart", "pas", "positions vides"],
+      "rendu": "segment horizontal gradue avec reperes ; une ou deux cases vides a completer",
+      "template": "Complete la ligne graduee : {debut}, ..., {pas}, ... -> valeurs manquantes",
+      "reponse": "liste_ordonnee (deja supportee par le jeu, cf. suite_multiples_de_10)",
+      "justification": "Support visuel des suites arithmetiques deja au catalogue ; la ligne graduee rend l'exercice concret. Reutilise le format de reponse liste_ordonnee existant.",
+      "exemples_corpus": [
+        {"file": "N1", "q": "أكملوا ملء خانات الشريط العددي", "c": "30 | 40 | 50 | 60 | 70 | 80 | 90"}
+      ]
+    },
+    {
+      "pattern_name": "completer_tableau_proportionnalite",
+      "categorie": "visuel_generable",
+      "priorite": 3,
+      "niveaux": {
+        "N6": {"lecons": ["التناسبية / جدول التناسب"], "occurrences": 5, "confiance": "confirme(5)"},
+        "N5": {"lecons": ["lecture de tableau de donnees"], "occurrences": 5, "confiance": "deduit(5)"},
+        "N4": {"lecons": ["tableau de prix"], "occurrences": 2, "confiance": "confirme(2)"}
+      },
+      "parametres_svg": ["lignes/colonnes", "coefficient", "cases masquees"],
+      "rendu": "tableau HTML/SVG simple a 2 lignes ; une case masquee",
+      "template": "Complete le tableau de proportionnalite (coefficient {k}) : ligne2 = {k} x ligne1",
+      "reponse": "nombre_entier (la case manquante)",
+      "justification": "Un tableau a 2 lignes est un rendu deterministe simple. Deja identifie comme tableau_proportionnalite_coefficient dans pattern_catalog_N6.json ; reclasse ici comme visuel GENERABLE (et non complexe).",
+      "exemples_corpus": [
+        {"file": "N6", "q": "نحدد معامل التناسب في الجدول. 6 دورات تمثل 12 كيلومترا", "c": "coefficient 2 ; 15 -> 30"}
+      ]
+    },
+    {
+      "pattern_name": "figure_cotee_simple",
+      "categorie": "visuel_generable",
+      "priorite": 4,
+      "sous_patterns": [
+        {"nom": "perimetre_rectangle", "formule": "2 x (L + l)", "niveaux": ["N4"]},
+        {"nom": "aire_rectangle", "formule": "L x l", "niveaux": ["N4", "N5"]},
+        {"nom": "perimetre_polygone_regulier", "formule": "n x cote", "niveaux": ["N5"]},
+        {"nom": "circonference_cercle", "formule": "2 x pi x r (pi=3,14)", "niveaux": ["N5"]}
+      ],
+      "niveaux": {
+        "N4": {"occurrences": 4, "confiance": "confirme(1)+deduit(3)"},
+        "N5": {"occurrences": 2, "confiance": "confirme(2)", "note": "socle recupere plus large via calcul_direct deduit (cf. rapport)"}
+      },
+      "parametres_svg": ["type (rectangle/carre/polygone/cercle)", "dimensions cotees"],
+      "rendu": "figure 2D basique (rectangle, polygone regulier, cercle) avec cotes annotees",
+      "template": "Figure {type} de dimensions {dims}. Calcule son {perimetre|aire}.",
+      "reponse": "nombre_entier ou decimal",
+      "justification": "A distinguer de la geometrie au compas (visuel complexe). Un rectangle/carre/polygone regulier/cercle cote est parametrable et rendu SVG deterministe.",
+      "exemples_corpus": [
+        {"file": "N5", "q": "احسبوا محيط المضلع الخماسي المنتظم (cote 15)", "c": "5 x 15"},
+        {"file": "N5", "q": "احسبوا محيط الدائرة (شعاع = 10 cm)", "c": "d = 2 x 10 = 20 ; P = pi x d"}
+      ]
+    }
+  ],
+  "patterns_calcul_deduit_recuperes": {
+    "note": "Types DEJA connus, mais dont beaucoup d'occurrences etaient ecartees faute de correction appariee. Correction 1 les retient en confiance 'deduit'. Peu ou pas de NOUVEAUX types, mais volume et couverture nettement accrus.",
+    "par_niveau": {
+      "N2": {"deduit_calcul_direct": 27, "types": ["multiplication_par_10", "multiplication_chiffre_x_multiple_de_10", "multiplication_decomposee", "addition_2chiffres", "conversion_cm_mm"], "nouveau_type": null},
+      "N3": {"deduit_calcul_direct": 11, "types": ["multiplication_posee", "division", "conversion", "durees"], "nouveau_type": null},
+      "N5": {"deduit_calcul_direct": 38, "types": ["circonference_cercle", "perimetre_polygone", "aire_rectangle", "aire/surface de solides (figure-dependant)"], "nouveau_type": "pourcentage_d_une_quantite (confirme comme calculable)", "commentaire": "Recuperation majeure : le 5.4% d'appariement masquait un socle calculable substantiel."},
+      "N6": {"deduit_calcul_direct": 13, "types": ["pourcentage_d_une_quantite", "vitesse_distance_duree"], "nouveau_type": "echelle_plan (1 cm sur plan : X cm reel)"}
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "source_file": "analysis/data/pptx_analysis_all_levels_v2.json (re-extrait sur data/raw/N6)",
+  "niveau": "N6 (CE6)",
+  "filters": {
+    "levels": ["N6"],
+    "correction_found": true
+  },
+  "summary": {
+    "files": 25,
+    "questions_detectees": 242,
+    "corrections_detectees": 280,
+    "paires_appariees": 110,
+    "taux_appariement": "45.5%",
+    "confidence": "moyenne : le taux d'appariement est bon mais TROMPEUR. ~37 des 110 paires sont un QCM de vocabulaire arabe<->francais (Proportionnalite, Linearite...) qui n'est PAS des mathematiques generables ; une part importante du reste est de la lecture de graphiques/tableaux. Le coeur mathematique reellement substituable (proportionnalite numerique, pourcentage, fraction->decimal) est plus restreint que 110.",
+    "exclusion_policy": [
+      "QCM de traduction de vocabulaire arabe<->francais (ما مقابل الكلمة بالفرنسية) : ~37 paires, hors mathematiques",
+      "lecture de graphiques / reperage sur un mibayan (المبيان, محور) : visuel",
+      "agrandissement/reduction de figures (تكبير المثلث) : visuel"
+    ],
+    "extraction_caveat": "Beaucoup de patterns de proportionnalite sont presentes sous forme de TABLEAU a completer (جدول التناسب) : les valeurs vivent dans un tableau OpenXML, l'extraction texte les recupere en liste '| a | b |' sans structure lignes/colonnes. Occurrences approximatives."
+  },
+  "pure_substitution_patterns": [
+    {
+      "pattern_name": "tableau_proportionnalite_coefficient",
+      "levels": ["N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Ligne 2 = {coefficient} × Ligne 1  (completer la case manquante d'un tableau de proportionnalite)",
+      "constraints": {
+        "rule_type": "proportionnalite : coefficient multiplicateur constant",
+        "generation_rules": [
+          "toutes les paires (x, y) verifient y = k x",
+          "corpus : 6 tours -> 12 km (k = 2) ; prix unitaire x quantite",
+          "masquer une case et demander sa valeur"
+        ]
+      },
+      "occurrence_count": 10,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM*", "question": "6 دورات تمثل 12 كيلومترا ; ×2", "correction": "15 -> 30 ; 6/12 ; coefficient 2"}
+      ]
+    },
+    {
+      "pattern_name": "pourcentage_d_une_quantite",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "{p}% de {total} = {resultat}  (regle de trois : {total} × {p} / 100)",
+      "constraints": {
+        "operation": "pourcentage d'une quantite (regle de trois)",
+        "generation_rules": [
+          "{resultat} = {total} x {p} / 100 ; resultat entier",
+          "corpus : 100% = 520 g, 25% = ? ; 25% de 32 = 8"
+        ]
+      },
+      "occurrence_count": 11,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM*", "question": "100 % | 520 g | 25 % | ?", "correction": "520 × 25/100 = 130"}
+      ]
+    },
+    {
+      "pattern_name": "vitesse_distance_duree",
+      "levels": ["N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "distance = {vitesse} × {duree}  (proportionnalite vitesse constante)",
+      "constraints": {
+        "rule_type": "proportionnalite vitesse/distance/duree",
+        "generation_rules": [
+          "d = v x t ; le corpus fixe une vitesse (ex 85 km/h) et demande d ou t",
+          "corpus : 85 km en 1 h ... distance en 6 h ; 340 km -> duree"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM*", "question": "احسبوا المسافة التي ستقطعها السيارة خلال 6 ساعات (85 km/h)", "correction": "85 × 6 = 510 km"}
+      ]
+    },
+    {
+      "pattern_name": "fraction_vers_decimal",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "{numerateur}/{denominateur} = {decimal}",
+      "constraints": {
+        "rule_type": "conversion fraction decimale -> nombre decimal (et % -> fraction)",
+        "generation_rules": [
+          "denominateur en 10, 100 ; corpus : 4,5 = 45/10 ; 30% = 30/100",
+          "aussi : ecrire la fraction d'une partie coloree puis la convertir (partie coloree = visuel, a exclure)"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM*", "question": "حولوا الكسر إلى عدد عشري 45/10", "correction": "4,5"}
+      ]
+    }
+  ],
+  "llm_required_patterns": [
+    {
+      "pattern_name": "probleme_proportionnalite_prix",
+      "levels": ["N6"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "Le prix d'un(e) {objet} est {prix_unitaire} {monnaie}. {personne} en achete {quantite}. Prix total ?",
+      "constraints": {
+        "operation": "proportionnalite (prix unitaire x quantite)",
+        "story_slots": ["objet", "prix_unitaire", "monnaie", "personne", "quantite", "question"],
+        "llm_need": "habillage + organisation possible en tableau de proportionnalite"
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM*", "question": "ثمن القلم الواحد 3 دراهم، اشترى خالد عددا من الأقلام", "correction": "y = 3 x"}
+      ]
+    },
+    {
+      "pattern_name": "probleme_vitesse",
+      "levels": ["N6"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "{mobile} roule a {vitesse} km/h. {question sur distance ou duree}",
+      "constraints": {
+        "operation": "d = v x t",
+        "story_slots": ["mobile", "vitesse", "distance", "duree", "question"],
+        "llm_need": "contexte de trajet credible et coherence des unites"
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM*", "question": "السرعة 85 km/h ... المسافة خلال 6 ساعات", "correction": "510 km"}
+      ]
+    }
+  ]
+}

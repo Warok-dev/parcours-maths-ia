@@ -1,0 +1,181 @@
+{
+  "source_file": "analysis/data/pptx_analysis_all_levels_v2.json (re-extrait sur data/raw/N4)",
+  "niveau": "N4 (CE4)",
+  "filters": {
+    "levels": ["N4"],
+    "correction_found": true
+  },
+  "summary": {
+    "files": 25,
+    "questions_detectees": 225,
+    "corrections_detectees": 243,
+    "paires_appariees": 87,
+    "taux_appariement": "38.7%",
+    "confidence": "moyenne a bonne : le coeur (nombres decimaux) est tres substituable, mais l'appariement est plombe par la geometrie (angles, symetrie, perimetre) et par des lots de calcul mental sans operandes appariables.",
+    "exclusion_policy": [
+      "mesure d'angles au rapporteur (منقلة, درجة) : depend de la figure",
+      "axes/centre de symetrie (محور التماثل) : reconnaissance visuelle",
+      "perimetre d'un rectangle rattache a une figure cotee (partiellement, cf. llm_required)",
+      "lots de calcul mental affiches comme listes de nombres sans structure operande->resultat"
+    ],
+    "extraction_caveat": "Le corpus N4 est domine par les decimaux ; les operandes decimaux sont parfois eclates par l'extraction (ex '34, 6' au lieu de '34,6') a cause des espaces OpenXML. Les templates ci-dessous reconstruisent le nombre decimal normalise."
+  },
+  "pure_substitution_patterns": [
+    {
+      "pattern_name": "comparaison_decimaux",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{d1} {< | > | =} {d2}",
+      "constraints": {
+        "rule_type": "comparaison de deux nombres decimaux",
+        "generation_rules": [
+          "corpus : 24,93 > 24,90 ; 6 < 6,12 ; 4,5 = 45/10",
+          "varier le nombre de decimales (piege classique 6 vs 6,12) et l'egalite de la partie entiere"
+        ]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "24,93 ... 24,90", "correction": "24,93 > 24,90"},
+        {"file": "MATH_N4_P4_SEM*", "question": "6 ... 6,12", "correction": "6 < 6,12"}
+      ]
+    },
+    {
+      "pattern_name": "rangement_decimaux",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Ranger {liste de decimaux} dans l'ordre croissant (ou decroissant)",
+      "constraints": {
+        "rule_type": "tri d'une liste de nombres decimaux",
+        "generation_rules": [
+          "corpus : 20,15 / 20,6 / 20,7 ; 14,02 / 14,2 / 14,4 ; 10,19 / 10,3 ; 8,37 / 8,4 / 8,73",
+          "meme partie entiere, nombre de decimales varie pour creer l'ambiguite pedagogique"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "رتبوا: 20,15 20,6 20,7", "correction": "20,15 < 20,6 < 20,7"},
+        {"file": "MATH_N4_P4_SEM*", "question": "العدد الأصغر", "correction": "9,02"}
+      ]
+    },
+    {
+      "pattern_name": "addition_decimaux_posee",
+      "levels": ["N4"],
+      "pattern_family": "calcul_direct",
+      "template": "{d1} + {d2} = {somme}",
+      "constraints": {
+        "operation": "addition de decimaux (technique posee, alignement de la virgule)",
+        "carry_or_borrow": "retenues possibles ; completion par des 0 pour aligner les decimales",
+        "generation_rules": [
+          "corpus : 34,6 + 29,85 = 64,45 ; 19 + 35,17 = 54,17 ; 7,25 + 0,68 = 7,93",
+          "melanger un entier et un decimal (19 + 35,17) pour travailler l'alignement"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "34,6 + 29,85 = ...", "correction": "34,6 + 29,85 = 64,45"},
+        {"file": "MATH_N4_P4_SEM*", "question": "19 + 35,17 = ...", "correction": "19 + 35,17 = 54,17"}
+      ]
+    },
+    {
+      "pattern_name": "soustraction_decimaux_posee",
+      "levels": ["N4"],
+      "pattern_family": "calcul_direct",
+      "template": "{d1} - {d2} = {difference}",
+      "constraints": {
+        "operation": "soustraction de decimaux (technique posee)",
+        "carry_or_borrow": "emprunts possibles ; completer par des 0 (76,00 - 24,26)",
+        "generation_rules": [
+          "corpus : 45,73 - 19,6 = 26,13 ; 76 - 24,26 = 51,74 ; {d1} >= {d2}",
+          "melanger entier et decimal pour travailler l'alignement virgule"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "45,73 - 19,6 = ...", "correction": "45,73 - 19,6 = 26,13"},
+        {"file": "MATH_N4_P4_SEM*", "question": "76 - 24,26 = ...", "correction": "76 - 24,26 = 51,74"}
+      ]
+    },
+    {
+      "pattern_name": "composition_decomposition_decimal",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{e} + {d}/10 + {c}/100 = {decimal}   (ou : {u} unites {d} dixiemes = {decimal})",
+      "constraints": {
+        "rule_type": "composition/decomposition d'un decimal en unites, dixiemes, centiemes",
+        "generation_rules": [
+          "corpus : 7 unites 3 dixiemes = 7,3 ; 10 + 9 + 0,6 + 0,07 = 19,67 ; 14 dixiemes = 1,4",
+          "souvent presente en QCM (distracteurs 3,7 / 7,3 / 37 / 73)"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "7 وحدات و3 أعشار", "correction": "7,3"},
+        {"file": "MATH_N4_P4_SEM*", "question": "10 + 9 + 0,6 + 0,07 = ...", "correction": "19,67"}
+      ]
+    },
+    {
+      "pattern_name": "arrondi_dizaine_centaine",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "La {dizaine|centaine} la plus proche de {n} est {arrondi}",
+      "constraints": {
+        "rule_type": "arrondi a la dizaine / centaine la plus proche",
+        "generation_rules": [
+          "corpus : dizaine proche de 52 = 50 ; centaine proche de 273 = 300",
+          "presente en QCM ; eviter les cas d'egalite parfaite (x5 pour la dizaine)"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "العشرة الأقرب للعدد 52", "correction": "50"},
+        {"file": "MATH_N4_P4_SEM*", "question": "المئة الأقرب للعدد 273", "correction": "300"}
+      ]
+    },
+    {
+      "pattern_name": "soustraction_grands_nombres_posee",
+      "levels": ["N4"],
+      "pattern_family": "calcul_direct",
+      "template": "{n1} - {n2} = {difference}",
+      "constraints": {
+        "operation": "soustraction posee sur entiers a 3-4 chiffres",
+        "carry_or_borrow": "emprunts attendus",
+        "generation_rules": ["corpus : 2584 - 936 = 1648", "{n1} >= {n2}"]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "2 584 - 936 = ...", "correction": "1 648"}
+      ]
+    }
+  ],
+  "llm_required_patterns": [
+    {
+      "pattern_name": "division_posee_quotient_reste",
+      "levels": ["N4"],
+      "pattern_family": "calcul_pose_complexe",
+      "template": "{dividende} ÷ {diviseur} = {quotient} reste {reste}",
+      "constraints": {
+        "operation": "division euclidienne posee",
+        "generation_rules": ["corpus : 457 ÷ 21 ; 954 ÷ 41 ; l'affichage de la potence est fortement visuel"],
+        "note": "Substituable arithmetiquement (quotient/reste calculables), mais la CORRECTION est une disposition posee difficile a rendre en texte ; a integrer plutot comme calcul a reponse courte (quotient et reste) qu'en reproduisant la potence."
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "457 ÷ 21", "correction": "quotient 21 reste 16"}
+      ]
+    },
+    {
+      "pattern_name": "probleme_perimetre_rectangle",
+      "levels": ["N4"],
+      "pattern_family": "probleme_geometrique",
+      "template": "Perimetre d'un rectangle de longueur {L} et largeur {l} : 2 x ({L} + {l})",
+      "constraints": {
+        "operation": "perimetre = 2 x (L + l)",
+        "note": "Rattache a une figure cotee dans le corpus (A B C D, cotes marques). Generable par formule mais l'enonce/correction s'appuient sur un dessin : LLM pour l'habillage, figure a fournir cote jeu."
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM*", "question": "محيط المستطيل", "correction": "18 = 6+6+3+3"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "source_file": "analysis/data/pptx_analysis_all_levels_v2.json (re-extrait sur data/raw/N3)",
+  "niveau": "N3 (CE3)",
+  "filters": {
+    "levels": ["N3"],
+    "correction_found": true
+  },
+  "summary": {
+    "files": 24,
+    "questions_detectees": 197,
+    "corrections_detectees": 212,
+    "paires_appariees": 96,
+    "taux_appariement": "48.7%",
+    "confidence": "bonne (comparable a N1/N2)",
+    "exclusion_policy": [
+      "classification visuelle de triangles (قائم/متساوي الساقين/الأضلاع, حاد/منفرج) : necessite l'image, non substituable",
+      "symetrie de figures (متماثل / غير متماثل), rayon/centre du cercle : reconnaissance visuelle",
+      "lecture de balance / choix d'unite sur un dessin"
+    ],
+    "extraction_caveat": "Occurrences approximatives : comptees sur les paires appariees (texte tronque a 240 car.). La division posee et la multiplication posee apparaissent en variantes 'etape 1 / etape 2' qui gonflent les comptes."
+  },
+  "pure_substitution_patterns": [
+    {
+      "pattern_name": "division_exacte_partage",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{tout} ÷ {diviseur} = {quotient}",
+      "constraints": {
+        "operation": "division exacte",
+        "operand_count": 2,
+        "operand_sizes": ["diviseur 1 chiffre (2 a 9)", "tout <= 100 dans le corpus observe"],
+        "generation_rules": [
+          "{tout} = {diviseur} x {quotient} (reste nul)",
+          "presentation frequente en modele de barres partage en {quotient} segments de {diviseur}",
+          "le corpus reste sur des tables usuelles (24÷6, 56÷7, 20÷4)"
+        ]
+      },
+      "occurrence_count": 8,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM*", "question": "متساوية حل المسألة | 56 | 7 | 7 | ... | ?", "correction": "56 ÷ 7 = 8"},
+        {"file": "MATH_N3_P4_SEM*", "question": "أستخدم القسمة في متساوية الحل", "correction": "24 ÷ 6 = 4"},
+        {"file": "MATH_N3_P4_SEM*", "question": "20 | 4 | 4 | ... | عدد الصفحات | ؟", "correction": "20 ÷ 4 = 5"}
+      ]
+    },
+    {
+      "pattern_name": "conversion_kg_g",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{kg} kg = {kg}000 g   |   {g} g = {kg} kg {reste} g",
+      "constraints": {
+        "rule_type": "conversion d'unites de masse (1 kg = 1000 g), deux sens",
+        "generation_rules": [
+          "sens 1 (kg -> g) : {g_total} = 1000 x {kg}",
+          "sens 2 (g -> kg+g) : {kg} = {g_total} // 1000 ; {reste} = {g_total} % 1000",
+          "corpus : 3 kg = 3000 g ; 5 kg = 5000 g ; 7420 g = 7 kg 420 g ; 2750 g = 2 kg 750 g"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM*", "question": "3 kg = ... g", "correction": "3 kg = 3 000 g"},
+        {"file": "MATH_N3_P4_SEM*", "question": "7 420 g = ... kg ... g", "correction": "7 420 g = 7 kg 420 g"},
+        {"file": "MATH_N3_P4_SEM*", "question": "5 kg = ... g", "correction": "5 kg = 5 000 g"}
+      ]
+    },
+    {
+      "pattern_name": "multiplication_posee_2chiffres",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{facteur1} × {facteur2} = {produit}",
+      "constraints": {
+        "operation": "multiplication posee",
+        "operand_count": 2,
+        "operand_sizes": ["2 a 3 chiffres", "2 chiffres"],
+        "carry_or_borrow": "retenues attendues (produits partiels + somme)",
+        "generation_rules": [
+          "corpus : 32×12=384 ; 85×32=2720 ; 145×26=3770 ; 43×21",
+          "la correction montre les deux produits partiels puis leur somme (technique posee)"
+        ]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM*", "question": "32 × 12 = ...", "correction": "32 × 12 = 384 (64 ; 32 ; 384)"},
+        {"file": "MATH_N3_P4_SEM*", "question": "85 × 32 = ...", "correction": "85 × 32 = 2720 (170 ; 255 ; 2720)"},
+        {"file": "MATH_N3_P4_SEM*", "question": "145 × 26 = ...", "correction": "145 × 26 = 3770"}
+      ]
+    },
+    {
+      "pattern_name": "multiplication_groupes_egaux_modele",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{n} × {k} = {total}  (modele : {k} repete {n} fois)",
+      "constraints": {
+        "operation": "multiplication (groupes egaux depuis un modele en barres)",
+        "operand_count": 2,
+        "operand_sizes": ["{n} nombre de groupes 3 a 8", "{k} taille de groupe 1 a 2 chiffres"],
+        "generation_rules": [
+          "corpus : 3×12=36 ; 6×32=192 ; 8×24 ; 6×25",
+          "meme famille que addition_repetee_vers_multiplication (N2) mais nombres plus grands"
+        ]
+      },
+      "occurrence_count": 8,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM*", "question": "12 | 12 | 12 | 3 مرات | ?", "correction": "3 × 12 = 36"},
+        {"file": "MATH_N3_P4_SEM*", "question": "32 | 32 | 32 | 32 | 32 | 32 | 6 علب", "correction": "6 × 32 = 192"}
+      ]
+    },
+    {
+      "pattern_name": "addition_durees_min",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} min + {b} min = {total} min",
+      "constraints": {
+        "rule_type": "somme de durees en minutes (sans franchir l'heure dans le corpus observe)",
+        "generation_rules": ["corpus : 30 min + 15 min = 45 min", "occurrence faible ; a confirmer manuellement"]
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM*", "question": "30 min + 15 min = ...", "correction": "30 min + 15 min = 45 min"}
+      ]
+    }
+  ],
+  "llm_required_patterns": [
+    {
+      "pattern_name": "probleme_partage_division",
+      "levels": ["N3"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "{personne} a {total} {objets}. {action} en {contenant} de {taille} chacun. Combien de {contenant} ?",
+      "constraints": {
+        "operation": "division exacte (partage / groupement)",
+        "operand_sizes": ["total <= 100, multiple exact de la taille"],
+        "story_slots": ["personne", "objet", "total", "taille", "contenant", "question"],
+        "llm_need": "contexte credible + accord ; verifier que total est un multiple exact"
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM*", "question": "لَدى سَميرَةَ 24 قَلَماً. تُريدُ تَرْتيبَها في عُلَبٍ تَسَعُ كُلُّ واحِدَةٍ 6 أَقلام. كَمْ عُلْبَةً؟", "correction": "24 ÷ 6 = 4"}
+      ]
+    },
+    {
+      "pattern_name": "probleme_groupes_egaux_total",
+      "levels": ["N3"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "Il y a {n} {contenant} de {k} {objets}. Combien de {objets} en tout ?",
+      "constraints": {
+        "operation": "multiplication",
+        "story_slots": ["contenant", "objet", "n", "k", "question"],
+        "llm_need": "variation du contexte (classes, boites de chocolat) et formulation"
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM*", "question": "عدد قطع الشوكولاتة في 6 علب، في كل علبة 32 قطعة", "correction": "6 × 32 = 192"}
+      ]
+    }
+  ]
+}

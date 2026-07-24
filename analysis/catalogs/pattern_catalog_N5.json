@@ -1,0 +1,110 @@
+{
+  "source_file": "analysis/data/pptx_analysis_all_levels_v2.json (re-extrait sur data/raw/N5)",
+  "niveau": "N5 (CE5)",
+  "filters": {
+    "levels": ["N5"],
+    "correction_found": true
+  },
+  "summary": {
+    "files": 25,
+    "questions_detectees": 240,
+    "corrections_detectees": 103,
+    "paires_appariees": 13,
+    "taux_appariement": "5.4%",
+    "confidence": "FAIBLE — a NE PAS integrer au jeu en l'etat sans curation manuelle.",
+    "diagnostic": "Les slides de correction SONT detectees (103) mais ne s'apparient quasiment pas (13/240). Ce n'est donc pas un probleme de detection de correction : les reponses de N5 sont calculees a partir de FIGURES (prismes, cylindres, disques, secteurs, pourcentages sur schema). Le texte de la question partage peu ou pas de nombres avec la correction, et l'appariement par recouvrement numerique s'effondre. N5 est aussi le SEUL niveau a contenir des graphiques (42 charts).",
+    "extraction_caveat": "Les patterns ci-dessous sont INFERES du sujet, pas derives de paires propres et nombreuses. Les occurrence_count sont indicatifs (<= 3). A confirmer/curer manuellement sur les fichiers source avant toute integration.",
+    "recommandation": "Ne pas alimenter le jeu depuis l'extraction automatique pour N5. Deux options : (a) curation manuelle d'un petit lot de patterns purement numeriques (pourcentage d'une quantite, perimetre de polygone regulier) ; (b) reporter N5 tant qu'un pipeline multimodal (lecture des figures/graphiques) n'est pas disponible."
+  },
+  "pure_substitution_patterns": [
+    {
+      "pattern_name": "pourcentage_d_une_quantite",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "{p}% de {total} = {resultat}",
+      "confidence": "moyenne (le sous-jacent est purement numerique meme si le corpus l'habille d'un schema)",
+      "constraints": {
+        "operation": "pourcentage d'une quantite",
+        "generation_rules": [
+          "{resultat} = {total} x {p} / 100 ; choisir {total} et {p} pour un resultat entier",
+          "corpus : 25% de 32 = 8 ; 40% de 240 = 96 (voitures electriques)"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM*", "question": "في قسم 32 تلميذا. 25% منهم إناث. ما عدد الإناث؟", "correction": "32 × 25/100 = 8"},
+        {"file": "MATH_N5_P4_SEM*", "question": "240 ... 40% ...", "correction": "240 × 40/100 = 96"}
+      ]
+    },
+    {
+      "pattern_name": "perimetre_polygone_regulier",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Perimetre = {n_cotes} × {cote}",
+      "confidence": "faible (figure implicite ; le nombre de cotes vient du dessin)",
+      "constraints": {
+        "operation": "perimetre d'un polygone regulier",
+        "generation_rules": ["{perimetre} = {n_cotes} x {cote} ; corpus : pentagone regulier"],
+        "note": "Le nombre de cotes est porte par la figure ; fournir la figure ou expliciter le polygone dans l'enonce."
+      },
+      "occurrence_count": 1,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM*", "question": "احسبوا محيط المضلع الخماسي المنتظم", "correction": "5 × cote"}
+      ]
+    },
+    {
+      "pattern_name": "circonference_cercle",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Circonference = 2 × π × {rayon}  (π ≈ 3,14)",
+      "confidence": "faible (rayon/diametre lus sur la figure ; approximation de π a fixer)",
+      "constraints": {
+        "operation": "circonference d'un cercle",
+        "generation_rules": ["corpus : 6,28 -> 18,84 (facteur 3 sur 2π) ; fixer π = 3,14 et arrondir"],
+        "note": "Depend d'une figure cotee ; a expliciter dans l'enonce si integre."
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM*", "question": "احسبوا محيط الدائرة", "correction": "6,28 -> 18,84"}
+      ]
+    },
+    {
+      "pattern_name": "aire_rectangle_base",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Aire = {longueur} × {largeur}",
+      "confidence": "faible (dimensions lues sur la figure, contexte prisme/moushour)",
+      "constraints": {
+        "operation": "aire d'un rectangle (base d'un prisme)",
+        "generation_rules": ["corpus : 7,5 x 3 = 22,5 cm² ; 2 x 15,75 = 31,5 cm²"],
+        "note": "Rattache a un solide (moushour) dans le corpus ; figure necessaire."
+      },
+      "occurrence_count": 1,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM*", "question": "احسبوا مساحة قاعدة الموشور", "correction": "7,5 × 3 = 22,5 cm²"}
+      ]
+    }
+  ],
+  "llm_required_patterns": [
+    {
+      "pattern_name": "probleme_pourcentage",
+      "levels": ["N5"],
+      "pattern_family": "probleme_narratif_simple",
+      "template": "Dans {contexte} il y a {total} {objets}. {p}% sont {categorie}. Combien de {categorie} ?",
+      "constraints": {
+        "operation": "pourcentage d'une quantite",
+        "story_slots": ["contexte", "total", "p", "categorie", "question"],
+        "llm_need": "habillage narratif ; garantir un resultat entier"
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM*", "question": "في قسم 32 تلميذا. 25% منهم إناث. ما عدد الإناث؟", "correction": "8"}
+      ]
+    }
+  ],
+  "non_exploitable_par_texte": [
+    "aires et volumes de solides (moshour/prisme, ustuwana/cylindre) a partir du patron ou de la figure",
+    "lecture de diagrammes (42 charts sur N5) : nombre de livres, secteurs de pizza, etc.",
+    "reconnaissance de patrons de solides (النشر المناسب للموشور)"
+  ]
+}
