@@ -51,7 +51,8 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["pattern"]["generation_method"], "substitution")
 
     def test_get_exercices_invalid_level_returns_400(self) -> None:
-        response = self.client.get("/exercices/CE3")
+        # CE7 n'est pas un niveau supporte (CE1-CE3 le sont).
+        response = self.client.get("/exercices/CE7")
         self.assertEqual(response.status_code, 400)
         self.assertIn("Niveau invalide", response.json()["detail"])
 
@@ -66,6 +67,48 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertTrue({"lecon_id", "nom", "pattern_count", "patterns"}.issubset(first_lesson.keys()))
         self.assertIsInstance(first_lesson["patterns"], list)
         self.assertGreater(first_lesson["pattern_count"], 0)
+
+    def test_get_lecons_ce3_returns_expected_lessons(self) -> None:
+        response = self.client.get("/lecons/CE3")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["niveau_scolaire"], "CE3")
+        ids = {lecon["lecon_id"] for lecon in payload["lecons"]}
+        self.assertIn("multiplication_division", ids)
+        self.assertIn("mesures_masse_duree", ids)
+
+    def test_ce3_session_flow_unlocks_two_concepts(self) -> None:
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE3", "lecon_id": "multiplication_division"},
+        )
+        self.assertEqual(start.status_code, 200)
+        payload = start.json()
+        session_id = payload["session_id"]
+        exercice = payload["exercice"]
+        self.assertEqual(payload["progression"]["niveau_scolaire"], "CE3")
+        self.assertEqual(exercice["niveau_scolaire"], "CE3")
+
+        max_index = 0
+        for _ in range(30):
+            body = self.client.post(
+                "/evaluer",
+                json={
+                    "session_id": session_id,
+                    "exercice_id": exercice["id"],
+                    "reponse_donnee": _answer_for(exercice),
+                },
+            ).json()
+            progression = body.get("progression", {})
+            max_index = max(max_index, progression.get("concept_index", 0))
+            if progression.get("terminee"):
+                break
+            if "exercice_suivant" in body:
+                exercice = body["exercice_suivant"]
+
+        # Parcours parfait : au moins 2 concepts debloques (l'index de concept
+        # passe de 0 a >= 2 en resolvant tout correctement).
+        self.assertGreaterEqual(max_index, 2)
 
     def test_get_exercices_forced_pattern_returns_requested_pattern(self) -> None:
         response = self.client.get("/exercices/CE2", params={"pattern": "multiplication_par_10"})

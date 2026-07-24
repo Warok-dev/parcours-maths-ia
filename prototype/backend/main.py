@@ -16,14 +16,18 @@ from pydantic import BaseModel
 from diagnostic import diagnostiquer_erreur
 from evaluation import compare_reponse
 from generation.narrative import (
+    THEME_NEUTRE,
     generate_narrative_exercise,
     patterns_narratifs_disponibles_pour_niveau,
+    themes_disponibles,
 )
 from generation.substitution import (
     generer_exercice,
     generer_lot,
     patterns_disponibles_pour_niveau,
 )
+import tts
+from tts import TTSConfigurationError, TTSServiceError
 from tutor import TutorServiceError, build_tutor_reply
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -31,9 +35,20 @@ DATA_DIR = BASE_DIR / "data"
 SESSIONS_DIR = DATA_DIR / "sessions"
 SESSION_MAX_AGE_DAYS = 7
 SESSION_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
-ALLOWED_LEVELS = {"CE1", "CE2"}
+ALLOWED_LEVELS = {"CE1", "CE2", "CE3", "CE4", "CE5", "CE6"}
 RESOLUTION_LEVEL_TO_KEY = {1: "1_guide", 2: "2_semi_guide", 3: "3_autonome"}
 REINFORCEMENT_BY_MASTERY = {1: 4, 2: 3, 3: 2}
+
+# --- Revision ciblee ---------------------------------------------------
+# Session batie sur une liste de patterns explicite (les faiblesses
+# memorisees cote frontend) au lieu d'une lecon. Elle porte une identite de
+# lecon propre pour que tout l'existant (titre, carnet, bilan) fonctionne
+# sans cas particulier.
+REVISION_LECON_ID = "revision_ciblee"
+REVISION_LECON_NOM = "Revision ciblee"
+# Au-dela, la revision deviendrait un marathon : on garde les faiblesses les
+# plus anciennes, celles qui trainent depuis le plus longtemps.
+REVISION_MAX_CONCEPTS = 6
 
 # --- Detection de decouragement ----------------------------------------
 # A ne pas confondre avec le tuteur proactif (frontend, proactive.js) : lui
@@ -83,23 +98,37 @@ app.add_middleware(
 
 
 class SessionStartRequest(BaseModel):
-    niveau_scolaire: Literal["CE1", "CE2"]
+    niveau_scolaire: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
     lecon_id: str | None = None
+    theme: str | None = None
+
+
+class RevisionStartRequest(BaseModel):
+    niveau_scolaire: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
+    patterns_cibles: list[str]
+    theme: str | None = None
 
 
 class EvaluationRequest(BaseModel):
     exercice_id: str
     session_id: str | None = None
-    niveau: Literal["CE1", "CE2"] | None = None
+    niveau: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"] | None = None
     reponse_eleve: str | None = None
     reponse_donnee: str | None = None
 
 
 class TutorRequest(BaseModel):
     exercice_id: str
-    niveau: Literal["CE1", "CE2"]
+    niveau: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
     question: str
     session_id: str | None = None
+
+
+class SpeechRequest(BaseModel):
+    texte: str
+    # Ton de la voix : le tuteur (le hibou) ou la lecture d'un enonce. Optionnel
+    # (defaut = enonce). Toute autre valeur retombe sur le profil par defaut.
+    source: str | None = None
 
 
 def load_json(name: str) -> list[dict] | dict:
@@ -241,16 +270,42 @@ def _lesson_concepts_for_level(niveau: str, lecon_id: str) -> tuple[dict, list[s
     raise HTTPException(status_code=404, detail="Lecon introuvable pour ce niveau.")
 
 
+def _revision_concepts(niveau: str, patterns_cibles: list[str]) -> list[str]:
+    """Pool d'une revision ciblee : uniquement les patterns demandes.
+
+    L'ordre d'arrivee est conserve (les faiblesses les plus anciennes en
+    premier) et les doublons sont ecartes. Les patterns ingenerables pour ce
+    niveau sont ignores plutot que fatals : une faiblesse memorisee en CE1
+    ne doit pas bloquer une revision demandee en CE2.
+    """
+    generables = _all_patterns_for_level(niveau)
+    concepts: list[str] = []
+    for pattern in patterns_cibles:
+        if pattern in generables and pattern not in concepts:
+            concepts.append(pattern)
+    if not concepts:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Aucun des patterns cibles n'est disponible pour le niveau {niveau}.",
+        )
+    return concepts[:REVISION_MAX_CONCEPTS]
+
+
 def _cache_exercise(exercice: dict) -> dict:
     EXERCICE_CACHE[exercice["id"]] = exercice
     return exercice
 
 
-def _generate_concept_exercise(niveau: str, concept: str) -> dict:
+def _generate_concept_exercise(niveau: str, concept: str, theme: str | None = None) -> dict:
+    """Genere l'exercice d'un concept.
+
+    Le theme ne concerne que les patterns narratifs : les exercices
+    proceduraux n'ont pas d'habillage a colorer.
+    """
     if concept in patterns_disponibles_pour_niveau(niveau):
         return _cache_exercise(generer_exercice(concept, niveau))
     if concept in patterns_narratifs_disponibles_pour_niveau(niveau):
-        return _cache_exercise(generate_narrative_exercise(niveau, concept))
+        return _cache_exercise(generate_narrative_exercise(niveau, concept, theme))
     raise HTTPException(
         status_code=500,
         detail=f"Le concept '{concept}' n'est pas generable pour le niveau {niveau}.",
@@ -270,6 +325,8 @@ def _ensure_session_fields(session: dict) -> dict:
     session.setdefault("exercices_depuis_confiance", [])
     session.setdefault("confiance_deja_inseree", False)
     session.setdefault("confiance_maitrises_vues", 0)
+    session.setdefault("revision", False)
+    session.setdefault("theme", THEME_NEUTRE)
     return session
 
 
@@ -347,7 +404,9 @@ def _inserer_exercice_confiance(session: dict, motif: str) -> dict | None:
     if pattern is None:
         return None
     try:
-        exercice = _generate_concept_exercise(session["niveau_scolaire"], pattern)
+        exercice = _generate_concept_exercise(
+            session["niveau_scolaire"], pattern, session.get("theme")
+        )
     except Exception:
         # Un aparte de confort ne doit jamais casser la progression : si la
         # generation echoue, l'eleve poursuit simplement son parcours.
@@ -402,6 +461,12 @@ def _progression_payload(session: dict) -> dict:
         "etapes_debloquees": session["etapes_debloquees"],
         "concepts": session["concepts"],
         "concept_index": session["concept_index"],
+        "theme": session["theme"],
+        # Maitrise atteinte sur chaque concept ACHEVE, dans l'ordre de
+        # concepts : le frontend s'en sert pour memoriser les faiblesses en
+        # fin de lecon sans avoir a observer tous les snapshots intermediaires.
+        "maitrises_concepts_terminees": list(session["maitrises_concepts_terminees"]),
+        "revision": session["revision"],
         "terminee": session["terminee"],
     }
     if exercice is not None:
@@ -426,20 +491,51 @@ def _progression_payload(session: dict) -> dict:
     return payload
 
 
-def _build_session(niveau: str, lecon_id: str | None = None) -> dict:
-    if lecon_id is None:
-        concepts = _concepts_for_level(niveau)
-        lecon_nom = None
-    else:
-        lesson, concepts = _lesson_concepts_for_level(niveau, lecon_id)
-        lecon_nom = lesson["nom"]
+def _valider_theme(theme: str | None) -> str:
+    """Theme de l'habillage narratif, neutre par defaut.
 
+    Un theme inconnu est refuse ici, a la frontiere de l'API, pour que la
+    faute remonte tout de suite au front plutot que de se traduire en
+    exercices silencieusement neutres.
+    """
+    if theme is None:
+        return THEME_NEUTRE
+    if theme not in themes_disponibles():
+        raise HTTPException(status_code=400, detail=f"Theme inconnu : '{theme}'.")
+    return theme
+
+
+def _build_session(
+    niveau: str,
+    lecon_id: str | None = None,
+    concepts: list[str] | None = None,
+    lecon_nom: str | None = None,
+    revision: bool = False,
+    theme: str | None = None,
+) -> dict:
+    """Cree une session.
+
+    `concepts` force le pool de concepts (mode revision ciblee) ; sans lui, le
+    pool vient de la lecon demandee, ou de tout le niveau. Le reste de la
+    session est identique dans les deux cas : meme progression par niveaux de
+    presentation, meme detection de maitrise, meme renforcement.
+    """
+    if concepts is None:
+        if lecon_id is None:
+            concepts = _concepts_for_level(niveau)
+            lecon_nom = None
+        else:
+            lesson, concepts = _lesson_concepts_for_level(niveau, lecon_id)
+            lecon_nom = lesson["nom"]
+
+    theme = _valider_theme(theme)
     concept = concepts[0]
-    exercice = _generate_concept_exercise(niveau, concept)
+    exercice = _generate_concept_exercise(niveau, concept, theme)
     session_id = uuid4().hex
     session = {
         "session_id": session_id,
         "niveau_scolaire": niveau,
+        "theme": theme,
         "lecon_id": lecon_id,
         "lecon_nom": lecon_nom,
         "concepts": concepts,
@@ -454,6 +550,7 @@ def _build_session(niveau: str, lecon_id: str | None = None) -> dict:
         "maitrise_actuelle": 0,
         "terminee": False,
         "dernier_diagnostic": None,
+        "revision": revision,
     }
     _ensure_session_fields(session)
     SESSION_STATE[session_id] = session
@@ -495,7 +592,7 @@ def _generate_next_exercise(session: dict, concept: str) -> dict:
     # La session ne doit etre mutee qu'apres une generation reussie : toute
     # erreur ici doit laisser l'etat intact et signaler un indisponible au front.
     try:
-        return _generate_concept_exercise(session["niveau_scolaire"], concept)
+        return _generate_concept_exercise(session["niveau_scolaire"], concept, session.get("theme"))
     except HTTPException:
         raise
     except Exception as exc:
@@ -697,7 +794,31 @@ def health() -> dict:
 
 @app.post("/session/demarrer")
 def demarrer_session(payload: SessionStartRequest) -> dict:
-    session = _build_session(payload.niveau_scolaire, payload.lecon_id)
+    session = _build_session(payload.niveau_scolaire, payload.lecon_id, theme=payload.theme)
+    return {
+        "session_id": session["session_id"],
+        "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
+        "progression": _progression_payload(session),
+    }
+
+
+@app.post("/session/demarrer_revision")
+def demarrer_session_revision(payload: RevisionStartRequest) -> dict:
+    """Session de revision ciblee sur les faiblesses de l'eleve.
+
+    Le pool de concepts vient des patterns transmis par le frontend, pas des
+    lecons : l'eleve repasse exactement ses points faibles, une seule fois
+    chacun, avec la meme mecanique de progression que d'habitude.
+    """
+    concepts = _revision_concepts(payload.niveau_scolaire, payload.patterns_cibles)
+    session = _build_session(
+        payload.niveau_scolaire,
+        lecon_id=REVISION_LECON_ID,
+        concepts=concepts,
+        lecon_nom=REVISION_LECON_NOM,
+        revision=True,
+        theme=payload.theme,
+    )
     return {
         "session_id": session["session_id"],
         "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
@@ -795,6 +916,38 @@ def tuteur_aide(payload: TutorRequest) -> dict:
     return response
 
 
+@app.post("/synthese-vocale")
+def synthese_vocale(payload: SpeechRequest) -> dict:
+    """Synthese vocale neurale (Google TTS) d'un texte : reponse du tuteur ou
+    enonce d'exercice. Renvoie l'audio MP3 en base64.
+
+    En cas de panne du fournisseur (quota, cle invalide, reseau), renvoie un
+    503 propre : le frontend retombe alors sur la synthese native du navigateur.
+    """
+    texte = payload.texte.strip()
+    if not texte:
+        raise HTTPException(status_code=400, detail="Le texte a lire est obligatoire.")
+
+    profile = payload.source or tts.DEFAULT_PROFILE
+    # Observe le cache AVANT l'appel : permet de confirmer cote client qu'un
+    # second appel identique n'a pas resollicite l'API.
+    depuis_cache = tts.is_cached(texte, profile)
+    try:
+        audio_base64 = tts.synthesize(texte, profile)
+    except (TTSServiceError, TTSConfigurationError) as exc:
+        # Panne du fournisseur OU credentials absents : dans les deux cas la
+        # synthese neurale est indisponible -> 503, et le frontend retombe sur
+        # la voix native du navigateur.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "audio_base64": audio_base64,
+        "format": "mp3",
+        "voix": tts.VOICE_NAME,
+        "depuis_cache": depuis_cache,
+    }
+
+
 @app.get("/carte/{niveau}")
 def get_carte(niveau: str) -> dict:
     if niveau not in ALLOWED_LEVELS:
@@ -810,12 +963,18 @@ def get_carte(niveau: str) -> dict:
     return cartes[niveau]
 
 
+@app.get("/themes")
+def get_themes() -> dict:
+    """Univers narratifs proposes a l'eleve (le frontend en porte l'habillage)."""
+    return {"themes": themes_disponibles(), "defaut": THEME_NEUTRE}
+
+
 @app.get("/generation/demo/{niveau}")
-def generation_demo(niveau: str) -> dict:
+def generation_demo(niveau: str, theme: str | None = None) -> dict:
     if niveau not in ALLOWED_LEVELS:
         raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 ou CE2.")
 
     return {
         "substitution": generer_lot(niveau, 1)[0],
-        "narratif": generate_narrative_exercise(niveau),
+        "narratif": generate_narrative_exercise(niveau, theme=_valider_theme(theme)),
     }

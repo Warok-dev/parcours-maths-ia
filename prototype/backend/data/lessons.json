@@ -52,7 +52,84 @@
       "nom": "Suites et mesures",
       "patterns": [
         "suite_multiples_de_10_a_completer",
+        "completer_ligne_graduee",
         "conversion_cm_mm_vers_mm"
+      ]
+    },
+    {
+      "lecon_id": "multiplication_division",
+      "nom": "Multiplication et division",
+      "patterns": [
+        "multiplication_groupes_egaux_modele",
+        "multiplication_posee_2chiffres",
+        "division_exacte_partage"
+      ]
+    },
+    {
+      "lecon_id": "mesures_masse_duree",
+      "nom": "Masses et durees",
+      "patterns": [
+        "conversion_kg_g",
+        "addition_durees_min"
+      ]
+    },
+    {
+      "lecon_id": "lecture_heure",
+      "nom": "Lire l'heure",
+      "patterns": [
+        "lecture_heure_analogique"
+      ]
+    },
+    {
+      "lecon_id": "proportionnalite",
+      "nom": "Proportionnalite",
+      "patterns": [
+        "completer_tableau_proportionnalite"
+      ]
+    },
+    {
+      "lecon_id": "geometrie_figures",
+      "nom": "Perimetre et aire",
+      "patterns": [
+        "figure_cotee_simple"
+      ]
+    },
+    {
+      "lecon_id": "echelle",
+      "nom": "Echelle et plan",
+      "patterns": [
+        "echelle_plan"
+      ]
+    },
+    {
+      "lecon_id": "nombres_decimaux",
+      "nom": "Les nombres decimaux",
+      "patterns": [
+        "comparaison_decimaux",
+        "addition_decimaux",
+        "soustraction_decimaux"
+      ]
+    },
+    {
+      "lecon_id": "durees",
+      "nom": "Les durees",
+      "patterns": [
+        "conversion_duree_min",
+        "duree_entre_horaires"
+      ]
+    },
+    {
+      "lecon_id": "pourcentage",
+      "nom": "Le pourcentage",
+      "patterns": [
+        "pourcentage_d_une_quantite"
+      ]
+    },
+    {
+      "lecon_id": "vitesse",
+      "nom": "La vitesse moyenne",
+      "patterns": [
+        "vitesse_distance_duree"
       ]
     }
   ]

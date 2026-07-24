@@ -67,6 +67,8 @@ uvicorn main:app --reload
 Routes principales :
 
 - `GET /health`
+- `POST /session/demarrer`
+- `POST /session/demarrer_revision` (revision ciblee : pool limite aux `patterns_cibles`)
 - `GET /exercices/CE1`
 - `GET /exercices/CE2`
 - `POST /evaluer`

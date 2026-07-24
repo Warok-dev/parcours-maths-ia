@@ -21,7 +21,10 @@ from tutor import LOCAL_ENV_PATH, ensure_tutor_configured
 
 LOGGER = logging.getLogger(__name__)
 CATALOG_PATH = Path(__file__).resolve().parents[3] / "pattern_catalog.json"
-LEVEL_MAP = {"CE1": "N1", "CE2": "N2"}
+# CE3 est reconnu pour que patterns_narratifs_disponibles_pour_niveau renvoie
+# une liste vide proprement (aucun pattern narratif LLM n'est encore defini pour
+# N3) au lieu de lever une KeyError.
+LEVEL_MAP = {"CE1": "N1", "CE2": "N2", "CE3": "N3", "CE4": "N4", "CE5": "N5", "CE6": "N6"}
 MODEL_NAME = "gemini-3.5-flash"
 GROQ_MODEL_NAME = "llama-3.3-70b-versatile"
 MISTRAL_MODEL_NAME = "mistral-small-latest"
@@ -113,7 +116,185 @@ OBJECT_POOLS = {
         "balles",
     ),
 }
-RECENT_CONTEXTS: dict[str, deque[dict[str, str]]] = defaultdict(
+
+# --- Univers thematiques ------------------------------------------------
+# L'eleve choisit un univers une fois ; seules les BANQUES changent d'un
+# theme a l'autre. La validation stricte (JSON aux 4 cles, aucun chiffre,
+# personnage et objet pris dans la banque) reste rigoureusement la meme :
+# c'est la banque autorisee qui suit le theme, jamais le niveau d'exigence.
+#
+# Chaque theme fournit les memes trois ordres de grandeur d'objets que la
+# banque neutre (small_count / medium_count / grouped_count), sinon
+# _choose_object_pool n'aurait plus de quoi piocher selon la taille des
+# nombres tires par Python.
+THEME_NEUTRE = "neutre"
+
+THEMES: dict[str, dict] = {
+    THEME_NEUTRE: {
+        "nom": "Pas de preference",
+        "univers": (
+            "Univers du quotidien d'un enfant : la maison, l'ecole, la cour de recreation."
+        ),
+        "personnages": PERSONNAGES,
+        "objets": OBJECT_POOLS,
+    },
+    "foot": {
+        "nom": "Foot",
+        "univers": (
+            "Univers du football : entrainements, matchs, vestiaire et tribunes. "
+            "Les personnages sont de jeunes joueuses et joueurs d'un club."
+        ),
+        "personnages": (
+            "Rayan", "Anas", "Sofia", "Ilyas", "Nabil", "Ines",
+            "Ayoub", "Reda", "Bilal", "Hicham", "Salma", "Tarik",
+            "Walid", "Nour", "Adam", "Malak",
+        ),
+        "objets": {
+            "small_count": (
+                "ballons", "maillots", "gourdes", "sifflets", "brassards",
+                "chasubles", "trophees", "medailles", "gants", "fanions",
+            ),
+            "medium_count": (
+                "points", "passes", "cartes", "vignettes", "autocollants",
+                "tickets", "places", "dossards", "jetons", "buts",
+            ),
+            "grouped_count": (
+                "ballons", "maillots", "dossards", "plots", "chasubles",
+                "vignettes", "autocollants", "jetons", "gourdes", "cones",
+            ),
+        },
+    },
+    "dinosaures": {
+        "nom": "Dinosaures",
+        "univers": (
+            "Univers des dinosaures : la vallee prehistorique, les fouilles et le musee. "
+            "Les personnages sont de jeunes paleontologues ou des dinosaures gentils."
+        ),
+        "personnages": (
+            "Rex", "Dino", "Stego", "Trico", "Ptero", "Bronto",
+            "Diplo", "Ankylo", "Sami", "Lina", "Yassine", "Aya",
+            "Nora", "Malik", "Ilyas", "Sarah",
+        ),
+        "objets": {
+            "small_count": (
+                "oeufs", "os", "feuilles", "empreintes", "cailloux",
+                "fougeres", "ecailles", "coquilles", "griffes", "branches",
+            ),
+            "medium_count": (
+                "os", "ecailles", "empreintes", "feuilles", "fossiles",
+                "cailloux", "graines", "coquilles", "baies", "epines",
+            ),
+            "grouped_count": (
+                "oeufs", "os", "fossiles", "cailloux", "feuilles",
+                "fougeres", "coquilles", "ecailles", "baies", "empreintes",
+            ),
+        },
+    },
+    "princesses": {
+        "nom": "Princesses et chevaliers",
+        "univers": (
+            "Univers du chateau : princesses, chevaliers, tournois et grandes fetes. "
+            "Les personnages sont des princesses, des princes ou des chevaliers."
+        ),
+        "personnages": (
+            "Iris", "Lila", "Rosalie", "Blanche", "Eloise", "Sibylle",
+            "Arthur", "Tristan", "Roland", "Gauvain", "Perceval", "Aymeric",
+            "Yasmine", "Camille", "Merlin", "Ariane",
+        ),
+        "objets": {
+            "small_count": (
+                "couronnes", "epees", "boucliers", "rubans", "cles",
+                "bougies", "roses", "coupes", "plumes", "banderoles",
+            ),
+            "medium_count": (
+                "pieces", "perles", "rubis", "ecus", "bougies",
+                "rubans", "fleurs", "cartes", "jetons", "graines",
+            ),
+            "grouped_count": (
+                "pieces", "perles", "rubans", "bougies", "coupes",
+                "boucliers", "cles", "roses", "ecus", "jetons",
+            ),
+        },
+    },
+    "espace": {
+        "nom": "Espace",
+        "univers": (
+            "Univers spatial : la fusee, la station orbitale et l'exploration des planetes. "
+            "Les personnages sont de jeunes astronautes ou des robots explorateurs."
+        ),
+        "personnages": (
+            "Nour", "Sami", "Adam", "Lina", "Iris", "Yanis",
+            "Nova", "Astro", "Milo", "Selena", "Alya", "Orion",
+            "Kenza", "Idriss", "Luna", "Ziad",
+        ),
+        "objets": {
+            "small_count": (
+                "fusees", "planetes", "casques", "satellites", "robots",
+                "cristaux", "hublots", "drapeaux", "meteorites", "capsules",
+            ),
+            "medium_count": (
+                "etoiles", "cristaux", "meteorites", "satellites", "capteurs",
+                "jetons", "points", "cailloux", "images", "pastilles",
+            ),
+            "grouped_count": (
+                "cristaux", "etoiles", "meteorites", "satellites", "capsules",
+                "jetons", "pastilles", "cailloux", "images", "tuiles",
+            ),
+        },
+    },
+    "animaux": {
+        "nom": "Animaux",
+        "univers": (
+            "Univers des animaux : la ferme, la foret et le refuge. "
+            "Les personnages sont des enfants qui s'occupent des animaux, ou les animaux eux-memes."
+        ),
+        "personnages": (
+            "Nina", "Milo", "Sami", "Lina", "Adam", "Aya",
+            "Yasmine", "Karim", "Nala", "Kiki", "Choupette", "Filou",
+            "Rania", "Bilal", "Mona", "Tarek",
+        ),
+        "objets": {
+            "small_count": (
+                "carottes", "pommes", "graines", "plumes", "coquillages",
+                "noisettes", "feuilles", "poissons", "os", "salades",
+            ),
+            "medium_count": (
+                "graines", "croquettes", "noisettes", "plumes", "coquillages",
+                "cailloux", "baies", "epis", "poissons", "jetons",
+            ),
+            "grouped_count": (
+                "graines", "croquettes", "noisettes", "oeufs", "poissons",
+                "baies", "epis", "coquillages", "carottes", "jetons",
+            ),
+        },
+    },
+}
+
+
+def themes_disponibles() -> list[str]:
+    return list(THEMES)
+
+
+def _theme_banks(theme: str | None) -> dict:
+    """Banques du theme demande, neutre par defaut.
+
+    Tolerant a un theme inconnu : une session persistee peut porter un theme
+    retire depuis, elle doit continuer a produire des exercices.
+    """
+    return THEMES.get(theme or THEME_NEUTRE, THEMES[THEME_NEUTRE])
+
+
+def personnages_pour_theme(theme: str | None) -> tuple[str, ...]:
+    return _theme_banks(theme)["personnages"]
+
+
+def objets_pour_theme(theme: str | None, taille: str) -> tuple[str, ...]:
+    return _theme_banks(theme)["objets"][taille]
+
+
+# Historique des contextes recents, par (theme, pattern) : changer d'univers
+# ne doit pas trainer les personnages de l'ancien dans les consignes.
+RECENT_CONTEXTS: dict[tuple[str, str], deque[dict[str, str]]] = defaultdict(
     lambda: deque(maxlen=RECENT_CONTEXT_LIMIT)
 )
 
@@ -218,17 +399,29 @@ def _validate_llm_payload(payload: object) -> dict[str, str]:
     return cleaned
 
 
-def _choose_object_pool(pattern_name: str, variables: dict) -> tuple[str, ...]:
+def _choose_object_pool(
+    pattern_name: str,
+    variables: dict,
+    theme: str | None = THEME_NEUTRE,
+) -> tuple[str, ...]:
+    """Ordre de grandeur d'abord, theme ensuite.
+
+    Le choix de la taille de pool (petits nombres, nombres moyens, groupes)
+    ne depend que des valeurs tirees par Python : le theme se contente de
+    designer dans quelle banque piocher.
+    """
     if pattern_name in {"probleme_reste_partie_tout", "probleme_total_partie_tout"}:
-        return OBJECT_POOLS["small_count"]
+        return objets_pour_theme(theme, "small_count")
 
     if pattern_name == "probleme_comparaison_difference":
         maximum = max(variables["grand"], variables["petit"])
-        return OBJECT_POOLS["medium_count"] if maximum >= 25 else OBJECT_POOLS["small_count"]
+        taille = "medium_count" if maximum >= 25 else "small_count"
+        return objets_pour_theme(theme, taille)
 
     if pattern_name in {"probleme_groupes_egaux_total", "probleme_groupes_egaux_quotient"}:
         total = variables.get("total", variables.get("group_count", 0) * variables.get("group_size", 0))
-        return OBJECT_POOLS["grouped_count"] if total >= 25 else OBJECT_POOLS["medium_count"]
+        taille = "grouped_count" if total >= 25 else "medium_count"
+        return objets_pour_theme(theme, taille)
 
     raise NarrativeGenerationError(f"Pool d'objets inconnu pour {pattern_name}.")
 
@@ -246,16 +439,20 @@ def _validate_allowed_values(
     return contexte
 
 
-def _recent_constraints(pattern_name: str) -> tuple[list[str], list[str]]:
-    recent = list(RECENT_CONTEXTS[pattern_name])
+def _recent_key(pattern_name: str, theme: str | None) -> tuple[str, str]:
+    return (theme or THEME_NEUTRE, pattern_name)
+
+
+def _recent_constraints(pattern_name: str, theme: str | None = THEME_NEUTRE) -> tuple[list[str], list[str]]:
+    recent = list(RECENT_CONTEXTS[_recent_key(pattern_name, theme)])
     return (
         [item["personnage"] for item in recent],
         [item["objet"] for item in recent],
     )
 
 
-def _remember_context(pattern_name: str, contexte: dict[str, str]) -> None:
-    RECENT_CONTEXTS[pattern_name].append(
+def _remember_context(pattern_name: str, contexte: dict[str, str], theme: str | None = THEME_NEUTRE) -> None:
+    RECENT_CONTEXTS[_recent_key(pattern_name, theme)].append(
         {"personnage": contexte["personnage"], "objet": contexte["objet"]}
     )
 
@@ -538,6 +735,7 @@ def _prompt_for_pattern(
     allowed_objets: tuple[str, ...],
     recent_personnages: list[str],
     recent_objets: list[str],
+    theme: str | None = THEME_NEUTRE,
 ) -> str:
     pattern_def = PATTERN_DEFS[pattern_name]
     recent_block = ""
@@ -547,7 +745,14 @@ def _prompt_for_pattern(
             f"- Personnages recents: {', '.join(recent_personnages) if recent_personnages else 'aucun'}\n"
             f"- Objets recents: {', '.join(recent_objets) if recent_objets else 'aucun'}\n"
         )
+    banks = _theme_banks(theme)
+    univers_block = (
+        f"Univers impose par l'eleve: {banks['nom']}\n"
+        f"{banks['univers']}\n"
+        "L'action et la question doivent se derouler dans cet univers et en garder le vocabulaire.\n\n"
+    )
     return (
+        f"{univers_block}"
         f"Pattern cible: {pattern_name}\n"
         f"Template pedagogique: {pattern_def['template']}\n"
         f"Valeurs numeriques deja fixees par Python: {json.dumps(variables, ensure_ascii=False)}\n"
@@ -563,6 +768,7 @@ def _prompt_for_pattern(
         "Regles absolues:\n"
         "- Choisis obligatoirement un personnage dans la banque autorisee.\n"
         "- Choisis obligatoirement un objet dans la banque autorisee.\n"
+        f"- Reste dans l'univers impose ({banks['nom']}) : l'action et la question doivent y faire echo.\n"
         "- Varie systematiquement le personnage et l'objet; evite de reprendre ceux utilises juste avant.\n"
         "- Tiens compte de l'ordre de grandeur des nombres deja fixes par Python pour choisir un objet plausible.\n"
         "- Pour les grandes quantites, privilegie des objets ou mesures que l'on compte facilement par dizaines comme billes, cartes, jetons, points, autocollants ou graines.\n"
@@ -768,7 +974,11 @@ PATTERN_BUILDERS: dict[str, PatternBuilder] = {
 }
 
 
-def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) -> dict:
+def generate_narrative_exercise(
+    niveau: str,
+    pattern_name: str | None = None,
+    theme: str | None = THEME_NEUTRE,
+) -> dict:
     if niveau not in LEVEL_MAP:
         raise ValueError("Niveau invalide. Utiliser CE1 ou CE2.")
 
@@ -781,9 +991,11 @@ def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) ->
 
     builder = PATTERN_BUILDERS[selected_pattern]
     variables, valeur, steps = builder["sample"]()
-    allowed_personnages = PERSONNAGES
-    allowed_objets = _choose_object_pool(selected_pattern, variables)
-    recent_personnages, recent_objets = _recent_constraints(selected_pattern)
+    # Seules les banques suivent le theme ; la validation appliquee ensuite
+    # est identique pour tous les univers.
+    allowed_personnages = personnages_pour_theme(theme)
+    allowed_objets = _choose_object_pool(selected_pattern, variables, theme)
+    recent_personnages, recent_objets = _recent_constraints(selected_pattern, theme)
     prompt = _prompt_for_pattern(
         selected_pattern,
         builder["instruction"](),
@@ -792,6 +1004,7 @@ def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) ->
         allowed_objets=allowed_objets,
         recent_personnages=recent_personnages,
         recent_objets=recent_objets,
+        theme=theme,
     )
     try:
         contexte = _generate_narrative_context(
@@ -808,9 +1021,9 @@ def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) ->
         )
         return _procedural_fallback_exercise(niveau, selected_pattern)
     enonce = builder["assemble"](variables, contexte)
-    _remember_context(selected_pattern, contexte)
+    _remember_context(selected_pattern, contexte, theme)
 
-    return _build_exercise(
+    exercice = _build_exercise(
         niveau=niveau,
         pattern_name=selected_pattern,
         variables=variables,
@@ -819,15 +1032,23 @@ def generate_narrative_exercise(niveau: str, pattern_name: str | None = None) ->
         valeur=valeur,
         steps=steps,
     )
+    # Trace du theme reellement utilise : utile au front comme au debogage.
+    exercice["contexte_narratif"] = {**contexte, "theme": theme or THEME_NEUTRE}
+    return exercice
 
 
-def generate_narrative_lot(niveau: str, pattern_name: str, count: int) -> list[dict]:
+def generate_narrative_lot(
+    niveau: str,
+    pattern_name: str,
+    count: int,
+    theme: str | None = THEME_NEUTRE,
+) -> list[dict]:
     if count <= 0:
         return []
 
     last_error: Exception | None = None
     for _ in range(5):
-        lot = [generate_narrative_exercise(niveau, pattern_name) for _ in range(count)]
+        lot = [generate_narrative_exercise(niveau, pattern_name, theme) for _ in range(count)]
         try:
             assert_narrative_diversity(lot)
             return lot

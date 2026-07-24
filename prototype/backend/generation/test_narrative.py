@@ -15,7 +15,12 @@ LLM_PAYLOADS = {
     },
     "probleme_comparaison_difference": {
         "personnage": "Salma",
-        "objet": "points",
+        # "billes" appartient aux pools small_count ET medium_count : le payload
+        # mocke reste donc valide quelle que soit la taille tiree au hasard
+        # (max(grand, petit) >= 25 -> medium, sinon small). Avec "points"
+        # (medium uniquement) le payload etait rejete ~10% du temps, ce qui
+        # faisait retomber la generation sur le repli procedural (test flaky).
+        "objet": "billes",
         "action": "Son camarade en a",
         "question": "De combien en a-t-elle de plus ?",
     },
