@@ -13,6 +13,25 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <!-- ===== Ecran 0 : choix de l'univers (une seule fois) ===== -->
+    <section id="theme-screen" class="screen menu-screen hidden">
+      <div class="menu-sky-decor" aria-hidden="true">
+        <span class="cloud cloud-a"></span>
+        <span class="cloud cloud-b"></span>
+      </div>
+      <div class="menu-card menu-card-wide">
+        <p class="menu-eyebrow">Le petit monde des maths</p>
+        <h1 id="theme-title">Choisis ton univers</h1>
+        <p class="menu-lead">Tes problemes se passeront dans ce monde-la.</p>
+        <div id="theme-actions" class="theme-actions"></div>
+        <div class="lesson-footer">
+          <button id="theme-back-button" class="ghost-button hidden" type="button">
+            &#8592; Garder mon univers
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== Ecran 1 : choix du niveau ===== -->
     <section id="start-screen" class="screen menu-screen">
       <div class="menu-sky-decor" aria-hidden="true">
@@ -33,6 +52,22 @@
             <span class="level-sign">CE2</span>
             <span class="level-copy">Commencer en CE2</span>
           </button>
+          <button class="level-button" data-level="CE3">
+            <span class="level-sign">CE3</span>
+            <span class="level-copy">Commencer en CE3</span>
+          </button>
+          <button class="level-button" data-level="CE4">
+            <span class="level-sign">CE4</span>
+            <span class="level-copy">Commencer en CE4</span>
+          </button>
+          <button class="level-button" data-level="CE5">
+            <span class="level-sign">CE5</span>
+            <span class="level-copy">Commencer en CE5</span>
+          </button>
+          <button class="level-button" data-level="CE6">
+            <span class="level-sign">CE6</span>
+            <span class="level-copy">Commencer en CE6</span>
+          </button>
         </div>
         <p id="start-status" class="menu-note">
           Le backend FastAPI doit etre lance sur <code>http://127.0.0.1:8000</code>.
@@ -51,6 +86,8 @@
         <h1 id="lesson-title">Choisis ta lecon</h1>
         <p class="menu-lead">Chaque lecon ouvre une nouvelle carte a explorer.</p>
         <div id="lesson-actions" class="lesson-actions"></div>
+        <!-- Revision ciblee : n'apparait que si des faiblesses sont memorisees -->
+        <div id="revision-zone" class="revision-zone hidden"></div>
         <div class="lesson-footer">
           <button id="back-to-levels-button" class="ghost-button" type="button">
             &#8592; Changer de niveau
@@ -112,6 +149,8 @@
         </button>
         <div id="menu-dropdown" class="menu-dropdown hidden">
           <button id="carnet-button" class="menu-item" type="button">&#128212; Carnet d'aventurier</button>
+          <button id="personnage-button" class="menu-item" type="button">&#129333; Personnaliser mon personnage</button>
+          <button id="theme-button" class="menu-item" type="button">&#127756; Changer de theme</button>
           <button id="change-lesson-button" class="menu-item" type="button">&#128214; Changer de lecon</button>
           <button id="restart-button" class="menu-item" type="button">&#127891; Changer de niveau</button>
           <button id="new-adventure-button" class="menu-item" type="button">&#128260; Recommencer une nouvelle aventure</button>
@@ -181,6 +220,11 @@
         <div id="carnet-book" class="carnet-book" role="dialog" aria-modal="true" aria-label="Carnet d'aventurier"></div>
       </div>
 
+      <!-- Personnalisation du personnage : couleurs et accessoires -->
+      <div id="personnage-overlay" class="carnet-overlay personnage-overlay hidden">
+        <div id="personnage-card" class="bilan-card personnage-card" role="dialog" aria-modal="true" aria-label="Personnaliser mon personnage"></div>
+      </div>
+
       <!-- Bilan de session : recapitulatif affiche apres carte_terminee -->
       <div id="bilan-overlay" class="carnet-overlay bilan-overlay hidden">
         <div id="bilan-card" class="bilan-card" role="dialog" aria-modal="true" aria-label="Bilan de session"></div>
@@ -195,14 +239,15 @@
     <script src="audio.js"></script>
     <script src="mechanics.js"></script>
     <script src="voice.js"></script>
+    <script src="speech.js"></script>
+    <script src="theme.js"></script>
+    <script src="faiblesses.js"></script>
+    <script src="personnage.js"></script>
+    <script src="tresor.js"></script>
+    <script src="ambiance.js"></script>
     <script src="map.js"></script>
     <script src="carnet.js"></script>
     <script src="chat.js"></script>
     <script src="proactive.js"></script>
   </body>
 </html>
-    <script src="speech.js"></script>
-    <script src="theme.js"></script>
-    <script src="faiblesses.js"></script>
-    <script src="personnage.js"></script>
-    <script src="tresor.js"></script>

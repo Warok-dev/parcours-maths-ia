@@ -31,6 +31,16 @@ const LESSON_ICONS = {
   multiplication_decomposee: "×",
   moitie_double: "½",
   suites_mesures: "…",
+  multiplication_division: "÷",
+  mesures_masse_duree: "kg",
+  lecture_heure: "🕐",
+  proportionnalite: "⚖",
+  geometrie_figures: "△",
+  echelle: "🗺",
+  nombres_decimaux: "0,5",
+  durees: "🕒",
+  pourcentage: "%",
+  vitesse: "🚗",
 };
 
 const startScreen = document.getElementById("start-screen");
@@ -39,6 +49,7 @@ const gameScreen = document.getElementById("game-screen");
 const startStatus = document.getElementById("start-status");
 const lessonTitle = document.getElementById("lesson-title");
 const lessonActions = document.getElementById("lesson-actions");
+const revisionZone = document.getElementById("revision-zone");
 const lessonStatus = document.getElementById("lesson-status");
 const sessionTitle = document.getElementById("session-title");
 const currentLevelBadge = document.getElementById("current-level-badge");
@@ -76,8 +87,20 @@ const state = {
   availableLessons: [],
   selectedLesson: null,
   reinforcement: null,
+  /* Tresor du raccourci courant, et cles de ceux deja ramasses dans cette
+     session (persistees avec la reference de session : un rechargement ne
+     doit pas les faire repousser). */
+  treasure: null,
+  treasuresCollected: new Set(),
   pendingEvaluation: null,
   score: 0,
+  /* Ambiance (purement decoratif, aucune incidence sur le jeu) :
+     - ramassables aleatoires de la carte courante (regeneres a chaque
+       nouvelle carte, reperee par sa signature) ;
+     - teinte jour/heure calculee une seule fois. */
+  collectibles: [],
+  collectiblesSig: null,
+  sceneTint: null,
 };
 
 let animationFrameId = null;
@@ -132,6 +155,7 @@ function saveSessionRef() {
         sessionId: state.sessionId,
         playerPosition: { x: state.playerPosition.x, y: state.playerPosition.y },
         score: state.score,
+        treasures: [...state.treasuresCollected],
       }),
     );
   } catch (_error) {
@@ -172,6 +196,24 @@ function addScore(points) {
   scoreChip.classList.remove("bump");
   void scoreChip.offsetWidth; /* relance l'animation */
   scoreChip.classList.add("bump");
+
+  /* Les memes etoiles alimentent le total cumule qui debloque les tenues.
+     Un deblocage est annonce tout de suite : c'est la recompense du moment,
+     elle n'a pas a attendre l'ouverture du menu. */
+  const debloques = window.ParcoursPersonnage?.ajouterEtoiles?.(points) || [];
+  if (debloques.length) {
+    const noms = debloques.map((item) => item.nom).join(", ");
+    setFeedback(`Nouveau dans ta garde-robe : ${noms} ! (menu > Mon personnage)`, "success");
+  }
+}
+
+/* Redessine le jeton du joueur sans reconstruire toute la scene : appele
+   quand l'eleve change d'accessoire depuis l'ecran de personnalisation. */
+function refreshPlayerToken() {
+  const token = document.getElementById("player-token");
+  if (token) {
+    token.innerHTML = ASSETS.player();
+  }
 }
 
 function resetScore() {
@@ -297,16 +339,22 @@ function stopTheme() {
    Tous sont dessines centres sur (0,0), vue du dessus.
    ============================================================ */
 const ASSETS = {
+  /* Le personnage porte l'apparence choisie par l'eleve : la couleur passe
+     par les variables CSS (--player-shirt), les accessoires s'inserent ici
+     en deux couches, sous le corps puis par-dessus la tete. */
   player() {
+    const accessoire = (couche) => window.ParcoursPersonnage?.markupAccessoire?.(couche) || "";
     return `
       <ellipse cx="0" cy="6" rx="20" ry="14" class="player-shadow"></ellipse>
       <circle cx="-13" cy="14" r="6" class="player-foot left"></circle>
       <circle cx="13" cy="14" r="6" class="player-foot right"></circle>
+      ${accessoire("arriere")}
       <ellipse cx="0" cy="2" rx="19" ry="15" class="player-body"></ellipse>
       <circle cx="-19" cy="2" r="6.5" class="player-hand left"></circle>
       <circle cx="19" cy="2" r="6.5" class="player-hand right"></circle>
       <circle cx="0" cy="-3" r="12.5" class="player-head"></circle>
       <path d="M -12 -6 a 12.5 12.5 0 0 1 24 0 q -6 -7 -12 -7 q -6 0 -12 7 Z" class="player-hair"></path>
+      ${accessoire("avant")}
     `;
   },
 
@@ -473,6 +521,27 @@ const ASSETS = {
     `;
   },
 
+  /* Tresor du raccourci : petit coffre vu du dessus, cercle de lueur et
+     eclats qui scintillent. Bois et or de la palette, comme les panneaux.
+     Les elements animes en CSS sont toujours a l'origine de leur groupe :
+     une transformation CSS ecrase l'attribut transform du SVG. */
+  treasure() {
+    return `
+      <ellipse cx="2" cy="14" rx="20" ry="9" class="tree-shadow"></ellipse>
+      <circle cx="0" cy="0" r="27" class="treasure-glow"></circle>
+      <rect x="-18" y="-13" width="36" height="27" rx="6" class="treasure-body"></rect>
+      <rect x="-18" y="-13" width="36" height="11" rx="5" class="treasure-lid"></rect>
+      <rect x="-18" y="-4" width="36" height="4" class="treasure-band"></rect>
+      <rect x="-4" y="-6" width="8" height="9" rx="2" class="treasure-lock"></rect>
+      <g transform="translate(19, -17)">
+        <polygon points="${starPathMarkup(7)}" class="treasure-sparkle"></polygon>
+      </g>
+      <g transform="translate(-19, -12)">
+        <polygon points="${starPathMarkup(4.5)}" class="treasure-sparkle delayed"></polygon>
+      </g>
+    `;
+  },
+
   /* Panneau du carrefour : poteau + deux fleches. */
   signpost(isRevealed) {
     return `
@@ -488,6 +557,69 @@ const ASSETS = {
           <text x="-6" y="8" text-anchor="middle" transform="scale(-1,1)" class="signpost-text">${isRevealed ? "→" : "..."}</text>
         </g>
       </g>
+    `;
+  },
+
+  /* Horloge analogique parametree par (heure, minute). Definition UNIQUE de
+     l'asset ; la geometrie des aiguilles vient de ParcoursMechanics.clockAngles
+     (meme source que le mecanisme de reponse et les tests). Dessinee centree
+     sur (0,0), vue de face. */
+  clock(heure, minute) {
+    const angles = window.ParcoursMechanics?.clockAngles?.(heure, minute) || {
+      hourAngle: 0,
+      minuteAngle: 0,
+    };
+    const point = (angleDeg, length) => {
+      const rad = (angleDeg * Math.PI) / 180;
+      return {
+        x: (Math.sin(rad) * length).toFixed(1),
+        y: (-Math.cos(rad) * length).toFixed(1),
+      };
+    };
+    const ticks = Array.from({ length: 12 }, (_, i) => {
+      const rad = (i * 30 * Math.PI) / 180;
+      const inner = i % 3 === 0 ? 37 : 42;
+      const x1 = (Math.sin(rad) * inner).toFixed(1);
+      const y1 = (-Math.cos(rad) * inner).toFixed(1);
+      const x2 = (Math.sin(rad) * 47).toFixed(1);
+      const y2 = (-Math.cos(rad) * 47).toFixed(1);
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="clock-tick${i % 3 === 0 ? " major" : ""}"></line>`;
+    }).join("");
+    const hEnd = point(angles.hourAngle, 25);
+    const mEnd = point(angles.minuteAngle, 39);
+    return `
+      <circle cx="0" cy="2" r="53" class="clock-shadow"></circle>
+      <circle cx="0" cy="0" r="52" class="clock-rim"></circle>
+      <circle cx="0" cy="0" r="48" class="clock-face"></circle>
+      ${ticks}
+      <line x1="0" y1="0" x2="${mEnd.x}" y2="${mEnd.y}" class="clock-hand minute"></line>
+      <line x1="0" y1="0" x2="${hEnd.x}" y2="${hEnd.y}" class="clock-hand hour"></line>
+      <circle cx="0" cy="0" r="4.5" class="clock-center"></circle>
+    `;
+  },
+
+  /* Ramassable d'exploration : piece brillante OU fleur, volontairement
+     distinct du coffre-tresor du raccourci (rond/dore ou fleur vive). */
+  collectible(type) {
+    if (type === "fleur") {
+      return `
+        <ellipse cx="0" cy="9" rx="10" ry="4" class="collectible-shadow"></ellipse>
+        <rect x="-1.4" y="0" width="2.8" height="12" rx="1.4" class="collectible-stem"></rect>
+        <circle cx="0" cy="-8" r="6" class="collectible-petal"></circle>
+        <circle cx="7" cy="-2" r="6" class="collectible-petal"></circle>
+        <circle cx="-7" cy="-2" r="6" class="collectible-petal"></circle>
+        <circle cx="4.6" cy="6" r="6" class="collectible-petal"></circle>
+        <circle cx="-4.6" cy="6" r="6" class="collectible-petal"></circle>
+        <circle cx="0" cy="0" r="4.2" class="collectible-flower-heart"></circle>
+      `;
+    }
+    return `
+      <ellipse cx="0" cy="11" rx="11" ry="4.5" class="collectible-shadow"></ellipse>
+      <circle cx="0" cy="0" r="13" class="collectible-glow"></circle>
+      <circle cx="0" cy="0" r="11" class="collectible-coin"></circle>
+      <circle cx="0" cy="0" r="7.5" class="collectible-coin-inner"></circle>
+      <polygon points="${starPathMarkup(5)}" class="collectible-coin-star"></polygon>
+      <circle cx="-4" cy="-4" r="2.2" class="collectible-coin-shine"></circle>
     `;
   },
 };
@@ -685,16 +817,17 @@ function branchGeometry(scene, obstacleIndex) {
   return { short, medium, long };
 }
 
-/* Chemin de renforcement effectif selon la maitrise : 3 = court, 2 = moyen
-   (la route principale), 1 = long. Meme mapping que le rendu visuel. */
+/* Quelle route pour quelle maitrise : 3 = courte, 2 = moyenne (la route
+   principale), 1 = longue. La table vit dans tresor.js, qui s'en sert pour
+   n'accorder de tresor qu'a la route courte : une seule source de verite. */
+function routeKindForMastery(mastery) {
+  return window.ParcoursTresor?.routePourMaitrise?.(mastery) || "moyenne";
+}
+
+/* Chemin de renforcement effectif selon la maitrise. */
 function reinforcementRouteD(geometry, mastery) {
-  if (mastery === 3) {
-    return geometry.short;
-  }
-  if (mastery === 1) {
-    return geometry.long;
-  }
-  return geometry.medium;
+  const parcours = { courte: geometry.short, moyenne: geometry.medium, longue: geometry.long };
+  return parcours[routeKindForMastery(mastery)];
 }
 
 function branchMarkup(scene) {
@@ -709,8 +842,8 @@ function branchMarkup(scene) {
   if (!geometry) {
     return "";
   }
-  const mastery = state.session.maitrise_actuelle || 2;
-  if (mastery === 3) {
+  const kind = routeKindForMastery(state.session.maitrise_actuelle || 2);
+  if (kind === "courte") {
     return `
       <g class="path-branch path-short active-path">
         <path d="${geometry.short}" class="path-short-edge"></path>
@@ -718,7 +851,7 @@ function branchMarkup(scene) {
       </g>
     `;
   }
-  if (mastery === 1) {
+  if (kind === "longue") {
     return `
       <g class="path-branch path-long active-path">
         <path d="${geometry.long}" class="path-long-edge"></path>
@@ -726,7 +859,7 @@ function branchMarkup(scene) {
       </g>
     `;
   }
-  return ""; /* maitrise 2 : la route principale est le chemin de renforcement */
+  return ""; /* route moyenne : la route principale est le chemin de renforcement */
 }
 
 /* ============================================================
@@ -783,6 +916,160 @@ function stopsMarkup() {
 
 function stopIconSvg() {
   return `<svg viewBox="-26 -38 52 56" aria-hidden="true">${ASSETS.trainingStop("current")}</svg>`;
+}
+
+/* ============================================================
+   TRESOR DU RACCOURCI
+   Pose sur la route courte uniquement (maitrise 3). La regle
+   d'attribution vit dans tresor.js ; ici on ne fait que la
+   placer sur le trace et la ramasser.
+   ============================================================ */
+function computeTreasure() {
+  if (!state.scene || !window.ParcoursTresor?.tresorDisponible(state.session, state.treasuresCollected)) {
+    return null;
+  }
+  const geometry = branchGeometry(state.scene, state.session.concept_index);
+  if (!geometry) {
+    return null;
+  }
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", reinforcementRouteD(geometry, state.session.maitrise_actuelle));
+  const length = path.getTotalLength();
+  if (!length) {
+    return null;
+  }
+  const point = path.getPointAtLength(window.ParcoursTresor.FRACTION_SUR_ROUTE * length);
+  return { cle: window.ParcoursTresor.cleTresor(state.session), x: point.x, y: point.y };
+}
+
+function treasureMarkup() {
+  if (!state.treasure) {
+    return "";
+  }
+  /* Position portee par le groupe exterieur, flottement par le groupe
+     interieur : la transformation CSS de l'animation n'ecrase ainsi jamais
+     les coordonnees sur la carte. */
+  return `
+    <g id="treasure-token" transform="translate(${state.treasure.x}, ${state.treasure.y})">
+      <g class="treasure-token">${ASSETS.treasure()}</g>
+    </g>
+  `;
+}
+
+/* ============================================================
+   AMBIANCE : teinte jour/heure et ramassables aleatoires.
+   Purement decoratif : aucune incidence sur progression/evaluation.
+   ============================================================ */
+function collectiblesMarkup() {
+  return state.collectibles
+    .map(
+      (item) => `
+        <g class="collectible-token collectible-${item.type}" data-collectible="${item.cle}" transform="translate(${item.x.toFixed(1)}, ${item.y.toFixed(1)})">
+          <g class="collectible-float">${ASSETS.collectible(item.type)}</g>
+        </g>
+      `,
+    )
+    .join("");
+}
+
+function sceneTintMarkup() {
+  const tint = state.sceneTint;
+  if (!tint || tint.opacite <= 0 || !state.scene) {
+    return "";
+  }
+  return `<rect class="scene-tint" x="0" y="0" width="${state.scene.width}" height="${state.scene.height}" fill="${tint.couleur}" opacity="${tint.opacite}" pointer-events="none"></rect>`;
+}
+
+/* Regenere les ramassables uniquement quand la CARTE change (signature du
+   trace) : ils restent stables tant qu'on parcourt la meme carte, et
+   reapparaissent a la carte suivante, sans limite de session. */
+function refreshCollectibles() {
+  if (!state.scene || !window.ParcoursAmbiance) {
+    state.collectibles = [];
+    return;
+  }
+  const signature = `${state.scene.width}x${state.scene.height}:${state.scene.routePoints.length}`;
+  if (signature === state.collectiblesSig) {
+    return;
+  }
+  state.collectiblesSig = signature;
+  const segments = window.ParcoursAmbiance.segmentsDepuisTrace(state.scene.routePoints);
+  state.collectibles = window.ParcoursAmbiance.semerCollectibles(segments);
+}
+
+/* Ramassage au contact (aucune touche), petit bonus, effet decoratif. */
+function updateCollectiblePickup() {
+  if (state.panelOpen || !state.collectibles.length || !window.ParcoursAmbiance) {
+    return;
+  }
+  const encore = [];
+  for (const item of state.collectibles) {
+    if (window.ParcoursAmbiance.estRamassable(distance(state.playerPosition, item))) {
+      collectCollectible(item);
+    } else {
+      encore.push(item);
+    }
+  }
+  state.collectibles = encore;
+}
+
+function collectCollectible(item) {
+  document.querySelector(`[data-collectible="${item.cle}"]`)?.remove();
+  addScore(window.ParcoursAmbiance.BONUS);
+  spawnTreasureFx(item.x, item.y, window.ParcoursAmbiance.BONUS);
+  window.ParcoursAudio?.playCorrect?.();
+}
+
+/* Ramassage au contact : aucune touche a presser, contrairement aux haltes
+   et aux obstacles. Le tresor est une trouvaille, pas une epreuve. */
+function updateTreasurePickup() {
+  if (!state.treasure || state.panelOpen) {
+    return;
+  }
+  if (!window.ParcoursTresor.estARamasser(distance(state.playerPosition, state.treasure))) {
+    return;
+  }
+  collectTreasure();
+}
+
+function collectTreasure() {
+  const { cle, x, y } = state.treasure;
+  /* Marque AVANT tout le reste : un second passage dans la meme frame ne
+     doit pas pouvoir le ramasser deux fois. */
+  state.treasuresCollected.add(cle);
+  state.treasure = null;
+  document.getElementById("treasure-token")?.remove();
+  saveSessionRef();
+
+  addScore(window.ParcoursTresor.BONUS);
+  spawnTreasureFx(x, y, window.ParcoursTresor.BONUS);
+  window.ParcoursAudio?.playUnlock();
+  setFeedback(`Tresor du raccourci ! +${window.ParcoursTresor.BONUS} etoiles`, "success");
+}
+
+/* Scintillement + "+50" qui monte et s'efface. Le calque d'effets est
+   partage : on ajoute notre groupe et on ne retire que lui. */
+function spawnTreasureFx(x, y, bonus) {
+  const fxLayer = document.getElementById("fx-layer");
+  if (!fxLayer) {
+    return;
+  }
+  const eclats = Array.from({ length: 10 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 10 + Math.random() * 0.4;
+    const range = 60 + Math.random() * 70;
+    return `<g class="fx-particle" style="--tx: ${(Math.cos(angle) * range).toFixed(1)}px; --ty: ${(Math.sin(angle) * range - 30).toFixed(1)}px;">
+        <polygon points="${starPathMarkup(9)}" class="fx-star"></polygon>
+      </g>`;
+  }).join("");
+
+  const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  group.setAttribute("transform", `translate(${x}, ${y})`);
+  group.innerHTML = `
+    ${eclats}
+    <text x="0" y="-16" text-anchor="middle" class="treasure-bonus-text">+${bonus}</text>
+  `;
+  fxLayer.appendChild(group);
+  window.setTimeout(() => group.remove(), 1400);
 }
 
 /* ============================================================
@@ -989,10 +1276,13 @@ function sceneMarkup(scene) {
       <path d="${roadPath}" class="road-paving offset" transform="translate(-14, -8)"></path>
     </g>
     <g class="props-layer">${propsMarkup(scene)}</g>
+    <g class="treasure-layer">${treasureMarkup()}</g>
+    <g class="collectible-layer">${collectiblesMarkup()}</g>
     <g class="stops-layer">${stopsMarkup()}</g>
     <g class="obstacle-layer">
       ${scene.obstacles.map(obstacleMarkup).join("")}
     </g>
+    ${sceneTintMarkup()}
     <g id="interaction-hint" class="interaction-hint">
       <rect x="-118" y="-30" width="236" height="46" rx="20" class="hint-bubble"></rect>
       <rect x="-104" y="-21" width="64" height="28" rx="8" class="hint-key"></rect>
@@ -1104,6 +1394,15 @@ function renderScene() {
   }
   state.scene = createSceneModel(state.session.concepts || []);
   state.reinforcement = computeReinforcementStops();
+  /* Calcule apres la scene (il suit le trace de la route active) et avant le
+     markup, qui le dessine. */
+  state.treasure = computeTreasure();
+  /* Ambiance : teinte figee une seule fois (chargement) ; ramassables
+     regeneres seulement a la carte suivante. */
+  if (!state.sceneTint && window.ParcoursAmbiance) {
+    state.sceneTint = window.ParcoursAmbiance.tinteMaintenant();
+  }
+  refreshCollectibles();
   mapElement.innerHTML = sceneMarkup(state.scene);
   invalidateDynamicsCache();
   renderMinimap();
@@ -1115,18 +1414,21 @@ function renderScene() {
    NAVIGATION ENTRE ECRANS
    ============================================================ */
 function showStartScreen() {
+  window.ParcoursTheme?.fermer?.();
   startScreen.classList.remove("hidden");
   lessonScreen.classList.add("hidden");
   gameScreen.classList.add("hidden");
 }
 
 function showLessonScreen() {
+  window.ParcoursTheme?.fermer?.();
   startScreen.classList.add("hidden");
   lessonScreen.classList.remove("hidden");
   gameScreen.classList.add("hidden");
 }
 
 function showGameScreen() {
+  window.ParcoursTheme?.fermer?.();
   startScreen.classList.add("hidden");
   lessonScreen.classList.add("hidden");
   gameScreen.classList.remove("hidden");
@@ -1326,12 +1628,95 @@ function listenButtonMarkup(id, label) {
   `;
 }
 
+/* Tableau de proportionnalite : composant unique, rendu comme visuel dans
+   l'enonce (la reponse est saisie via la mecanique standard, en dessous).
+   Deux lignes etiquetees ; la case masquee affiche "?". */
+function propTableMarkup(exercise) {
+  const v = exercise.variables || {};
+  const cell = (value) =>
+    `<td class="${value === "?" ? "prop-hole" : ""}">${value}</td>`;
+  const row = (label, cells) =>
+    `<tr><th scope="row">${label}</th>${(cells || []).map(cell).join("")}</tr>`;
+  return `
+    <div class="prop-table-wrap">
+      <table class="prop-table" aria-label="Tableau de proportionnalité à compléter">
+        <tbody>
+          ${row(v.label1, v.haut_affichee)}
+          ${row(v.label2, v.bas_affichee)}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* Figure cotee simple : composant SVG unique, dimensions affichees en
+   parametres (le dessin n'est pas a l'echelle, ce sont les cotes qui portent
+   l'information). Formes basiques uniquement, jamais de trace complexe. */
+function figureCoteeSvg(exercise) {
+  const v = exercise.variables || {};
+  const u = v.unite || "cm";
+  const label = (x, y, text, anchor = "middle") =>
+    `<text x="${x}" y="${y}" text-anchor="${anchor}" class="figure-label">${text}</text>`;
+
+  if (v.forme === "rectangle") {
+    const maxDim = Math.max(v.largeur, v.hauteur);
+    const w = 34 + 56 * (v.largeur / maxDim);
+    const h = 34 + 56 * (v.hauteur / maxDim);
+    return `
+      <rect x="${(-w / 2).toFixed(1)}" y="${(-h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="4" class="figure-shape"></rect>
+      ${label(0, (-h / 2 - 9).toFixed(1), `${v.largeur} ${u}`)}
+      ${label((w / 2 + 8).toFixed(1), 5, `${v.hauteur} ${u}`, "start")}
+    `;
+  }
+  if (v.forme === "carre") {
+    const s = 62;
+    return `
+      <rect x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}" rx="4" class="figure-shape"></rect>
+      ${label(0, -s / 2 - 9, `${v.cote} ${u}`)}
+    `;
+  }
+  if (v.forme === "triangle") {
+    const [a, b, c] = v.cotes;
+    const A = [0, -40];
+    const B = [-48, 34];
+    const C = [48, 34];
+    const mid = (P, Q) => [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2];
+    const mAB = mid(A, B);
+    const mAC = mid(A, C);
+    const mBC = mid(B, C);
+    return `
+      <polygon points="${A[0]},${A[1]} ${B[0]},${B[1]} ${C[0]},${C[1]}" class="figure-shape"></polygon>
+      ${label(mAB[0] - 12, mAB[1], `${a} ${u}`, "end")}
+      ${label(mAC[0] + 12, mAC[1], `${b} ${u}`, "start")}
+      ${label(mBC[0], mBC[1] + 17, `${c} ${u}`)}
+    `;
+  }
+  // polygone regulier
+  const n = v.n_cotes;
+  const R = 42;
+  const pts = [];
+  for (let i = 0; i < n; i += 1) {
+    const ang = ((-90 + (i * 360) / n) * Math.PI) / 180;
+    pts.push([Math.cos(ang) * R, Math.sin(ang) * R]);
+  }
+  const poly = pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const mx = (pts[0][0] + pts[1][0]) / 2;
+  const my = (pts[0][1] + pts[1][1]) / 2;
+  return `
+    <polygon points="${poly}" class="figure-shape"></polygon>
+    ${label((mx * 1.45).toFixed(1), (my * 1.45 + 4).toFixed(1), `${v.cote} ${u}`, "start")}
+  `;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
   }
 
   const exercise = state.currentExercise;
+  const isClock = exercise.pattern?.pattern_name === "lecture_heure_analogique";
+  const isTable = exercise.pattern?.pattern_name === "completer_tableau_proportionnalite";
+  const isFigure = exercise.pattern?.pattern_name === "figure_cotee_simple";
   const confidence = isConfidenceExercise();
   const obstacle = activeObstacle();
   const atStop = Boolean(state.reinforcement);
@@ -1379,6 +1764,21 @@ function renderExerciseModal() {
         <p class="exercise-statement">${exercise.enonce}</p>
         ${listenButtonMarkup("listen-enonce", "Ecouter l'enonce")}
       </div>
+      ${
+        isClock
+          ? `<div class="clock-figure">
+               <svg viewBox="-58 -58 116 116" role="img" aria-label="Horloge à lire">${ASSETS.clock(exercise.variables.heure, exercise.variables.minute)}</svg>
+             </div>`
+          : ""
+      }
+      ${isTable ? propTableMarkup(exercise) : ""}
+      ${
+        isFigure
+          ? `<div class="figure-figure">
+               <svg viewBox="-64 -58 128 116" role="img" aria-label="Figure géométrique cotée">${figureCoteeSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
       ${
         steps && details.aide_affichee
           ? `<div class="method-block">
@@ -1546,6 +1946,38 @@ function renderLessonChoices() {
       }
     });
   });
+
+  renderRevisionChoice();
+}
+
+/* Bouton de revision ciblee : affiche uniquement si des faiblesses sont
+   memorisees pour le niveau choisi (rien a revoir = rien a montrer). */
+function renderRevisionChoice() {
+  const patterns = window.ParcoursFaiblesses?.patternsPourNiveau?.(state.selectedLevel) || [];
+  if (!patterns.length) {
+    revisionZone.classList.add("hidden");
+    revisionZone.innerHTML = "";
+    return;
+  }
+
+  const nombre = patterns.length;
+  revisionZone.innerHTML = `
+    <button id="revision-button" class="revision-card" type="button">
+      <span class="revision-card-icon" aria-hidden="true">&#127919;</span>
+      <span>
+        <span class="lesson-card-title">Revoir mes points faibles</span><br />
+        <span class="lesson-card-copy">${nombre} concept${nombre > 1 ? "s" : ""} a retravailler</span>
+      </span>
+    </button>
+  `;
+  revisionZone.classList.remove("hidden");
+  revisionZone.querySelector("#revision-button").addEventListener("click", async () => {
+    try {
+      await startRevisionSession(state.selectedLevel, patterns);
+    } catch (error) {
+      lessonStatus.textContent = `Impossible de demarrer la revision : ${error.message}`;
+    }
+  });
 }
 
 async function loadLessons(level) {
@@ -1561,13 +1993,10 @@ async function loadLessons(level) {
   showLessonScreen();
 }
 
-async function startSession(level, lessonId) {
-  lessonStatus.textContent = "Creation de la session...";
-  const payload = await request("/session/demarrer", {
-    method: "POST",
-    body: JSON.stringify({ niveau_scolaire: level, lecon_id: lessonId }),
-  });
-
+/* Entree dans le jeu, commune a une lecon et a une revision ciblee : la
+   session est deja creee cote backend, il reste a repartir d'une carte
+   neuve. */
+function enterSession(payload, lesson) {
   state.sessionId = payload.session_id;
   state.playerPosition = { x: START_X, y: START_Y };
   state.playerAngle = 0;
@@ -1576,17 +2005,59 @@ async function startSession(level, lessonId) {
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
   state.reinforcement = null;
+  state.treasure = null;
+  state.treasuresCollected = new Set(); /* nouvelle session, nouveaux tresors */
   state.pendingEvaluation = null;
+  /* Ambiance : nouvelle carte -> ramassables regeneres (la teinte, elle,
+     reste calculee une seule fois). */
+  state.collectiblesSig = null;
+  state.collectibles = [];
   resetScore();
-  state.selectedLesson =
-    state.availableLessons.find((lesson) => lesson.lecon_id === lessonId) || {
-      lecon_id: lessonId,
-      nom: lessonId,
-    };
+  state.selectedLesson = lesson;
   applySessionSnapshot(payload.progression, payload.exercice);
   showGameScreen();
   clearFeedback();
   window.ParcoursAudio?.setMusicActive(true);
+}
+
+async function startSession(level, lessonId) {
+  lessonStatus.textContent = "Creation de la session...";
+  const payload = await request("/session/demarrer", {
+    method: "POST",
+    body: JSON.stringify({
+      niveau_scolaire: level,
+      lecon_id: lessonId,
+      /* L'univers choisi habille les problemes narratifs generes par l'IA
+         tout au long de la session (les exercices suivants sont produits
+         cote backend, qui a donc besoin du theme des le depart). */
+      theme: window.ParcoursTheme?.getTheme?.(),
+    }),
+  });
+
+  const lesson = state.availableLessons.find((item) => item.lecon_id === lessonId) || {
+    lecon_id: lessonId,
+    nom: lessonId,
+  };
+  enterSession(payload, lesson);
+}
+
+/* Revision ciblee : meme jeu, mais la carte n'est faite que des concepts
+   restes sous la maitrise 3. */
+async function startRevisionSession(level, patterns) {
+  lessonStatus.textContent = "Preparation de ta revision...";
+  const payload = await request("/session/demarrer_revision", {
+    method: "POST",
+    body: JSON.stringify({
+      niveau_scolaire: level,
+      patterns_cibles: patterns,
+      theme: window.ParcoursTheme?.getTheme?.(),
+    }),
+  });
+
+  enterSession(payload, {
+    lecon_id: payload.progression.lecon_id,
+    nom: payload.progression.lecon_nom,
+  });
 }
 
 function openingMessage(obstacleType) {
@@ -1857,6 +2328,8 @@ function resetSharedState() {
   state.justUnlockedUntil = 0;
   state.camera = { x: START_X, y: START_Y };
   state.reinforcement = null;
+  state.treasure = null;
+  state.treasuresCollected = new Set();
   state.pendingEvaluation = null;
   resetScore();
   window.ParcoursAudio?.setMusicActive(false);
@@ -1881,6 +2354,8 @@ function resetToStart() {
   startStatus.textContent = "Choisis un niveau pour demarrer une nouvelle session.";
   lessonStatus.textContent = "";
   lessonActions.innerHTML = "";
+  revisionZone.innerHTML = "";
+  revisionZone.classList.add("hidden");
 }
 
 function returnToLessonChoice() {
@@ -1912,6 +2387,9 @@ async function tryResumeSession() {
     }
     state.sessionId = saved.sessionId;
     state.score = Number.isFinite(saved.score) ? saved.score : 0;
+    /* Tresors deja ramasses : sans eux, un rechargement de page les ferait
+       repousser sur la meme route. */
+    state.treasuresCollected = new Set(Array.isArray(saved.treasures) ? saved.treasures : []);
     refreshScoreDisplay();
     const position = saved.playerPosition;
     if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
@@ -2025,6 +2503,8 @@ function tick(timestamp) {
       window.ParcoursAudio?.footstep(performance.now());
     }
     updateNearObstacle();
+    updateTreasurePickup();
+    updateCollectiblePickup();
     updateSceneDynamics();
   } else {
     state.playerMoving = false;
@@ -2141,11 +2621,53 @@ window.ParcoursApp = {
   getInteractionTarget: () => interactionTarget(),
   openExercisePanel,
   refreshScenePaused,
+  /* Personnalisation : le dessin du personnage et son rafraichissement sur
+     la carte restent proprietes de map.js, qui possede la scene. */
+  playerMarkup: () => ASSETS.player(),
+  refreshPlayerToken,
 };
 
 if (!animationFrameId) {
   animationFrameId = window.requestAnimationFrame(tick);
 }
 
-/* Au chargement : tentative de reprise de la session sauvegardee. */
-tryResumeSession();
+/* Changement d'univers en cours de partie : on revient exactement d'ou l'on
+   vient (la carte si une partie tourne, sinon l'ecran ou l'on etait). Le
+   theme s'appliquera aux prochains problemes narratifs generes. */
+if (window.ParcoursTheme) {
+  window.ParcoursTheme.demanderChangement = () => {
+    const enJeu = Boolean(state.sessionId);
+    window.ParcoursTheme.ouvrir({
+      titre: "Changer d'univers",
+      retour: true,
+      apresChoix: () => {
+        if (enJeu) {
+          showGameScreen();
+          setFeedback(
+            "Nouvel univers choisi ! Il habillera tes prochaines histoires.",
+            "success",
+          );
+        } else if (state.selectedLevel) {
+          showLessonScreen();
+        } else {
+          showStartScreen();
+        }
+      },
+    });
+  };
+}
+
+/* Au chargement : l'univers se choisit AVANT tout le reste, et une seule
+   fois. Ensuite seulement on tente de reprendre la session sauvegardee. */
+function demarrerApplication() {
+  if (window.ParcoursTheme && !window.ParcoursTheme.aChoisi()) {
+    window.ParcoursTheme.ouvrir({ apresChoix: demarrerApplication });
+    return;
+  }
+  /* Ecran de depart d'abord : la reprise est asynchrone et peut echouer, il
+     ne doit jamais rester une page vide derriere l'ecran de theme ferme. */
+  showStartScreen();
+  tryResumeSession();
+}
+
+demarrerApplication();

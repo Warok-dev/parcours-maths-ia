@@ -7,6 +7,8 @@ const {
   compatibleMechanics,
   missingLineValues,
   shuffleMissingValues,
+  clockAngles,
+  formatHeure,
 } = require("./mechanics.js");
 
 let failures = 0;
@@ -133,6 +135,38 @@ function suiteExercise(valeurs, positionsManquantes) {
     propose.slice().sort((a, b) => a - b).join(",") === "10,20,30",
     "le repli conserve toutes les valeurs",
   );
+}
+
+/* --- 9. Horloge : un exercice de format "heure" va sur la mecanique horloge --- */
+{
+  const clock = {
+    id: "CE1-lecture_heure_analogique-000001",
+    pattern: { pattern_name: "lecture_heure_analogique", pattern_family: "lecture_horloge" },
+    niveau_scolaire: "CE1",
+    variables: { heure: 5, minute: 30 },
+    reponse_attendue: { valeur: "5:30", format: "heure" },
+  };
+  const options = compatibleMechanics(clock);
+  check(options.length === 1 && options[0] === "horloge", "un exercice heure va sur la mecanique horloge");
+}
+
+/* --- 10. Geometrie des aiguilles (source unique, partagee avec ASSETS.clock) --- */
+{
+  const a12 = clockAngles(12, 0);
+  check(a12.hourAngle === 0 && a12.minuteAngle === 0, "12:00 -> aiguilles a 0 degre");
+  check(clockAngles(3, 0).hourAngle === 90, "3:00 -> aiguille des heures a 90 degres");
+  const a630 = clockAngles(6, 30);
+  check(a630.hourAngle === 195, "6:30 -> aiguille des heures a mi-chemin (195 degres)");
+  check(a630.minuteAngle === 180, "6:30 -> aiguille des minutes en bas (180 degres)");
+  const a915 = clockAngles(9, 15);
+  check(a915.hourAngle === 277.5 && a915.minuteAngle === 90, "9:15 -> heures 277.5, minutes 90");
+}
+
+/* --- 11. Format canonique de la reponse (aligne avec le backend H:MM) --- */
+{
+  check(formatHeure(5, 0) === "5:00", "5h00 -> '5:00'");
+  check(formatHeure(7, 30) === "7:30", "7h30 -> '7:30'");
+  check(formatHeure(12, 5) === "12:05", "minutes toujours sur 2 chiffres -> '12:05'");
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);

@@ -41,6 +41,23 @@
     };
   }
 
+  /* ----- Horloge : source unique de la geometrie des aiguilles -----
+     Angles en degres, sens horaire depuis 12h (0 = vers le haut). Utilisee
+     PAR le composant SVG (ASSETS.clock dans map.js) ET testee en Node : une
+     seule definition de l'angle des aiguilles, jamais recalculee differemment. */
+  function clockAngles(hour, minute) {
+    const h = (((Number(hour) % 12) + 12) % 12);
+    const m = (((Number(minute) % 60) + 60) % 60);
+    return { minuteAngle: m * 6, hourAngle: h * 30 + m * 0.5 };
+  }
+
+  /* Reponse canonique d'une horloge : H:MM (minutes sur 2 chiffres). Le
+     backend produit exactement ce format ; le mecanisme s'y aligne. */
+  function formatHeure(hour, minute) {
+    const m = (((Number(minute) % 60) + 60) % 60);
+    return `${Number(hour)}:${String(m).padStart(2, "0")}`;
+  }
+
   /* ----- Regle d'assignation -----------------------------------
      calcul_direct            -> ligne numerique / planches (rotation)
      exercice_a_trous_serie   -> cadenas / ligne numerique (rotation)
@@ -52,6 +69,9 @@
     const family = exercise.pattern?.pattern_family;
     const info = answerInfo(exercise);
 
+    if (info.format === "heure") {
+      return ["horloge"];
+    }
     if (info.format === "expression") {
       return ["clavier"];
     }
@@ -521,6 +541,97 @@
     root.focus();
   }
 
+  /* ----- Horloge : reglage de l'heure a deux molettes ----------
+     L'eleve LIT l'horloge affichee dans l'enonce (ASSETS.clock) et
+     reconstitue l'heure : une molette pour les heures (1-12), une pour les
+     minutes (pas de 30 en CE1, de 5 ailleurs). La valeur ecrite est H:MM. */
+  function mountClock(container, exercise, api) {
+    const stepFive = exercise.niveau_scolaire !== "CE1";
+    const minuteStep = stepFive ? 5 : 30;
+    const minuteValues = [];
+    for (let value = 0; value < 60; value += minuteStep) {
+      minuteValues.push(value);
+    }
+
+    let hour = 12; /* depart neutre, rarement la bonne reponse */
+    let minuteIndex = 0;
+    let active = "hour";
+
+    container.innerHTML = `
+      <p class="mech-hint">Règle l'heure que tu lis sur l'horloge, puis valide.</p>
+      <div class="mech-clock-set" tabindex="0" aria-label="Réglage de l'heure">
+        <div class="clock-dial" data-dial="hour">
+          <button type="button" class="clock-up" data-dial="hour" aria-label="Heures plus">&#9650;</button>
+          <span class="clock-value" data-dial="hour">12</span>
+          <button type="button" class="clock-down" data-dial="hour" aria-label="Heures moins">&#9660;</button>
+          <span class="clock-caption">heures</span>
+        </div>
+        <span class="clock-colon" aria-hidden="true">:</span>
+        <div class="clock-dial" data-dial="minute">
+          <button type="button" class="clock-up" data-dial="minute" aria-label="Minutes plus">&#9650;</button>
+          <span class="clock-value" data-dial="minute">00</span>
+          <button type="button" class="clock-down" data-dial="minute" aria-label="Minutes moins">&#9660;</button>
+          <span class="clock-caption">minutes</span>
+        </div>
+      </div>
+    `;
+
+    const root = container.querySelector(".mech-clock-set");
+    const dials = [...container.querySelectorAll(".clock-dial")];
+    const hourValue = container.querySelector('.clock-value[data-dial="hour"]');
+    const minuteValue = container.querySelector('.clock-value[data-dial="minute"]');
+
+    function refresh() {
+      hourValue.textContent = String(hour);
+      minuteValue.textContent = String(minuteValues[minuteIndex]).padStart(2, "0");
+      dials.forEach((node) => node.classList.toggle("active", node.dataset.dial === active));
+      api.setValue(formatHeure(hour, minuteValues[minuteIndex]));
+    }
+
+    function spinHour(delta) {
+      hour = ((hour - 1 + delta + 12) % 12) + 1; /* reste dans 1..12 */
+      active = "hour";
+      refresh();
+    }
+
+    function spinMinute(delta) {
+      minuteIndex = (minuteIndex + delta + minuteValues.length) % minuteValues.length;
+      active = "minute";
+      refresh();
+    }
+
+    container.querySelectorAll(".clock-up").forEach((node) =>
+      node.addEventListener("click", () =>
+        node.dataset.dial === "hour" ? spinHour(1) : spinMinute(1),
+      ),
+    );
+    container.querySelectorAll(".clock-down").forEach((node) =>
+      node.addEventListener("click", () =>
+        node.dataset.dial === "hour" ? spinHour(-1) : spinMinute(-1),
+      ),
+    );
+
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        active === "hour" ? spinHour(1) : spinMinute(1);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        active === "hour" ? spinHour(-1) : spinMinute(-1);
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        active = active === "hour" ? "minute" : "hour";
+        refresh();
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        api.submit();
+      }
+    });
+
+    refresh();
+    root.focus();
+  }
+
   /* ----- Panier a remplir : denombrer en cliquant -------------- */
   function mountBasket(container, exercise, api) {
     const info = answerInfo(exercise);
@@ -581,6 +692,7 @@
     ligne: mountLine,
     cadenas: mountLock,
     panier: mountBasket,
+    horloge: mountClock,
   };
 
   const api = {
@@ -592,6 +704,9 @@
       }
       mounter(container, exercise, handlers);
     },
+    /* Geometrie de l'horloge : source unique partagee avec ASSETS.clock. */
+    clockAngles,
+    formatHeure,
     /* Exposes pour les tests */
     compatibleMechanics,
     maskedLinePositions,
