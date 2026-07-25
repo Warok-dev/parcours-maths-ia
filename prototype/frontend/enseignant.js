@@ -196,6 +196,12 @@
     return appel(`/classe/${classeId}/eleve/${eleveId}`, { method: "DELETE" });
   }
 
+  /* Regenere le PIN d'un eleve : renvoie { id, prenom, pin } (nouveau PIN en
+     clair, une seule fois). L'ancien cesse aussitot de fonctionner. */
+  async function reinitialiserPin(classeId, eleveId) {
+    return appel(`/classe/${classeId}/eleve/${eleveId}/reinitialiser_pin`, { method: "POST" });
+  }
+
   async function chargerTableauDeBord(classeId) {
     return appel(`/classe/${classeId}/tableau_de_bord`, { method: "GET" });
   }
@@ -501,6 +507,7 @@
           <span class="teacher-eleve-nom">${echapper(e.prenom)}</span>
           <span class="teacher-eleve-date">Ajoute le ${formaterDate(e.date_creation)}</span>
           <span class="teacher-eleve-actions">
+            <button type="button" class="ghost-button teacher-reset-pin" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Reinitialiser le code</button>
             <button type="button" class="ghost-button teacher-remove" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Retirer</button>
           </span>
         </li>
@@ -534,6 +541,9 @@
     body.querySelectorAll(".teacher-remove").forEach((bouton) => {
       bouton.addEventListener("click", () => demanderRetrait(classeId, bouton));
     });
+    body.querySelectorAll(".teacher-reset-pin").forEach((bouton) => {
+      bouton.addEventListener("click", () => demanderReinitPin(classeId, bouton));
+    });
     body.querySelector("#ens-ajout-eleve").addEventListener("submit", async (event) => {
       event.preventDefault();
       const prenom = body.querySelector("#ens-eleve-prenom").value.trim();
@@ -556,14 +566,14 @@
   /* Popup de confirmation du PIN d'un eleve fraichement ajoute. Le code n'etant
      plus jamais reaffiche en clair, on insiste ("il ne sera plus affiche") et on
      offre un bouton pour le copier. Overlay maison (pas de dialog natif bloquant). */
-  function afficherPopupPin(prenom, pin) {
+  function afficherPopupPin(prenom, pin, { titre = "Note ce code pour" } = {}) {
     document.getElementById("ens-pin-overlay")?.remove();
     const overlay = document.createElement("div");
     overlay.id = "ens-pin-overlay";
     overlay.className = "pin-overlay";
     overlay.innerHTML = `
       <div class="pin-modal" role="dialog" aria-modal="true" aria-labelledby="pin-modal-titre">
-        <h3 id="pin-modal-titre" class="pin-modal-titre">Note ce code pour ${echapper(prenom)}</h3>
+        <h3 id="pin-modal-titre" class="pin-modal-titre">${echapper(titre)} ${echapper(prenom)}</h3>
         <p class="pin-modal-lead">Il ne sera plus affiche apres. Communique-le a l'eleve : il en aura besoin pour se connecter.</p>
         <div class="pin-modal-code" id="pin-modal-code">${echapper(pin)}</div>
         <div class="pin-modal-actions">
@@ -616,6 +626,35 @@
         setStatut(error.message, "erreur");
       }
       void ligne;
+    });
+  }
+
+  /* Confirmation en ligne de la reinitialisation du PIN : l'operation invalide
+     l'ancien code (l'eleve ne pourra plus se connecter avec), on demande donc
+     validation. Au succes, le nouveau PIN s'affiche dans la meme popup que la
+     creation (une seule fois), puis on rafraichit la liste. */
+  function demanderReinitPin(classeId, bouton) {
+    const eleveId = Number(bouton.dataset.eleveId);
+    const prenom = bouton.dataset.prenom;
+    const actions = bouton.closest(".teacher-eleve-actions");
+    actions.innerHTML = `
+      <span class="teacher-confirm-label">Reinitialiser le code de ${prenom} ? L'ancien ne marchera plus.</span>
+      <button type="button" class="btn-primary teacher-confirm-oui">Confirmer</button>
+      <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
+    `;
+    actions.querySelector(".teacher-confirm-non").addEventListener("click", () =>
+      vueClasseDetail(classeId),
+    );
+    actions.querySelector(".teacher-confirm-oui").addEventListener("click", async () => {
+      setStatut("Reinitialisation du code...");
+      try {
+        const reponse = await reinitialiserPin(classeId, eleveId);
+        await vueClasseDetail(classeId);
+        setStatut("");
+        afficherPopupPin(prenom, reponse.pin, { titre: "Nouveau code pour" });
+      } catch (error) {
+        setStatut(error.message, "erreur");
+      }
     });
   }
 
@@ -789,6 +828,7 @@
     chargerEleves,
     ajouterEleve,
     retirerEleve,
+    reinitialiserPin,
     chargerTableauDeBord,
     chargerConceptsDifficiles,
     /* Coeur pur */

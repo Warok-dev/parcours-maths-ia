@@ -439,6 +439,71 @@ class ComptesIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    # ---------- Reinitialisation du PIN eleve ----------
+    def test_reinitialiser_pin_invalide_l_ancien_et_active_le_nouveau(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        eleve_id, ancien_pin = self._ajouter_eleve_avec_pin(token, classe["id"], "Sofia")
+
+        # Reinitialisation -> nouveau PIN a 4 chiffres, renvoye une seule fois.
+        reinit = self.client.post(
+            f"/classe/{classe['id']}/eleve/{eleve_id}/reinitialiser_pin",
+            headers=self._auth(token),
+        )
+        self.assertEqual(reinit.status_code, 200)
+        nouveau_pin = reinit.json()["pin"]
+        self.assertRegex(nouveau_pin, r"^\d{4}$")
+        self.assertNotEqual(nouveau_pin, ancien_pin)
+
+        # L'ancien PIN ne fonctionne plus.
+        rejet = self.client.post(
+            f"/eleve/{eleve_id}/connexion",
+            json={"code_classe": classe["code_classe"], "pin": ancien_pin},
+        )
+        self.assertEqual(rejet.status_code, 403)
+
+        # Le nouveau PIN fonctionne.
+        ok = self.client.post(
+            f"/eleve/{eleve_id}/connexion",
+            json={"code_classe": classe["code_classe"], "pin": nouveau_pin},
+        )
+        self.assertEqual(ok.status_code, 200)
+
+    def test_reinitialiser_pin_reserve_au_proprietaire(self) -> None:
+        self._inscrire("profA", "secretA")
+        self._inscrire("profB", "secretB")
+        tokenA = self._token("profA", "secretA")
+        tokenB = self._token("profB", "secretB")
+        classeA = self._creer_classe(tokenA, "Classe de A", "CE1")
+        eleve_id, _pin = self._ajouter_eleve_avec_pin(tokenA, classeA["id"], "Sofia")
+
+        # Un autre enseignant ne peut pas reinitialiser -> 403.
+        autre = self.client.post(
+            f"/classe/{classeA['id']}/eleve/{eleve_id}/reinitialiser_pin",
+            headers=self._auth(tokenB),
+        )
+        self.assertEqual(autre.status_code, 403)
+        # Sans jeton du tout -> authentification requise.
+        anon = self.client.post(
+            f"/classe/{classeA['id']}/eleve/{eleve_id}/reinitialiser_pin"
+        )
+        self.assertEqual(anon.status_code, 401)
+
+    def test_reinitialiser_pin_eleve_d_une_autre_classe_introuvable(self) -> None:
+        # L'eleve doit appartenir a la classe de l'URL, sinon 404.
+        self._inscrire()
+        token = self._token()
+        classe1 = self._creer_classe(token, "Classe 1", "CE1")
+        classe2 = self._creer_classe(token, "Classe 2", "CE2")
+        eleve_id, _pin = self._ajouter_eleve_avec_pin(token, classe1["id"], "Sofia")
+
+        response = self.client.post(
+            f"/classe/{classe2['id']}/eleve/{eleve_id}/reinitialiser_pin",
+            headers=self._auth(token),
+        )
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

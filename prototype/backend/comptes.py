@@ -321,6 +321,29 @@ def ajouter_eleve(
     return {"id": eleve.id, "prenom": eleve.prenom, "classe_id": classe.id, "pin": pin}
 
 
+@router.post("/classe/{classe_id}/eleve/{eleve_id}/reinitialiser_pin")
+def reinitialiser_pin_eleve(
+    classe_id: int,
+    eleve_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Regenere le PIN d'un eleve (protege : proprietaire de la classe).
+
+    On ne peut PAS reveler l'ancien PIN (seul son hash est stocke) : on le
+    remplace par un nouveau, renvoye en clair UNE SEULE FOIS, exactement comme
+    a la creation. L'ancien PIN cesse aussitot de fonctionner.
+    """
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    eleve = db.get(Eleve, eleve_id)
+    if eleve is None or eleve.classe_id != classe.id:
+        raise HTTPException(status_code=404, detail="Eleve introuvable dans cette classe.")
+    pin = generer_pin()
+    eleve.pin_hash = hash_mot_de_passe(pin)
+    db.commit()
+    return {"id": eleve.id, "prenom": eleve.prenom, "classe_id": classe.id, "pin": pin}
+
+
 @router.delete("/classe/{classe_id}/eleve/{eleve_id}", status_code=204, response_class=Response)
 def retirer_eleve(
     classe_id: int,
