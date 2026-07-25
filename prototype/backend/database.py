@@ -27,6 +27,8 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     event,
+    inspect,
+    text,
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import (
@@ -130,7 +132,13 @@ class Classe(Base):
 
 
 class Eleve(Base):
-    """Eleve : pas de mot de passe ni d'email (authentification sans mot de passe pour les enfants)."""
+    """Eleve : pas d'email, mais un PIN a 4 chiffres pour eviter l'usurpation.
+
+    Le PIN est hache (bcrypt, comme le mot de passe enseignant) : jamais stocke
+    en clair. Il est genere a la creation de l'eleve et communique UNE seule
+    fois a l'enseignant. Colonne nullable car les eleves crees avant l'ajout du
+    PIN n'en ont pas (ils devront etre recrees pour pouvoir se connecter).
+    """
 
     __tablename__ = "eleve"
 
@@ -139,6 +147,7 @@ class Eleve(Base):
         ForeignKey("classe.id", ondelete="CASCADE"), nullable=False, index=True
     )
     prenom: Mapped[str] = mapped_column(String(80), nullable=False)
+    pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     date_creation: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
@@ -237,9 +246,24 @@ engine = create_db_engine()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, class_=Session)
 
 
+def _migrer_colonnes_manquantes(eng: Engine) -> None:
+    """Micro-migration sans outil dedie : ajoute les colonnes apparues apres la
+    creation initiale de la base (ici pin_hash sur eleve). create_all ne modifie
+    pas une table existante, donc une base deja creee resterait sans la colonne.
+    Idempotent : on n'ajoute que ce qui manque."""
+    inspector = inspect(eng)
+    if "eleve" not in inspector.get_table_names():
+        return
+    colonnes = {c["name"] for c in inspector.get_columns("eleve")}
+    if "pin_hash" not in colonnes:
+        with eng.begin() as conn:
+            conn.execute(text("ALTER TABLE eleve ADD COLUMN pin_hash VARCHAR(255)"))
+
+
 def init_db(target_engine: Engine | None = None) -> Engine:
     """Cree le dossier data/ et les tables manquantes (idempotent)."""
     eng = target_engine or engine
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(eng)
+    _migrer_colonnes_manquantes(eng)
     return eng

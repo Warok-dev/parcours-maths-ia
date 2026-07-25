@@ -542,10 +542,51 @@
       }
       setStatut("Ajout de l'eleve...");
       try {
-        await ajouterEleve(classeId, prenom);
+        const cree = await ajouterEleve(classeId, prenom);
         await vueClasseDetail(classeId);
+        /* Le PIN n'est renvoye qu'ici, une seule fois : on le met en avant dans
+           une popup a noter avant de rafraichir/quitter la vue. */
+        afficherPopupPin(prenom, cree.pin);
       } catch (error) {
         setStatut(error.message, "erreur");
+      }
+    });
+  }
+
+  /* Popup de confirmation du PIN d'un eleve fraichement ajoute. Le code n'etant
+     plus jamais reaffiche en clair, on insiste ("il ne sera plus affiche") et on
+     offre un bouton pour le copier. Overlay maison (pas de dialog natif bloquant). */
+  function afficherPopupPin(prenom, pin) {
+    document.getElementById("ens-pin-overlay")?.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "ens-pin-overlay";
+    overlay.className = "pin-overlay";
+    overlay.innerHTML = `
+      <div class="pin-modal" role="dialog" aria-modal="true" aria-labelledby="pin-modal-titre">
+        <h3 id="pin-modal-titre" class="pin-modal-titre">Note ce code pour ${echapper(prenom)}</h3>
+        <p class="pin-modal-lead">Il ne sera plus affiche apres. Communique-le a l'eleve : il en aura besoin pour se connecter.</p>
+        <div class="pin-modal-code" id="pin-modal-code">${echapper(pin)}</div>
+        <div class="pin-modal-actions">
+          <button type="button" id="pin-modal-copier" class="btn-primary">Copier le code</button>
+          <button type="button" id="pin-modal-ok" class="ghost-button">J'ai note</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const fermer = () => overlay.remove();
+    overlay.querySelector("#pin-modal-ok").addEventListener("click", fermer);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        fermer();
+      }
+    });
+    overlay.querySelector("#pin-modal-copier").addEventListener("click", async (event) => {
+      const bouton = event.currentTarget;
+      try {
+        await navigator.clipboard.writeText(pin);
+        bouton.textContent = "Code copie !";
+      } catch (_error) {
+        bouton.textContent = `Code : ${pin}`;
       }
     });
   }

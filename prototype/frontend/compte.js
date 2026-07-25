@@ -253,16 +253,90 @@
     `;
     loginBody.querySelector("#login-retour").addEventListener("click", rendreSaisieCode);
     loginBody.querySelectorAll(".login-eleve").forEach((bouton) => {
-      bouton.addEventListener("click", () => connecterEleve(classe, Number(bouton.dataset.eleveId)));
+      const eleve = eleves.find((e) => e.id === Number(bouton.dataset.eleveId));
+      bouton.addEventListener("click", () => rendrePinPad(classe, eleve, eleves));
     });
   }
 
-  async function connecterEleve(classe, eleveId) {
+  /* Echappement minimal pour injecter un prenom (venu du backend) dans le DOM. */
+  function escapeHtml(texte) {
+    return String(texte ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]),
+    );
+  }
+
+  /* Ecran de saisie du PIN : clavier numerique a grandes touches, adapte a un
+     enfant. On collecte 4 chiffres (affiches en pastilles) avant de tenter la
+     connexion. Un mauvais PIN vide la saisie et affiche un message. */
+  function rendrePinPad(classe, eleve, eleves) {
+    setStatut(`Bonjour ${eleve.prenom} !`);
+    let saisie = "";
+
+    const touche = (val, extra = "") =>
+      `<button type="button" class="pin-key ${extra}" data-pin="${val}">${val}</button>`;
+
+    loginBody.innerHTML = `
+      <p class="menu-lead">Tape ton code secret a 4 chiffres, ${escapeHtml(eleve.prenom)} :</p>
+      <div class="pin-dots" id="pin-dots" aria-label="Code a 4 chiffres">
+        <span class="pin-dot"></span><span class="pin-dot"></span>
+        <span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <div class="pin-pad">
+        ${touche(1)}${touche(2)}${touche(3)}
+        ${touche(4)}${touche(5)}${touche(6)}
+        ${touche(7)}${touche(8)}${touche(9)}
+        <button type="button" class="pin-key pin-key-action" data-pin="effacer">&#9003;</button>
+        ${touche(0)}
+        <button type="button" class="pin-key pin-key-valider" data-pin="valider">OK</button>
+      </div>
+      <button type="button" id="login-retour" class="ghost-button">&#8592; Changer d'eleve</button>
+    `;
+
+    const dots = loginBody.querySelectorAll(".pin-dot");
+    function rafraichir() {
+      dots.forEach((d, i) => d.classList.toggle("pin-dot-rempli", i < saisie.length));
+    }
+
+    async function valider() {
+      if (saisie.length !== 4) {
+        setStatut("Il faut 4 chiffres.");
+        return;
+      }
+      await connecterEleve(classe, eleve, saisie, () => {
+        /* echec : on remet le pave a zero pour reessayer */
+        saisie = "";
+        rafraichir();
+      });
+    }
+
+    loginBody.querySelector("#login-retour").addEventListener("click", () =>
+      rendreListeEleves(classe, eleves || [eleve]),
+    );
+    loginBody.querySelectorAll(".pin-key").forEach((bouton) => {
+      bouton.addEventListener("click", () => {
+        const val = bouton.dataset.pin;
+        if (val === "effacer") {
+          saisie = saisie.slice(0, -1);
+        } else if (val === "valider") {
+          valider();
+          return;
+        } else if (saisie.length < 4) {
+          saisie += val;
+        }
+        rafraichir();
+        if (saisie.length === 4) {
+          valider();
+        }
+      });
+    });
+  }
+
+  async function connecterEleve(classe, eleve, pin, onEchec) {
     setStatut("Connexion...");
     try {
-      const reponse = await appel(`/eleve/${eleveId}/connexion`, {
+      const reponse = await appel(`/eleve/${eleve.id}/connexion`, {
         method: "POST",
-        body: JSON.stringify({ code_classe: classe.code_classe }),
+        body: JSON.stringify({ code_classe: classe.code_classe, pin }),
       });
       compte = {
         token: reponse.token,
@@ -274,7 +348,15 @@
       ecrireStockage(compte);
       choisir("eleve");
     } catch (error) {
-      setStatut(`Connexion impossible : ${error.message}`);
+      /* 403 = code secret refuse : message d'enfant, sans jargon. */
+      setStatut(
+        error.status === 403
+          ? "Code secret incorrect. Reessaie !"
+          : `Connexion impossible : ${error.message}`,
+      );
+      if (typeof onEchec === "function") {
+        onEchec();
+      }
     }
   }
 

@@ -75,7 +75,8 @@ class JeuComptesTests(unittest.TestCase):
             f"/classe/{classe['id']}/eleve", json={"prenom": prenom}, headers=self._auth(ptoken)
         ).json()
         etoken = self.client.post(
-            f"/eleve/{eleve['id']}/connexion", json={"code_classe": classe["code_classe"]}
+            f"/eleve/{eleve['id']}/connexion",
+            json={"code_classe": classe["code_classe"], "pin": eleve["pin"]},
         ).json()["token"]
         return {"ptoken": ptoken, "classe": classe, "eleve_id": eleve["id"], "etoken": etoken}
 
@@ -164,7 +165,8 @@ class JeuComptesTests(unittest.TestCase):
             f"/classe/{a['classe']['id']}/eleve", json={"prenom": "Adam"}, headers=self._auth(a["ptoken"])
         ).json()
         tokenB = self.client.post(
-            f"/eleve/{eleveB['id']}/connexion", json={"code_classe": a["classe"]["code_classe"]}
+            f"/eleve/{eleveB['id']}/connexion",
+            json={"code_classe": a["classe"]["code_classe"], "pin": eleveB["pin"]},
         ).json()["token"]
 
         # L'eleve B tente d'acceder a la progression de l'eleve A -> 403.

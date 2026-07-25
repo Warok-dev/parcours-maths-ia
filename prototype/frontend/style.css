@@ -3547,6 +3547,128 @@ code {
   margin-top: 8px;
 }
 
+/* ---------- Pave numerique de saisie du PIN eleve ----------
+   Cote enfant : grandes touches rondes, dans l'univers colore du jeu. */
+.pin-dots {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 6px 0 18px;
+}
+
+.pin-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid var(--wood);
+  background: #fff;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.pin-dot-rempli {
+  background: var(--gold);
+  transform: scale(1.12);
+}
+
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  max-width: 300px;
+  margin: 0 auto 18px;
+}
+
+.pin-key {
+  font-family: var(--font-round);
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 18px 0;
+  border: 3px solid var(--cream-dark);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow-chip);
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.1s ease;
+}
+
+.pin-key:hover {
+  background: var(--cream);
+}
+
+.pin-key:active {
+  transform: translateY(2px) scale(0.97);
+}
+
+.pin-key-valider {
+  background: var(--grass);
+  border-color: var(--grass-dark);
+  color: #fff;
+}
+
+.pin-key-valider:hover {
+  background: var(--grass-light);
+}
+
+.pin-key-action {
+  background: var(--cream-dark);
+}
+
+/* ---------- Popup PIN cote enseignant (sobre) ---------- */
+.pin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(61, 44, 30, 0.45);
+}
+
+.pin-modal {
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px 26px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow-pop);
+}
+
+.pin-modal-titre {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+
+.pin-modal-lead {
+  margin: 0 0 18px;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.pin-modal-code {
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: var(--road-dark);
+  padding: 14px 10px 14px 22px;
+  margin: 0 auto 20px;
+  background: #f4f1ec;
+  border-radius: 14px;
+  border: 2px dashed var(--cream-dark);
+  display: inline-block;
+}
+
+.pin-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* ============================================================
    ESPACE ENSEIGNANT (sobre, sans decor : outil pour adultes)
    Reutilise la palette et la police, mais un fond neutre et des

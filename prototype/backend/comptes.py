@@ -57,6 +57,20 @@ def verifier_mot_de_passe(mot_de_passe: str, empreinte: str) -> bool:
         return False
 
 
+# --- PIN eleve (4 chiffres, hache comme un mot de passe) ---
+def generer_pin() -> str:
+    """PIN aleatoire a 4 chiffres, ex. '0473' (les zeros de tete sont gardes)."""
+    return f"{secrets.randbelow(10000):04d}"
+
+
+def verifier_pin(pin: str, empreinte: str | None) -> bool:
+    """Verifie un PIN contre son empreinte bcrypt. Un eleve sans PIN (empreinte
+    nulle, cree avant l'ajout du PIN) ne peut jamais se connecter."""
+    if not empreinte:
+        return False
+    return verifier_mot_de_passe(pin, empreinte)
+
+
 # --- Dependance session BD (surchargeable en test via dependency_overrides) ---
 def get_db():
     db = database.SessionLocal()
@@ -124,6 +138,7 @@ class EleveCreation(BaseModel):
 
 class EleveConnexion(BaseModel):
     code_classe: str
+    pin: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
 
 
 # --- Helpers ---
@@ -296,11 +311,14 @@ def ajouter_eleve(
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     classe = _classe_de_l_enseignant(db, classe_id, enseignant)
-    eleve = Eleve(classe_id=classe.id, prenom=payload.prenom)
+    # PIN genere ici et renvoye en clair UNE SEULE FOIS : seul son hash est
+    # stocke, l'enseignant doit le noter pour le communiquer a l'eleve.
+    pin = generer_pin()
+    eleve = Eleve(classe_id=classe.id, prenom=payload.prenom, pin_hash=hash_mot_de_passe(pin))
     db.add(eleve)
     db.commit()
     db.refresh(eleve)
-    return {"id": eleve.id, "prenom": eleve.prenom, "classe_id": classe.id}
+    return {"id": eleve.id, "prenom": eleve.prenom, "classe_id": classe.id, "pin": pin}
 
 
 @router.delete("/classe/{classe_id}/eleve/{eleve_id}", status_code=204, response_class=Response)
@@ -430,10 +448,15 @@ def connexion_eleve(
     eleve_id: int, payload: EleveConnexion, db: Annotated[Session, Depends(get_db)]
 ) -> dict:
     eleve = db.get(Eleve, eleve_id)
-    # Anti-usurpation : l'id doit appartenir a la classe du code fourni. On
-    # renvoie le meme 403 pour "id inconnu" et "mauvais code" (pas d'enumeration).
-    if eleve is None or eleve.classe.code_classe != payload.code_classe:
-        raise HTTPException(status_code=403, detail="Eleve ou code de classe invalide.")
+    # Anti-usurpation : l'id doit appartenir a la classe du code fourni ET le PIN
+    # doit correspondre. Meme 403 pour "id inconnu", "mauvais code" et "mauvais
+    # PIN" (pas d'enumeration : on ne revele pas laquelle des conditions echoue).
+    if (
+        eleve is None
+        or eleve.classe.code_classe != payload.code_classe
+        or not verifier_pin(payload.pin, eleve.pin_hash)
+    ):
+        raise HTTPException(status_code=403, detail="Eleve, code de classe ou code secret invalide.")
 
     token = secrets.token_urlsafe(32)
     _TOKENS_ELEVE[token] = eleve.id

@@ -213,6 +213,13 @@ class ComptesIntegrationTests(unittest.TestCase):
             f"/classe/{classe_id}/eleve", json={"prenom": prenom}, headers=self._auth(token)
         ).json()["id"]
 
+    def _ajouter_eleve_avec_pin(self, token, classe_id, prenom):
+        """Renvoie (eleve_id, pin) : le PIN n'est expose qu'a la creation."""
+        corps = self.client.post(
+            f"/classe/{classe_id}/eleve", json={"prenom": prenom}, headers=self._auth(token)
+        ).json()
+        return corps["id"], corps["pin"]
+
     def test_tableau_de_bord_agrege_par_eleve(self) -> None:
         self._inscrire()
         token = self._token()
@@ -336,18 +343,69 @@ class ComptesIntegrationTests(unittest.TestCase):
         self._inscrire()
         token = self._token()
         classe = self._creer_classe(token)
-        eleve_id = self.client.post(
-            f"/classe/{classe['id']}/eleve", json={"prenom": "Sofia"}, headers=self._auth(token)
-        ).json()["id"]
+        eleve_id, pin = self._ajouter_eleve_avec_pin(token, classe["id"], "Sofia")
 
         response = self.client.post(
-            f"/eleve/{eleve_id}/connexion", json={"code_classe": classe["code_classe"]}
+            f"/eleve/{eleve_id}/connexion",
+            json={"code_classe": classe["code_classe"], "pin": pin},
         )
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertTrue(body["token"])
         self.assertEqual(body["eleve"]["id"], eleve_id)
         self.assertEqual(body["eleve"]["niveau_scolaire"], "CE1")
+
+    def test_creation_eleve_renvoie_un_pin_a_4_chiffres(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        corps = self.client.post(
+            f"/classe/{classe['id']}/eleve", json={"prenom": "Sofia"}, headers=self._auth(token)
+        ).json()
+        self.assertRegex(corps["pin"], r"^\d{4}$")
+
+    def test_pin_affiche_une_seule_fois_a_la_creation(self) -> None:
+        # Le PIN n'apparait qu'a la creation : ni la liste enseignant ni la
+        # liste publique "rejoindre" ne le reexposent (seul son hash est stocke).
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        eleve_id, _pin = self._ajouter_eleve_avec_pin(token, classe["id"], "Sofia")
+
+        liste = self.client.get(
+            f"/classe/{classe['id']}/eleves", headers=self._auth(token)
+        ).json()["eleves"]
+        self.assertNotIn("pin", liste[0])
+        self.assertNotIn("pin_hash", liste[0])
+
+        rejoindre = self.client.get(f"/classe/rejoindre/{classe['code_classe']}").json()
+        self.assertNotIn("pin", rejoindre["eleves"][0])
+        self.assertNotIn("pin_hash", rejoindre["eleves"][0])
+        self.assertEqual(eleve_id, rejoindre["eleves"][0]["id"])
+
+    def test_connexion_eleve_mauvais_pin(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        eleve_id, pin = self._ajouter_eleve_avec_pin(token, classe["id"], "Sofia")
+        mauvais = "0000" if pin != "0000" else "1111"
+
+        response = self.client.post(
+            f"/eleve/{eleve_id}/connexion",
+            json={"code_classe": classe["code_classe"], "pin": mauvais},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_connexion_eleve_pin_manquant_refuse(self) -> None:
+        # Sans PIN, la requete est invalide (422) : le champ est obligatoire.
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        eleve_id, _pin = self._ajouter_eleve_avec_pin(token, classe["id"], "Sofia")
+        response = self.client.post(
+            f"/eleve/{eleve_id}/connexion", json={"code_classe": classe["code_classe"]}
+        )
+        self.assertEqual(response.status_code, 422)
 
     def test_rejoindre_classe_code_inconnu(self) -> None:
         response = self.client.get("/classe/rejoindre/CE1-INEXISTANT-00")
@@ -357,12 +415,11 @@ class ComptesIntegrationTests(unittest.TestCase):
         self._inscrire()
         token = self._token()
         classe = self._creer_classe(token)
-        eleve_id = self.client.post(
-            f"/classe/{classe['id']}/eleve", json={"prenom": "Sofia"}, headers=self._auth(token)
-        ).json()["id"]
+        eleve_id, pin = self._ajouter_eleve_avec_pin(token, classe["id"], "Sofia")
 
+        # PIN correct mais mauvais code -> refuse (l'id doit appartenir au code).
         response = self.client.post(
-            f"/eleve/{eleve_id}/connexion", json={"code_classe": "CE1-FAUX-99"}
+            f"/eleve/{eleve_id}/connexion", json={"code_classe": "CE1-FAUX-99", "pin": pin}
         )
         self.assertEqual(response.status_code, 403)
 
@@ -373,13 +430,12 @@ class ComptesIntegrationTests(unittest.TestCase):
         token = self._token()
         classe1 = self._creer_classe(token, "Classe 1", "CE1")
         classe2 = self._creer_classe(token, "Classe 2", "CE2")
-        eleve_classe1 = self.client.post(
-            f"/classe/{classe1['id']}/eleve", json={"prenom": "Sofia"}, headers=self._auth(token)
-        ).json()["id"]
+        eleve_classe1, pin1 = self._ajouter_eleve_avec_pin(token, classe1["id"], "Sofia")
 
-        # id de l'eleve de la classe 1, mais code de la classe 2 -> refuse.
+        # id + PIN de l'eleve de la classe 1, mais code de la classe 2 -> refuse.
         response = self.client.post(
-            f"/eleve/{eleve_classe1}/connexion", json={"code_classe": classe2["code_classe"]}
+            f"/eleve/{eleve_classe1}/connexion",
+            json={"code_classe": classe2["code_classe"], "pin": pin1},
         )
         self.assertEqual(response.status_code, 403)
 
