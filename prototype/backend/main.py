@@ -5,13 +5,16 @@ import logging
 import os
 import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from diagnostic import diagnostiquer_erreur
 from evaluation import compare_reponse
@@ -27,6 +30,8 @@ from generation.substitution import (
     patterns_disponibles_pour_niveau,
 )
 import tts
+from comptes import eleve_id_optionnel, get_db, router as comptes_router
+from database import Eleve, Progression, SessionJeu, init_db
 from tts import TTSConfigurationError, TTSServiceError
 from tutor import TutorServiceError, build_tutor_reply
 
@@ -95,6 +100,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _initialiser_base_de_donnees() -> None:
+    """Cree data/parcours.db et ses tables au demarrage si besoin (create_all
+    idempotent). Fondation seule : le flux de jeu ne s'en sert pas encore."""
+    init_db()
+
+
+# Endpoints comptes/gestion (enseignants, classes, eleves). Isoles du flux de
+# jeu : leur inclusion ne modifie aucun endpoint existant.
+app.include_router(comptes_router)
 
 
 class SessionStartRequest(BaseModel):
@@ -327,6 +344,10 @@ def _ensure_session_fields(session: dict) -> dict:
     session.setdefault("confiance_maitrises_vues", 0)
     session.setdefault("revision", False)
     session.setdefault("theme", THEME_NEUTRE)
+    # Lien optionnel vers un compte eleve (mode connecte) : nul pour une
+    # session invitee (mode essai libre, comportement localStorage inchange).
+    session.setdefault("eleve_id", None)
+    session.setdefault("session_jeu_id", None)
     return session
 
 
@@ -787,14 +808,101 @@ def _extract_answer(payload: EvaluationRequest) -> str:
     return answer
 
 
+# ============================================================
+#  LIEN SESSION DE JEU <-> COMPTE ELEVE (base de donnees)
+#  Le mode INVITE (session anonyme, eleve_id nul) n'ecrit RIEN en base : son
+#  suivi reste cote frontend (localStorage), strictement inchange. Seules les
+#  sessions liees a un eleve connecte alimentent SessionJeu et Progression.
+# ============================================================
+def _lier_session_a_eleve(db: Session, session: dict, eleve_id: int, niveau: str) -> None:
+    """Cree la ligne SessionJeu et note le lien dans la session de jeu."""
+    if db.get(Eleve, eleve_id) is None:
+        return  # token pointant vers un eleve supprime : on reste en invite
+    session_jeu = SessionJeu(
+        eleve_id=eleve_id, niveau_scolaire=niveau, lecon_id=session.get("lecon_id")
+    )
+    db.add(session_jeu)
+    db.commit()
+    db.refresh(session_jeu)
+    session["eleve_id"] = eleve_id
+    session["session_jeu_id"] = session_jeu.id
+    _save_session(session)
+
+
+def _upsert_progression(
+    db: Session, eleve_id: int, pattern_name: str, lecon_id: str | None, maitrise: int
+) -> None:
+    """Ecrit/ met a jour la maitrise d'un concept en gardant la MEILLEURE
+    obtenue (meme logique que le carnet d'aventurier localStorage)."""
+    ligne = db.scalars(
+        select(Progression).where(
+            Progression.eleve_id == eleve_id, Progression.pattern_name == pattern_name
+        )
+    ).first()
+    if ligne is None:
+        db.add(
+            Progression(
+                eleve_id=eleve_id, pattern_name=pattern_name, lecon_id=lecon_id, maitrise=maitrise
+            )
+        )
+        return
+    # Rejeu : on ne baisse jamais la maitrise ; la lecon d'origine est conservee.
+    if maitrise > ligne.maitrise:
+        ligne.maitrise = maitrise
+    ligne.date_derniere_tentative = datetime.now(timezone.utc)
+
+
+def _enregistrer_evaluation_bd(db: Session, session: dict, statut: str | None) -> None:
+    """Repercute une evaluation en base pour une session LIEE a un eleve.
+
+    A chaque concept acheve (correct_concept_debloque / carte_terminee) : upsert
+    de la Progression du concept qui vient d'etre termine. Met aussi a jour
+    l'activite de la SessionJeu, et la marque terminee a la fin. Best-effort :
+    une panne de persistance ne casse jamais l'evaluation.
+    """
+    eleve_id = session.get("eleve_id")
+    if eleve_id is None:
+        return  # session invitee : rien en base
+    try:
+        if statut in ("correct_concept_debloque", "carte_terminee"):
+            maitrises = session.get("maitrises_concepts_terminees", [])
+            concepts = session.get("concepts", [])
+            index = len(maitrises) - 1  # le concept qui vient d'etre acheve
+            if 0 <= index < len(concepts):
+                _upsert_progression(
+                    db, eleve_id, concepts[index], session.get("lecon_id"), maitrises[index]
+                )
+        session_jeu = (
+            db.get(SessionJeu, session["session_jeu_id"])
+            if session.get("session_jeu_id")
+            else None
+        )
+        if session_jeu is not None:
+            session_jeu.date_derniere_activite = datetime.now(timezone.utc)
+            if session.get("terminee"):
+                session_jeu.termine = True
+        db.commit()
+    except Exception as exc:  # persistance best-effort, jamais fatale
+        db.rollback()
+        logging.warning("Progression BD non enregistree : %s", exc)
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
 
 
 @app.post("/session/demarrer")
-def demarrer_session(payload: SessionStartRequest) -> dict:
+def demarrer_session(
+    payload: SessionStartRequest,
+    db: Annotated[Session, Depends(get_db)],
+    eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
+) -> dict:
     session = _build_session(payload.niveau_scolaire, payload.lecon_id, theme=payload.theme)
+    # Token eleve valide -> on lie la session a son compte (sinon : invite, rien
+    # en base, comportement inchange).
+    if eleve_id is not None:
+        _lier_session_a_eleve(db, session, eleve_id, payload.niveau_scolaire)
     return {
         "session_id": session["session_id"],
         "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
@@ -803,7 +911,11 @@ def demarrer_session(payload: SessionStartRequest) -> dict:
 
 
 @app.post("/session/demarrer_revision")
-def demarrer_session_revision(payload: RevisionStartRequest) -> dict:
+def demarrer_session_revision(
+    payload: RevisionStartRequest,
+    db: Annotated[Session, Depends(get_db)],
+    eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
+) -> dict:
     """Session de revision ciblee sur les faiblesses de l'eleve.
 
     Le pool de concepts vient des patterns transmis par le frontend, pas des
@@ -819,6 +931,8 @@ def demarrer_session_revision(payload: RevisionStartRequest) -> dict:
         revision=True,
         theme=payload.theme,
     )
+    if eleve_id is not None:
+        _lier_session_a_eleve(db, session, eleve_id, payload.niveau_scolaire)
     return {
         "session_id": session["session_id"],
         "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
@@ -861,7 +975,9 @@ def get_exercice(niveau: str, pattern: str | None = None) -> dict:
 
 
 @app.post("/evaluer")
-def evaluer(payload: EvaluationRequest) -> dict:
+def evaluer(
+    payload: EvaluationRequest, db: Annotated[Session, Depends(get_db)]
+) -> dict:
     reponse = _extract_answer(payload)
 
     if payload.session_id is not None:
@@ -869,6 +985,9 @@ def evaluer(payload: EvaluationRequest) -> dict:
         exercice = _ensure_current_exercise(session, payload.exercice_id)
         response = _apply_session_evaluation(session, exercice, reponse)
         _save_session(session)
+        # Session liee a un eleve : on repercute en base (Progression + activite).
+        # Session invitee (eleve_id nul) : ne fait rien, mode localStorage intact.
+        _enregistrer_evaluation_bd(db, session, response.get("statut"))
         return response
 
     if payload.niveau is None:
