@@ -1931,6 +1931,11 @@ function renderLessonChoices() {
     ? `Choisis une lecon de ${state.selectedLevel}`
     : "Choisis ta lecon";
 
+  /* Un eleve reste sur le niveau de sa classe : "Changer de niveau" n'a pas de
+     sens pour lui (il ne verra jamais l'ecran de choix CE1-CE6). En essai libre
+     le bouton reste, pour repartir vers un autre niveau. */
+  backToLevelsButton.classList.toggle("hidden", Boolean(niveauImposeEleve()));
+
   lessonActions.innerHTML = state.availableLessons
     .map(
       (lesson) => `
@@ -2355,9 +2360,18 @@ function resetSharedState() {
 
 function resetToStart() {
   resetSharedState();
-  state.selectedLevel = null;
   state.availableLessons = [];
   state.selectedLesson = null;
+  /* Eleve : pas de retour au choix de niveau (il est fige par sa classe) ; on
+     revient directement a ses lecons. Essai libre : ecran de niveau habituel. */
+  const niveauEleve = niveauImposeEleve();
+  if (niveauEleve) {
+    loadLessons(niveauEleve).catch((error) => {
+      lessonStatus.textContent = `Impossible de charger les lecons : ${error.message}`;
+    });
+    return;
+  }
+  state.selectedLevel = null;
   showStartScreen();
   startStatus.textContent = "Choisis un niveau pour demarrer une nouvelle session.";
   lessonStatus.textContent = "";
@@ -2692,10 +2706,41 @@ function demarrerApplication() {
     window.ParcoursCompte.demarrerConnexion(demarrerApplication);
     return;
   }
+  /* Eleve connecte a une classe : on saute le choix du niveau scolaire. Son
+     niveau est celui de sa classe (fige en base), on va droit aux lecons. Le
+     mode essai libre, lui, garde le libre choix du niveau (branche ci-dessous). */
+  const niveauEleve = niveauImposeEleve();
+  if (niveauEleve) {
+    demarrerFluxEleve(niveauEleve);
+    return;
+  }
   /* Ecran de depart d'abord : la reprise est asynchrone et peut echouer, il
      ne doit jamais rester une page vide derriere l'ecran de theme ferme. */
   showStartScreen();
   tryResumeSession();
+}
+
+/* Niveau impose a un eleve connecte (celui de sa classe), ou null en essai
+   libre / non connecte : la seule source de verite pour "sauter le choix". */
+function niveauImposeEleve() {
+  return (window.ParcoursCompte?.estEleve?.() && window.ParcoursCompte.getNiveau()) || null;
+}
+
+/* Entree dans le jeu pour un eleve : on reprend une partie en cours si elle
+   existe, sinon on ouvre directement les lecons de son niveau (jamais l'ecran
+   de choix CE1-CE6). On affiche l'ecran des lecons pendant le chargement pour
+   ne pas laisser apparaitre, meme une fraction de seconde, le choix de niveau. */
+async function demarrerFluxEleve(niveau) {
+  showLessonScreen();
+  lessonStatus.textContent = "Chargement de tes lecons...";
+  if (await tryResumeSession()) {
+    return;
+  }
+  try {
+    await loadLessons(niveau);
+  } catch (error) {
+    lessonStatus.textContent = `Impossible de charger les lecons : ${error.message}`;
+  }
 }
 
 demarrerApplication();
