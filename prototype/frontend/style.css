@@ -3498,3 +3498,51 @@ code {
     padding: 20px 16px;
   }
 }
+
+/* ============================================================
+   ECRAN DE CONNEXION (rejoindre sa classe / essai libre)
+   Reutilise les cartes de menu ; ajoute juste le formulaire de code.
+   ============================================================ */
+.login-choices {
+  margin-top: 8px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  margin: 8px auto 0;
+  text-align: left;
+}
+
+.login-label {
+  font-weight: 600;
+  color: var(--ink, #3a2a1c);
+}
+
+.login-input {
+  padding: 13px 16px;
+  border: 2px solid var(--cream-dark);
+  border-radius: 14px;
+  background: #fff;
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.login-input:focus {
+  outline: 3px solid var(--water);
+  outline-offset: 1px;
+}
+
+.login-form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.login-eleves {
+  margin-top: 8px;
+}

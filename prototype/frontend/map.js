@@ -1886,9 +1886,17 @@ function applySessionSnapshot(snapshot, exercise = null) {
 }
 
 async function request(path, options = {}) {
+  /* Eleve connecte : on joint son jeton a tous les appels. Le backend ne
+     s'en sert que la ou c'est utile (/session/demarrer lie alors la
+     session au compte) ; en essai libre il n'y a pas de jeton, donc
+     aucun en-tete et un comportement strictement identique a avant. */
+  const authHeader = window.ParcoursCompte?.getToken?.()
+    ? { Authorization: `Bearer ${window.ParcoursCompte.getToken()}` }
+    : {};
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeader,
       ...(options.headers || {}),
     },
     ...options,
@@ -2592,6 +2600,14 @@ document.getElementById("new-adventure-button").addEventListener("click", () => 
   resetToStart();
 });
 
+/* Changer de joueur : on oublie le compte courant et on recharge, ce qui
+   ramene a l'ecran de connexion (rejoindre une classe ou essai libre). */
+document.getElementById("compte-button").addEventListener("click", () => {
+  closeMenuDropdown();
+  window.ParcoursCompte?.deconnecter?.();
+  window.location.reload();
+});
+
 window.addEventListener("beforeunload", saveSessionRef);
 
 changeLessonButton.addEventListener("click", () => {
@@ -2662,6 +2678,12 @@ if (window.ParcoursTheme) {
 function demarrerApplication() {
   if (window.ParcoursTheme && !window.ParcoursTheme.aChoisi()) {
     window.ParcoursTheme.ouvrir({ apresChoix: demarrerApplication });
+    return;
+  }
+  /* Connexion ensuite : rejoindre sa classe (compte eleve) ou essai libre.
+     Tant que le choix n'est pas fait, l'ecran de connexion reste devant. */
+  if (window.ParcoursCompte && !window.ParcoursCompte.aDecide()) {
+    window.ParcoursCompte.demarrerConnexion(demarrerApplication);
     return;
   }
   /* Ecran de depart d'abord : la reprise est asynchrone et peut echouer, il

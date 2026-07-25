@@ -47,6 +47,20 @@
   let pageIndex = 0;
   let bilanOpen = false;
   let bilanTimer = null;
+  /* Pages du carnet quand un eleve est connecte : elles viennent de la base
+     (GET /eleve/{id}/progression) et non du localStorage. En essai libre,
+     cette variable reste nulle et tout passe par le localStorage comme avant. */
+  let studentEntries = null;
+
+  function estEleve() {
+    return Boolean(window.ParcoursCompte?.estEleve?.());
+  }
+
+  /* Source de pages selon le mode : base pour un eleve connecte, localStorage
+     pour l'essai libre. */
+  function currentEntries() {
+    return estEleve() ? studentEntries || [] : loadEntries();
+  }
 
   /* Maitrise max observee par concept, par session (les snapshots ne portent
      que la maitrise du concept courant : on l'accumule au fil de la partie). */
@@ -133,7 +147,13 @@
     }
     if (snapshot.terminee && snapshot.lecon_id && !recordedSessions.has(snapshot.session_id)) {
       recordedSessions.add(snapshot.session_id);
-      recordCompletion(snapshot);
+      /* Eleve connecte : la progression est deja persistee en base par le
+         backend ; on n'ecrit donc pas dans le carnet localStorage (reserve a
+         l'essai libre). Le bilan, lui, se calcule depuis la session en cours
+         et s'affiche dans les deux modes. */
+      if (!estEleve()) {
+        recordCompletion(snapshot);
+      }
       /* Bilan de session juste apres le bandeau de felicitations, en plus
          du comportement existant (le bandeau reste affiche derriere). */
       window.clearTimeout(bilanTimer);
@@ -207,7 +227,7 @@
   }
 
   function render() {
-    const entries = loadEntries();
+    const entries = currentEntries();
     pageIndex = Math.min(Math.max(pageIndex, 0), Math.max(0, entries.length - 1));
     const content = entries.length
       ? pageMarkup(entries[pageIndex], pageIndex, entries.length)
@@ -283,7 +303,7 @@
   });
 
   function turnPage(delta) {
-    const count = loadEntries().length;
+    const count = currentEntries().length;
     const next = pageIndex + delta;
     if (next < 0 || next >= count) {
       return;
@@ -292,8 +312,33 @@
     render();
   }
 
-  function openCarnet() {
+  function loadingMarkup() {
+    return `
+      <button id="carnet-close" class="modal-close" type="button" aria-label="Fermer le carnet">&#10005;</button>
+      <div class="carnet-page">
+        <p class="carnet-eyebrow">Carnet d'aventurier</p>
+        <div class="carnet-empty"><p>Ouverture de ton carnet...</p></div>
+      </div>
+    `;
+  }
+
+  async function openCarnet() {
     isOpen = true;
+    if (estEleve()) {
+      /* Eleve connecte : pages relues depuis la base a chaque ouverture. */
+      book.innerHTML = loadingMarkup();
+      overlay.classList.remove("hidden");
+      window.ParcoursApp?.refreshScenePaused?.();
+      try {
+        studentEntries = await window.ParcoursCompte.chargerEntreesCarnet();
+      } catch (_error) {
+        studentEntries = [];
+      }
+      if (isOpen) {
+        render();
+      }
+      return;
+    }
     render();
     overlay.classList.remove("hidden");
     window.ParcoursApp?.refreshScenePaused?.();

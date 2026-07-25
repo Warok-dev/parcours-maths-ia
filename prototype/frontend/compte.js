@@ -1,0 +1,363 @@
+/* ============================================================
+   COMPTE ELEVE (connexion a une classe)
+   Ecran de connexion affiche au tout debut, AVANT le choix du
+   niveau et de la lecon : "Rejoindre ma classe" (code de classe +
+   prenom) ou "Essai libre" (mode invite, comportement historique
+   strictement inchange, tout en localStorage).
+
+   Quand un eleve est connecte, map.js ajoute son jeton aux appels
+   (/session/demarrer lie alors la session au compte cote backend) et
+   le carnet d'aventurier se lit depuis GET /eleve/{id}/progression au
+   lieu du localStorage. Le mode invite, lui, ne touche jamais la base.
+
+   MIGRATION : on ne transfere PAS l'historique localStorage existant
+   vers les comptes. Impossible de savoir a quel eleve il appartient
+   (un meme navigateur a pu servir a plusieurs enfants en essai libre).
+   Un compte eleve demarre donc avec une progression vierge ; le
+   localStorage reste la memoire du seul mode invite.
+
+   Le coeur pur (regroupement de la progression en pages de carnet)
+   s'exporte en Node pour les tests (test_compte.js).
+   ============================================================ */
+(function () {
+  const API_BASE = "http://127.0.0.1:8000";
+  const STORAGE_KEY = "parcours_compte_v1";
+
+  /* ---------- Coeur pur (testable sans navigateur) ---------- */
+
+  /* Transforme la progression a plat renvoyee par le backend
+     ([{pattern_name, lecon_id, maitrise, date_derniere_tentative}, ...])
+     en pages de carnet groupees par lecon, au meme format que les
+     entrees localStorage du mode invite (une page par lecon, etoiles
+     cumulees). La meilleure maitrise est deja garantie par le backend
+     (une seule ligne par (eleve, pattern)), donc aucun merge ici.
+     meta = { niveau, lessonNames: { lecon_id: "Nom lisible" } }. */
+  function grouperProgression(lignes, meta = {}) {
+    const groupes = new Map();
+    for (const ligne of Array.isArray(lignes) ? lignes : []) {
+      if (!ligne || !ligne.pattern_name) {
+        continue;
+      }
+      const cle = ligne.lecon_id || "";
+      if (!groupes.has(cle)) {
+        groupes.set(cle, { concepts: [], date: "" });
+      }
+      const groupe = groupes.get(cle);
+      groupe.concepts.push({
+        concept: ligne.pattern_name,
+        maitrise: ligne.maitrise || 1,
+      });
+      /* Date de la page = tentative la plus recente de la lecon. */
+      const date = ligne.date_derniere_tentative || "";
+      if (date > groupe.date) {
+        groupe.date = date;
+      }
+    }
+
+    const lessonNames = meta.lessonNames || {};
+    const entrees = [];
+    for (const [lecon_id, groupe] of groupes) {
+      const etoiles = groupe.concepts.reduce((s, c) => s + (c.maitrise || 0), 0);
+      entrees.push({
+        niveau_scolaire: meta.niveau || "",
+        lecon_id,
+        lecon_nom: lessonNames[lecon_id] || lecon_id,
+        date: groupe.date,
+        concepts: groupe.concepts,
+        etoiles,
+        etoiles_max: groupe.concepts.length * 3,
+      });
+    }
+    /* Ordre stable : la lecon la plus recemment travaillee en premiere
+       page (a defaut de date, ordre alphabetique de la lecon). */
+    entrees.sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.lecon_id.localeCompare(b.lecon_id));
+    return entrees;
+  }
+
+  const coeur = { grouperProgression, STORAGE_KEY };
+
+  /* En Node (tests), on s'arrete au coeur pur : pas de DOM ni de fetch. */
+  if (typeof window === "undefined") {
+    if (typeof module !== "undefined" && module.exports) {
+      module.exports = coeur;
+    }
+    return;
+  }
+
+  /* ---------- Etat du compte (navigateur) ---------- */
+  /* decision : null tant que l'utilisateur n'a pas choisi ; "eleve" ou
+     "invite" ensuite. Seul l'eleve est persiste (reconnexion au reload) ;
+     l'essai libre ne laisse aucune trace de compte. */
+  let decision = null;
+  let compte = null; /* { token, eleveId, prenom, niveau, codeClasse } */
+  let lessonNamesCache = {}; /* niveau -> {lecon_id: nom} deja charges */
+
+  function lireStockage() {
+    try {
+      const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      return brut && brut.token && brut.eleveId ? brut : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function ecrireStockage(valeur) {
+    try {
+      if (valeur) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(valeur));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (_error) {
+      /* stockage indisponible : le compte vaut alors pour cette session */
+    }
+  }
+
+  async function appel(path, options = {}) {
+    const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+    const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    if (!response.ok) {
+      let message = `${response.status}`;
+      try {
+        message = (await response.json()).detail || message;
+      } catch (_error) {
+        /* corps non-JSON : on garde le code */
+      }
+      const erreur = new Error(message);
+      erreur.status = response.status;
+      throw erreur;
+    }
+    return response.json();
+  }
+
+  /* ---------- Ecran de connexion ---------- */
+  const loginScreen = document.getElementById("login-screen");
+  const loginBody = document.getElementById("login-body");
+  const loginStatus = document.getElementById("login-status");
+
+  let apresChoix = null;
+
+  function afficherEcran() {
+    loginScreen?.classList.remove("hidden");
+    document.getElementById("start-screen")?.classList.add("hidden");
+    document.getElementById("lesson-screen")?.classList.add("hidden");
+    document.getElementById("game-screen")?.classList.add("hidden");
+  }
+
+  function masquerEcran() {
+    loginScreen?.classList.add("hidden");
+  }
+
+  function setStatut(texte) {
+    if (loginStatus) {
+      loginStatus.textContent = texte || "";
+    }
+  }
+
+  function choisir(mode) {
+    decision = mode;
+    masquerEcran();
+    const suite = apresChoix;
+    apresChoix = null;
+    if (typeof suite === "function") {
+      suite();
+    }
+  }
+
+  function rendreAccueil() {
+    setStatut("");
+    loginBody.innerHTML = `
+      <div class="level-actions login-choices">
+        <button id="login-rejoindre" class="level-button" type="button">
+          <span class="level-sign">&#127979;</span>
+          <span class="level-copy">Rejoindre ma classe</span>
+        </button>
+        <button id="login-invite" class="level-button" type="button">
+          <span class="level-sign">&#127917;</span>
+          <span class="level-copy">Essai libre</span>
+        </button>
+      </div>
+    `;
+    loginBody.querySelector("#login-rejoindre").addEventListener("click", rendreSaisieCode);
+    loginBody.querySelector("#login-invite").addEventListener("click", () => choisir("invite"));
+  }
+
+  function rendreSaisieCode() {
+    setStatut("");
+    loginBody.innerHTML = `
+      <form id="login-code-form" class="login-form" autocomplete="off">
+        <label class="login-label" for="login-code-input">Code de ta classe</label>
+        <input id="login-code-input" class="login-input" type="text" placeholder="CE1-RENARD-42"
+          autocomplete="off" aria-label="Code de la classe" />
+        <div class="login-form-actions">
+          <button type="submit" class="btn-primary">Voir ma classe</button>
+          <button type="button" id="login-retour" class="ghost-button">&#8592; Retour</button>
+        </div>
+      </form>
+    `;
+    const input = loginBody.querySelector("#login-code-input");
+    input.focus();
+    loginBody.querySelector("#login-retour").addEventListener("click", rendreAccueil);
+    loginBody.querySelector("#login-code-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const code = input.value.trim().toUpperCase();
+      if (!code) {
+        return;
+      }
+      setStatut("Recherche de ta classe...");
+      try {
+        const reponse = await appel(`/classe/rejoindre/${encodeURIComponent(code)}`, { method: "GET" });
+        /* Le backend renvoie { classe: {...}, eleves: [...] } : les infos de
+           la classe sont imbriquees sous `classe`, la liste d'eleves a plat. */
+        rendreListeEleves(reponse.classe, reponse.eleves || []);
+      } catch (error) {
+        setStatut(
+          error.status === 404
+            ? "Aucune classe avec ce code. Verifie aupres de ton enseignant."
+            : `Impossible de trouver la classe : ${error.message}`,
+        );
+      }
+    });
+  }
+
+  function rendreListeEleves(classe, eleves) {
+    setStatut(`Classe ${classe.nom} (${classe.niveau_scolaire})`);
+    if (!eleves.length) {
+      loginBody.innerHTML = `
+        <p class="menu-lead">Cette classe n'a pas encore d'eleves. Demande a ton enseignant de t'ajouter.</p>
+        <button type="button" id="login-retour" class="ghost-button">&#8592; Retour</button>
+      `;
+      loginBody.querySelector("#login-retour").addEventListener("click", rendreSaisieCode);
+      return;
+    }
+    const boutons = eleves
+      .map(
+        (eleve) => `
+          <button class="lesson-card login-eleve" type="button" data-eleve-id="${eleve.id}">
+            <span class="lesson-card-icon">&#128100;</span>
+            <span><span class="lesson-card-title">${eleve.prenom}</span></span>
+          </button>
+        `,
+      )
+      .join("");
+    loginBody.innerHTML = `
+      <p class="menu-lead">Choisis ton prenom :</p>
+      <div class="lesson-actions login-eleves">${boutons}</div>
+      <button type="button" id="login-retour" class="ghost-button">&#8592; Changer de code</button>
+    `;
+    loginBody.querySelector("#login-retour").addEventListener("click", rendreSaisieCode);
+    loginBody.querySelectorAll(".login-eleve").forEach((bouton) => {
+      bouton.addEventListener("click", () => connecterEleve(classe, Number(bouton.dataset.eleveId)));
+    });
+  }
+
+  async function connecterEleve(classe, eleveId) {
+    setStatut("Connexion...");
+    try {
+      const reponse = await appel(`/eleve/${eleveId}/connexion`, {
+        method: "POST",
+        body: JSON.stringify({ code_classe: classe.code_classe }),
+      });
+      compte = {
+        token: reponse.token,
+        eleveId: reponse.eleve.id,
+        prenom: reponse.eleve.prenom,
+        niveau: reponse.eleve.niveau_scolaire,
+        codeClasse: classe.code_classe,
+      };
+      ecrireStockage(compte);
+      choisir("eleve");
+    } catch (error) {
+      setStatut(`Connexion impossible : ${error.message}`);
+    }
+  }
+
+  /* Reconnexion silencieuse au chargement : un jeton en localStorage est
+     revalide contre le backend (les jetons vivent en memoire cote serveur
+     et sautent a chaque redemarrage). En cas d'echec, on repart propre. */
+  async function tenterReconnexion() {
+    const stocke = lireStockage();
+    if (!stocke) {
+      return false;
+    }
+    try {
+      await appel(`/eleve/${stocke.eleveId}/progression`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${stocke.token}` },
+      });
+      compte = stocke;
+      return true;
+    } catch (_error) {
+      ecrireStockage(null);
+      return false;
+    }
+  }
+
+  /* Point d'entree appele par map.js au demarrage : garantit qu'un choix
+     (eleve reconnecte ou ecran affiche) est fait avant de continuer. */
+  async function demarrerConnexion(suite) {
+    apresChoix = suite;
+    if (await tenterReconnexion()) {
+      choisir("eleve");
+      return;
+    }
+    afficherEcran();
+    rendreAccueil();
+  }
+
+  function deconnecter() {
+    compte = null;
+    decision = null;
+    ecrireStockage(null);
+  }
+
+  /* Noms lisibles des lecons d'un niveau (pour titrer les pages du carnet),
+     charges une fois puis memorises. */
+  async function chargerNomsLecons(niveau) {
+    if (lessonNamesCache[niveau]) {
+      return lessonNamesCache[niveau];
+    }
+    try {
+      const payload = await appel(`/lecons/${niveau}`, { method: "GET" });
+      const noms = {};
+      for (const lecon of payload.lecons || []) {
+        noms[lecon.lecon_id] = lecon.nom;
+      }
+      lessonNamesCache[niveau] = noms;
+      return noms;
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  /* Pages du carnet d'un eleve connecte, construites depuis la base
+     (remplace la lecture localStorage du mode invite). */
+  async function chargerEntreesCarnet() {
+    if (!compte) {
+      return [];
+    }
+    const payload = await appel(`/eleve/${compte.eleveId}/progression`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${compte.token}` },
+    });
+    const lessonNames = await chargerNomsLecons(compte.niveau);
+    return grouperProgression(payload.progression || [], {
+      niveau: compte.niveau,
+      lessonNames,
+    });
+  }
+
+  window.ParcoursCompte = {
+    demarrerConnexion,
+    aDecide: () => decision !== null,
+    estEleve: () => decision === "eleve" && Boolean(compte),
+    getToken: () => (compte ? compte.token : null),
+    getEleveId: () => (compte ? compte.eleveId : null),
+    getNiveau: () => (compte ? compte.niveau : null),
+    getPrenom: () => (compte ? compte.prenom : null),
+    deconnecter,
+    chargerEntreesCarnet,
+    /* Exposes pour les tests / l'affichage */
+    grouperProgression,
+  };
+})();

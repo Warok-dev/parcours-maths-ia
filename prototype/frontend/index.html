@@ -32,8 +32,25 @@
       </div>
     </section>
 
+    <!-- ===== Ecran 0.5 : connexion (rejoindre sa classe ou essai libre) ===== -->
+    <section id="login-screen" class="screen menu-screen hidden">
+      <div class="menu-sky-decor" aria-hidden="true">
+        <span class="cloud cloud-a"></span>
+        <span class="cloud cloud-b"></span>
+      </div>
+      <div class="menu-card menu-card-wide">
+        <p class="menu-eyebrow">Le petit monde des maths</p>
+        <h1 id="login-title">Qui joue aujourd'hui ?</h1>
+        <p class="menu-lead">
+          Rejoins ta classe pour retrouver ta progression, ou lance un essai libre.
+        </p>
+        <div id="login-body"></div>
+        <p id="login-status" class="menu-note"></p>
+      </div>
+    </section>
+
     <!-- ===== Ecran 1 : choix du niveau ===== -->
-    <section id="start-screen" class="screen menu-screen">
+    <section id="start-screen" class="screen menu-screen hidden">
       <div class="menu-sky-decor" aria-hidden="true">
         <span class="cloud cloud-a"></span>
         <span class="cloud cloud-b"></span>
@@ -154,6 +171,7 @@
           <button id="change-lesson-button" class="menu-item" type="button">&#128214; Changer de lecon</button>
           <button id="restart-button" class="menu-item" type="button">&#127891; Changer de niveau</button>
           <button id="new-adventure-button" class="menu-item" type="button">&#128260; Recommencer une nouvelle aventure</button>
+          <button id="compte-button" class="menu-item" type="button">&#128273; Changer de joueur</button>
         </div>
       </div>
 
@@ -245,6 +263,7 @@
     <script src="personnage.js"></script>
     <script src="tresor.js"></script>
     <script src="ambiance.js"></script>
+    <script src="compte.js"></script>
     <script src="map.js"></script>
     <script src="carnet.js"></script>
     <script src="chat.js"></script>
