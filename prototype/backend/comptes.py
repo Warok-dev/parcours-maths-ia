@@ -21,7 +21,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -127,13 +127,16 @@ class EleveConnexion(BaseModel):
 
 
 # --- Helpers ---
-def _classe_dict(classe: Classe) -> dict:
-    return {
+def _classe_dict(classe: Classe, nb_eleves: int | None = None) -> dict:
+    infos = {
         "id": classe.id,
         "nom": classe.nom,
         "niveau_scolaire": classe.niveau_scolaire,
         "code_classe": classe.code_classe,
     }
+    if nb_eleves is not None:
+        infos["nb_eleves"] = nb_eleves
+    return infos
 
 
 def _ecole_courante(db: Session, nom: str | None) -> Ecole:
@@ -248,7 +251,41 @@ def lister_classes(
     classes = db.scalars(
         select(Classe).where(Classe.enseignant_id == enseignant.id).order_by(Classe.date_creation)
     ).all()
-    return {"classes": [_classe_dict(c) for c in classes]}
+    # nb_eleves permet au tableau de bord d'afficher l'effectif sans un appel
+    # par classe (le code_classe reste la donnee a partager, mise en avant).
+    return {
+        "classes": [
+            _classe_dict(
+                c,
+                nb_eleves=db.scalar(
+                    select(func.count()).select_from(Eleve).where(Eleve.classe_id == c.id)
+                ),
+            )
+            for c in classes
+        ]
+    }
+
+
+@router.get("/classe/{classe_id}/eleves")
+def lister_eleves(
+    classe_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Eleves d'une classe pour la vue detaillee du tableau de bord (prenom et
+    date d'ajout). Protege : la classe doit appartenir a l'enseignant connecte.
+    Distinct de /classe/rejoindre (public, cote eleve, sans dates)."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    eleves = db.scalars(
+        select(Eleve).where(Eleve.classe_id == classe.id).order_by(Eleve.date_creation, Eleve.prenom)
+    ).all()
+    return {
+        "classe": _classe_dict(classe),
+        "eleves": [
+            {"id": e.id, "prenom": e.prenom, "date_creation": e.date_creation.isoformat()}
+            for e in eleves
+        ],
+    }
 
 
 @router.post("/classe/{classe_id}/eleve", status_code=201)
@@ -280,6 +317,90 @@ def retirer_eleve(
     db.delete(eleve)
     db.commit()
     return Response(status_code=204)
+
+
+# ============================================================
+#  TABLEAU DE BORD ENSEIGNANT (vue d'ensemble d'une classe)
+# ============================================================
+@router.get("/classe/{classe_id}/tableau_de_bord")
+def tableau_de_bord(
+    classe_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Vue d'ensemble de la classe : pour chaque eleve, les concepts traverses
+    et un decompte par niveau de maitrise (memes seuils que le bilan eleve :
+    3 = acquis, 2 = en bonne voie, 1 = a retravailler). Permet a l'enseignant
+    de reperer d'un coup d'oeil qui maitrise quoi, sans ouvrir chaque eleve."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    eleves = db.scalars(
+        select(Eleve).where(Eleve.classe_id == classe.id).order_by(Eleve.prenom)
+    ).all()
+    lignes = db.scalars(
+        select(Progression)
+        .join(Eleve, Progression.eleve_id == Eleve.id)
+        .where(Eleve.classe_id == classe.id)
+        .order_by(Progression.lecon_id, Progression.pattern_name)
+    ).all()
+
+    par_eleve: dict[int, list[Progression]] = {}
+    for p in lignes:
+        par_eleve.setdefault(p.eleve_id, []).append(p)
+
+    def _resume(eleve: Eleve) -> dict:
+        concepts = par_eleve.get(eleve.id, [])
+        return {
+            "id": eleve.id,
+            "prenom": eleve.prenom,
+            "concepts": [
+                {
+                    "pattern_name": p.pattern_name,
+                    "lecon_id": p.lecon_id,
+                    "maitrise": p.maitrise,
+                    "date_derniere_tentative": p.date_derniere_tentative.isoformat(),
+                }
+                for p in concepts
+            ],
+            "nb_acquis": sum(1 for p in concepts if p.maitrise == 3),
+            "nb_en_cours": sum(1 for p in concepts if p.maitrise == 2),
+            "nb_a_retravailler": sum(1 for p in concepts if p.maitrise == 1),
+            "nb_total": len(concepts),
+        }
+
+    return {"classe": _classe_dict(classe), "eleves": [_resume(e) for e in eleves]}
+
+
+@router.get("/classe/{classe_id}/concepts_difficiles")
+def concepts_difficiles(
+    classe_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Concepts qui bloquent le plus a l'echelle de la classe : pour chaque
+    concept, le nombre d'eleves encore en maitrise 1. Trie du plus problematique
+    au moins, pour savoir quoi retravailler collectivement."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    rows = db.execute(
+        select(
+            Progression.pattern_name,
+            func.min(Progression.lecon_id).label("lecon_id"),
+            func.count().label("nb"),
+        )
+        .join(Eleve, Progression.eleve_id == Eleve.id)
+        .where(Eleve.classe_id == classe.id, Progression.maitrise == 1)
+        .group_by(Progression.pattern_name)
+        .order_by(func.count().desc(), Progression.pattern_name)
+    ).all()
+    return {
+        "concepts": [
+            {
+                "pattern_name": r.pattern_name,
+                "lecon_id": r.lecon_id,
+                "nb_eleves_en_difficulte": r.nb,
+            }
+            for r in rows
+        ]
+    }
 
 
 # ============================================================

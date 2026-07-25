@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import comptes
-from database import create_db_engine, init_db
+from database import Progression, create_db_engine, init_db
 from main import app
 
 
@@ -155,6 +155,141 @@ class ComptesIntegrationTests(unittest.TestCase):
         self.assertEqual(suppr.status_code, 204)
         rejoindre2 = self.client.get(f"/classe/rejoindre/{classe['code_classe']}")
         self.assertEqual(rejoindre2.json()["eleves"], [])
+
+    def test_liste_classes_compte_les_eleves(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        for prenom in ("Sofia", "Adam", "Lina"):
+            self.client.post(
+                f"/classe/{classe['id']}/eleve", json={"prenom": prenom}, headers=self._auth(token)
+            )
+        classes = self.client.get("/classe", headers=self._auth(token)).json()["classes"]
+        self.assertEqual(classes[0]["nb_eleves"], 3)
+
+    def test_lister_eleves_avec_date_ajout(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        self.client.post(
+            f"/classe/{classe['id']}/eleve", json={"prenom": "Sofia"}, headers=self._auth(token)
+        )
+        response = self.client.get(f"/classe/{classe['id']}/eleves", headers=self._auth(token))
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["classe"]["id"], classe["id"])
+        self.assertEqual(len(body["eleves"]), 1)
+        self.assertEqual(body["eleves"][0]["prenom"], "Sofia")
+        self.assertIn("date_creation", body["eleves"][0])
+
+    def test_lister_eleves_exige_le_proprietaire(self) -> None:
+        self._inscrire("profA", "secretA")
+        self._inscrire("profB", "secretB")
+        tokenA = self._token("profA", "secretA")
+        tokenB = self._token("profB", "secretB")
+        classeA = self._creer_classe(tokenA, "Classe de A", "CE1")
+
+        response = self.client.get(f"/classe/{classeA['id']}/eleves", headers=self._auth(tokenB))
+        self.assertEqual(response.status_code, 403)
+        # Sans jeton du tout : authentification requise.
+        self.assertEqual(self.client.get(f"/classe/{classeA['id']}/eleves").status_code, 401)
+
+    # ---------- Tableau de bord enseignant ----------
+    def _seed_progression(self, eleve_id, pattern_name, lecon_id, maitrise):
+        """Insere une ligne de progression directement (sans jouer une session)."""
+        with sessionmaker(bind=self.engine, class_=Session)() as db:
+            db.add(
+                Progression(
+                    eleve_id=eleve_id,
+                    pattern_name=pattern_name,
+                    lecon_id=lecon_id,
+                    maitrise=maitrise,
+                )
+            )
+            db.commit()
+
+    def _ajouter_eleve(self, token, classe_id, prenom):
+        return self.client.post(
+            f"/classe/{classe_id}/eleve", json={"prenom": prenom}, headers=self._auth(token)
+        ).json()["id"]
+
+    def test_tableau_de_bord_agrege_par_eleve(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        bon = self._ajouter_eleve(token, classe["id"], "Sofia")
+        faible = self._ajouter_eleve(token, classe["id"], "Adam")
+        # Sofia maitrise tout ; Adam bloque sur un concept.
+        self._seed_progression(bon, "mult_a", "multiplication_division", 3)
+        self._seed_progression(bon, "mult_b", "multiplication_division", 3)
+        self._seed_progression(faible, "mult_a", "multiplication_division", 3)
+        self._seed_progression(faible, "mult_b", "multiplication_division", 1)
+
+        response = self.client.get(
+            f"/classe/{classe['id']}/tableau_de_bord", headers=self._auth(token)
+        )
+        self.assertEqual(response.status_code, 200)
+        eleves = {e["prenom"]: e for e in response.json()["eleves"]}
+        self.assertEqual(eleves["Sofia"]["nb_acquis"], 2)
+        self.assertEqual(eleves["Sofia"]["nb_a_retravailler"], 0)
+        self.assertEqual(eleves["Adam"]["nb_acquis"], 1)
+        self.assertEqual(eleves["Adam"]["nb_a_retravailler"], 1)
+        self.assertEqual(eleves["Adam"]["nb_total"], 2)
+        # Le detail des concepts est bien present pour la vue par eleve.
+        self.assertEqual(len(eleves["Adam"]["concepts"]), 2)
+
+    def test_tableau_de_bord_inclut_les_eleves_sans_progression(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        self._ajouter_eleve(token, classe["id"], "Nouveau")
+        eleves = self.client.get(
+            f"/classe/{classe['id']}/tableau_de_bord", headers=self._auth(token)
+        ).json()["eleves"]
+        self.assertEqual(eleves[0]["nb_total"], 0)
+        self.assertEqual(eleves[0]["concepts"], [])
+
+    def test_concepts_difficiles_classe(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        e1 = self._ajouter_eleve(token, classe["id"], "Sofia")
+        e2 = self._ajouter_eleve(token, classe["id"], "Adam")
+        e3 = self._ajouter_eleve(token, classe["id"], "Lina")
+        # "division" bloque 3 eleves (maitrise 1), "posee" en bloque 1.
+        for e in (e1, e2, e3):
+            self._seed_progression(e, "division_exacte", "multiplication_division", 1)
+        self._seed_progression(e1, "mult_posee", "multiplication_division", 1)
+        self._seed_progression(e2, "mult_posee", "multiplication_division", 3)  # acquis, non compte
+
+        concepts = self.client.get(
+            f"/classe/{classe['id']}/concepts_difficiles", headers=self._auth(token)
+        ).json()["concepts"]
+        self.assertEqual(concepts[0]["pattern_name"], "division_exacte")
+        self.assertEqual(concepts[0]["nb_eleves_en_difficulte"], 3)
+        self.assertEqual(concepts[1]["pattern_name"], "mult_posee")
+        self.assertEqual(concepts[1]["nb_eleves_en_difficulte"], 1)
+
+    def test_tableau_de_bord_cloisonne_par_enseignant(self) -> None:
+        self._inscrire("profA", "secretA")
+        self._inscrire("profB", "secretB")
+        tokenA = self._token("profA", "secretA")
+        tokenB = self._token("profB", "secretB")
+        classeA = self._creer_classe(tokenA, "Classe de A", "CE1")
+
+        for chemin in ("tableau_de_bord", "concepts_difficiles"):
+            self.assertEqual(
+                self.client.get(
+                    f"/classe/{classeA['id']}/{chemin}", headers=self._auth(tokenB)
+                ).status_code,
+                403,
+                f"un autre enseignant ne doit pas voir {chemin}",
+            )
+            self.assertEqual(
+                self.client.get(f"/classe/{classeA['id']}/{chemin}").status_code,
+                401,
+                f"{chemin} exige une authentification",
+            )
 
     # ---------- Cloisonnement entre enseignants ----------
     def test_enseignant_ne_voit_pas_les_classes_d_un_autre(self) -> None:

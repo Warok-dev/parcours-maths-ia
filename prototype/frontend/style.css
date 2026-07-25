@@ -3546,3 +3546,439 @@ code {
 .login-eleves {
   margin-top: 8px;
 }
+
+/* ============================================================
+   ESPACE ENSEIGNANT (sobre, sans decor : outil pour adultes)
+   Reutilise la palette et la police, mais un fond neutre et des
+   cartes fonctionnelles plutot que l'univers du jeu.
+   ============================================================ */
+.teacher-screen {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 16px;
+  background: #f4f1ec;
+  overflow-y: auto;
+}
+
+.teacher-card {
+  width: 100%;
+  max-width: 640px;
+  background: #fff;
+  border: 1px solid var(--cream-dark);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(61, 44, 30, 0.12);
+  padding: 28px 30px 24px;
+}
+
+.teacher-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--wood);
+  margin: 0 0 2px;
+}
+
+#enseignant-title {
+  font-size: 1.5rem;
+  color: var(--ink);
+  margin: 0 0 18px;
+}
+
+.teacher-form {
+  max-width: 100%;
+}
+
+.teacher-input {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 1rem;
+}
+
+select.teacher-input {
+  cursor: pointer;
+}
+
+.teacher-back {
+  margin-top: 18px;
+}
+
+.teacher-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.teacher-hello {
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.teacher-subtitle {
+  font-size: 1.15rem;
+  color: var(--ink);
+  margin: 16px 0 10px;
+}
+
+.teacher-classes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.teacher-class-card {
+  border: 1px solid var(--cream-dark);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #fcfaf6;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.teacher-class-card:hover,
+.teacher-class-card:focus-visible {
+  border-color: var(--water-dark);
+  box-shadow: 0 4px 14px rgba(61, 44, 30, 0.1);
+  outline: none;
+}
+
+.teacher-class-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.teacher-class-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.teacher-class-meta {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  margin: 2px 0 8px;
+}
+
+.teacher-code-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.teacher-code {
+  font-family: "Courier New", monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: var(--cream);
+  border: 1px dashed var(--gold-dark);
+  border-radius: 8px;
+  padding: 4px 10px;
+  color: var(--ink);
+}
+
+.teacher-copy {
+  padding: 5px 12px;
+  font-size: 0.85rem;
+}
+
+.teacher-create {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--cream-dark);
+}
+
+.teacher-create-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.teacher-create-row .login-input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.teacher-eleves {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.teacher-eleve {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid var(--cream-dark);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #fcfaf6;
+}
+
+.teacher-eleve-nom {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.teacher-eleve-date {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.teacher-eleve-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.teacher-confirm-label {
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.teacher-eleve-vide,
+.teacher-eleve-vide.teacher-eleve {
+  color: var(--ink-soft);
+  border-style: dashed;
+  justify-content: center;
+}
+
+.login-enseignant-lien {
+  margin-top: 18px;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+/* Etats de la ligne de statut (connexion, erreurs, succes) */
+.menu-note.erreur {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.menu-note.succes {
+  color: var(--success);
+  font-weight: 600;
+}
+
+/* ============================================================
+   TABLEAU DE BORD ENSEIGNANT (vue d'ensemble d'une classe)
+   ============================================================ */
+.teacher-topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.teacher-dashboard-btn {
+  padding: 7px 14px;
+  font-size: 0.9rem;
+}
+
+/* Pastilles de decompte par maitrise (memes libelles que le bilan eleve) */
+.teacher-badges {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.teacher-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.teacher-badge .teacher-badge-txt {
+  font-weight: 500;
+  font-size: 0.78rem;
+}
+
+.teacher-badge.niveau-3 {
+  background: #e5f6e8;
+  color: #1f7a37;
+  border-color: #9fd8ab;
+}
+
+.teacher-badge.niveau-2 {
+  background: #fdf1d8;
+  color: var(--gold-dark);
+  border-color: #edcf8f;
+}
+
+.teacher-badge.niveau-1 {
+  background: #fbe4df;
+  color: #b23a22;
+  border-color: #eab0a3;
+}
+
+/* Section "concepts difficiles" mise en evidence */
+.teacher-difficiles {
+  background: #fbe9e4;
+  border: 1px solid #eab0a3;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 6px 0 18px;
+}
+
+.teacher-difficiles-titre {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: #b23a22;
+}
+
+.teacher-difficiles-liste {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.teacher-difficiles-liste li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.teacher-difficile-nom {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.teacher-difficile-nb {
+  font-size: 0.85rem;
+  color: #b23a22;
+  white-space: nowrap;
+}
+
+.teacher-difficiles-aucun {
+  color: var(--success);
+  font-weight: 600;
+  margin: 6px 0 16px;
+}
+
+.teacher-bord-soustitre {
+  font-size: 1rem;
+  color: var(--ink);
+  margin: 8px 0 8px;
+}
+
+.teacher-bord-hint {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.teacher-bord-eleves {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.teacher-bord-eleve {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid var(--cream-dark);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #fcfaf6;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.teacher-bord-eleve:hover,
+.teacher-bord-eleve:focus-visible {
+  border-color: var(--water-dark);
+  box-shadow: 0 4px 14px rgba(61, 44, 30, 0.1);
+  outline: none;
+}
+
+.teacher-bord-nom {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.teacher-bord-vide {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* Detail de progression d'un eleve (le carnet, vu par l'enseignant) */
+.teacher-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.teacher-progress-lecon {
+  border: 1px solid var(--cream-dark);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fcfaf6;
+}
+
+.teacher-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.teacher-progress-lecon-nom {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.teacher-progress-etoiles {
+  color: var(--gold-dark);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.teacher-progress-concepts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.teacher-progress-concepts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

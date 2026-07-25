@@ -177,9 +177,15 @@
           <span class="level-copy">Essai libre</span>
         </button>
       </div>
+      <button id="login-enseignant" class="ghost-button login-enseignant-lien" type="button">
+        Espace enseignant
+      </button>
     `;
     loginBody.querySelector("#login-rejoindre").addEventListener("click", rendreSaisieCode);
     loginBody.querySelector("#login-invite").addEventListener("click", () => choisir("invite"));
+    loginBody.querySelector("#login-enseignant").addEventListener("click", () => {
+      window.ParcoursEnseignant?.ouvrir?.();
+    });
   }
 
   function rendreSaisieCode() {

@@ -404,5 +404,9 @@
     getEntries: loadEntries,
     isBilanOpen: () => bilanOpen,
     closeBilan,
+    /* Reutilise par l'espace enseignant pour afficher les memes libelles de
+       concepts et badges de maitrise que le carnet/bilan cote eleve. */
+    conceptLabel,
+    masteryBadges: () => ({ ...MASTERY_BADGES }),
   };
 })();
