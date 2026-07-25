@@ -224,5 +224,11 @@ __marimo__/
 # Sessions de jeu persistees (prototype)
 prototype/backend/data/sessions/
 
+# Base de donnees SQLite (comptes prof/eleve) — jamais commit
+prototype/backend/data/*.db
+prototype/backend/data/*.db-journal
+prototype/backend/data/*.db-wal
+prototype/backend/data/*.db-shm
+
 # Credentials du compte de service Google Cloud (Text-to-Speech) — jamais commit
 prototype/backend/google-tts-credentials.json
