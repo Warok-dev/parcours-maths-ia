@@ -3670,9 +3670,10 @@ code {
 }
 
 /* ============================================================
-   ESPACE ENSEIGNANT (sobre, sans decor : outil pour adultes)
-   Reutilise la palette et la police, mais un fond neutre et des
-   cartes fonctionnelles plutot que l'univers du jeu.
+   ESPACE ENSEIGNANT (sobre, decor leger : outil pour adultes)
+   Reutilise la palette et la police. Fond decore avec retenue
+   (degrade chaud + papier millimetre discret + nappes diffuses)
+   et en-tete illustre, sans basculer dans l'univers du jeu.
    ============================================================ */
 .teacher-screen {
   display: flex;
@@ -3680,7 +3681,15 @@ code {
   justify-content: center;
   min-height: 100vh;
   padding: 40px 16px;
-  background: #f4f1ec;
+  /* Fond peu austere mais professionnel : degrade chaud, motif millimetre
+     tres discret (clin d'oeil aux maths) et deux nappes de couleur diffuses.
+     Opacites faibles pour ne rien coter a la lisibilite des cartes. */
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(111, 194, 236, 0.1), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, rgba(111, 190, 83, 0.09), transparent 55%),
+    repeating-linear-gradient(0deg, rgba(139, 88, 52, 0.045) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(139, 88, 52, 0.045) 0 1px, transparent 1px 28px),
+    linear-gradient(160deg, #f8f5ef 0%, #efe9dd 100%);
   overflow-y: auto;
 }
 
@@ -3689,9 +3698,28 @@ code {
   max-width: 640px;
   background: #fff;
   border: 1px solid var(--cream-dark);
+  border-top: 3px solid var(--wood);
   border-radius: 18px;
   box-shadow: 0 10px 30px rgba(61, 44, 30, 0.12);
   padding: 28px 30px 24px;
+}
+
+/* En-tete illustre : embleme (tableau + livres) a gauche, titres a droite. */
+.teacher-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.teacher-emblem {
+  flex: 0 0 auto;
+  width: 66px;
+  height: 66px;
+}
+
+.teacher-header-text {
+  min-width: 0;
 }
 
 .teacher-eyebrow {
@@ -3706,7 +3734,7 @@ code {
 #enseignant-title {
   font-size: 1.5rem;
   color: var(--ink);
-  margin: 0 0 18px;
+  margin: 0;
 }
 
 .teacher-form {
