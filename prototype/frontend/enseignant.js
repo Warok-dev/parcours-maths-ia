@@ -494,6 +494,42 @@
     }
   }
 
+  /* Telecharge l'export Excel de la classe. Le fichier est binaire et l'endpoint
+     est protege : on ne peut pas utiliser un simple lien <a href> (pas d'en-tete
+     Authorization). On recupere donc le blob par fetch authentifie, puis on
+     declenche le telechargement via une URL objet temporaire. */
+  async function exporterExcel(classe) {
+    setStatut("Preparation de l'export Excel...");
+    let response;
+    try {
+      response = await fetch(`${API_BASE}/classe/${classe.id}/export_excel`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (error) {
+      setStatut(`Export impossible : ${error.message}`, "erreur");
+      return;
+    }
+    if (!response.ok) {
+      setStatut(libelleErreur(response.status), "erreur");
+      return;
+    }
+    const blob = await response.blob();
+    /* Nom de fichier : celui propose par le serveur (Content-Disposition), avec
+       un repli lisible si l'en-tete n'est pas expose. */
+    const dispo = response.headers.get("Content-Disposition") || "";
+    const match = dispo.match(/filename="?([^"]+)"?/);
+    const nomFichier = match ? match[1] : `classe_${classe.code_classe}_export.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const lien = document.createElement("a");
+    lien.href = url;
+    lien.download = nomFichier;
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    URL.revokeObjectURL(url);
+    setStatut(`Export telecharge : ${nomFichier}`, "succes");
+  }
+
   /* --- Vue : detail d'une classe (eleves) --- */
   async function vueClasseDetail(classeId) {
     setStatut("Chargement des eleves...");
@@ -529,6 +565,7 @@
         <button type="button" id="ens-retour-dashboard" class="ghost-button">&#8592; Mes classes</button>
         <span class="teacher-topbar-actions">
           <button type="button" id="ens-tableau-bord" class="btn-primary teacher-dashboard-btn">Tableau de bord</button>
+          <button type="button" id="ens-export-excel" class="ghost-button">Exporter en Excel</button>
           <button type="button" class="ghost-button teacher-copy" data-code="${classe.code_classe}">Copier le code ${classe.code_classe}</button>
         </span>
       </div>
@@ -545,6 +582,7 @@
 
     body.querySelector("#ens-retour-dashboard").addEventListener("click", vueDashboard);
     body.querySelector("#ens-tableau-bord").addEventListener("click", () => vueTableauDeBord(classeId));
+    body.querySelector("#ens-export-excel").addEventListener("click", () => exporterExcel(classe));
     body.querySelector(".teacher-copy").addEventListener("click", () => copierCode(classe.code_classe));
     body.querySelectorAll(".teacher-remove").forEach((bouton) => {
       bouton.addEventListener("click", () => demanderRetrait(classeId, bouton));

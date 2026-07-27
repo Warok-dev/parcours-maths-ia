@@ -15,11 +15,14 @@ Regles de securite :
 from __future__ import annotations
 
 import hashlib
+import io
 import secrets
+from datetime import date
 from typing import Annotated
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -27,7 +30,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import database
+import export_excel
 from database import Classe, Ecole, Eleve, Enseignant, Progression, generer_code_classe
+
+# Content-Type officiel des classeurs .xlsx (Office Open XML).
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 router = APIRouter(tags=["comptes"])
 
@@ -555,6 +562,70 @@ def concepts_difficiles(
             for r in rows
         ]
     }
+
+
+def _concepts_par_eleve(db: Session, classe: Classe) -> list[dict]:
+    """Pour chaque eleve de la classe, la liste de ses concepts traverses.
+    Meme donnee que le tableau de bord, reutilisee pour l'export Excel."""
+    eleves = db.scalars(
+        select(Eleve).where(Eleve.classe_id == classe.id).order_by(Eleve.prenom)
+    ).all()
+    lignes = db.scalars(
+        select(Progression)
+        .join(Eleve, Progression.eleve_id == Eleve.id)
+        .where(Eleve.classe_id == classe.id)
+        .order_by(Progression.lecon_id, Progression.pattern_name)
+    ).all()
+    par_eleve: dict[int, list[Progression]] = {}
+    for p in lignes:
+        par_eleve.setdefault(p.eleve_id, []).append(p)
+    return [
+        {
+            "id": e.id,
+            "prenom": e.prenom,
+            "concepts": [
+                {
+                    "pattern_name": p.pattern_name,
+                    "lecon_id": p.lecon_id,
+                    "maitrise": p.maitrise,
+                    "date_derniere_tentative": p.date_derniere_tentative.isoformat(),
+                }
+                for p in par_eleve.get(e.id, [])
+            ],
+        }
+        for e in eleves
+    ]
+
+
+@router.get("/classe/{classe_id}/export_excel")
+def export_excel_classe(
+    classe_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> StreamingResponse:
+    """Exporte la progression de la classe en Excel (protege : proprietaire).
+
+    Le classeur (feuilles "Vue d'ensemble" et "Detail") est genere a la volee en
+    memoire et renvoye directement : aucun fichier n'est stocke sur le serveur."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    eleves = _concepts_par_eleve(db, classe)
+    classeur = export_excel.construire_classeur(
+        {
+            "nom": classe.nom,
+            "niveau_scolaire": classe.niveau_scolaire,
+            "code_classe": classe.code_classe,
+        },
+        eleves,
+    )
+    flux = io.BytesIO()
+    classeur.save(flux)
+    flux.seek(0)
+    nom_fichier = f"classe_{classe.code_classe}_export_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        flux,
+        media_type=_XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{nom_fichier}"'},
+    )
 
 
 # ============================================================

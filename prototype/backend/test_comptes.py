@@ -632,6 +632,108 @@ class ComptesIntegrationTests(unittest.TestCase):
             self.client.get(f"/eleve/{eleve['id']}/progression", headers=ph).status_code, 403
         )
 
+    # ---------- Export Excel de la classe ----------
+    def _ouvrir_classeur(self, contenu: bytes):
+        import io
+
+        from openpyxl import load_workbook
+
+        return load_workbook(io.BytesIO(contenu))
+
+    def test_export_excel_est_un_classeur_valide(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        sofia = self._ajouter_eleve(token, classe["id"], "Sofia")
+        adam = self._ajouter_eleve(token, classe["id"], "Adam")
+        # Concepts differents entre les deux eleves (3 concepts distincts au total).
+        self._seed_progression(sofia, "mult_a", "multiplication_division", 3)
+        self._seed_progression(sofia, "mult_b", "multiplication_division", 2)
+        self._seed_progression(adam, "mult_a", "multiplication_division", 1)
+        self._seed_progression(adam, "div_a", "multiplication_division", 3)
+
+        reponse = self.client.get(
+            f"/classe/{classe['id']}/export_excel", headers=self._auth(token)
+        )
+        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(
+            reponse.headers["content-type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("attachment", reponse.headers["content-disposition"])
+        self.assertIn(".xlsx", reponse.headers["content-disposition"])
+
+        # Le fichier s'ouvre reellement comme un classeur Excel.
+        wb = self._ouvrir_classeur(reponse.content)
+        self.assertEqual(wb.sheetnames, ["Vue d'ensemble", "Detail"])
+
+        # --- Feuille "Vue d'ensemble" : croisement eleve x concept ---
+        vue = wb["Vue d'ensemble"]
+        self.assertTrue(str(vue["A1"].value).startswith("Classe :"))
+        self.assertIn("CE3", str(vue["A2"].value))
+        self.assertIn(classe["code_classe"], str(vue["A2"].value))
+        self.assertEqual(vue.cell(row=5, column=1).value, "Eleve")
+        # 3 concepts distincts -> 3 colonnes (B, C, D), la 4e (E) vide.
+        entetes = [vue.cell(row=5, column=c).value for c in range(2, 6)]
+        self.assertEqual([e for e in entetes if e], ["div a", "mult a", "mult b"])
+        # Eleves tries par prenom : Adam (ligne 6), Sofia (ligne 7).
+        self.assertEqual(vue.cell(row=6, column=1).value, "Adam")
+        self.assertEqual(vue.cell(row=7, column=1).value, "Sofia")
+        # Adam : div_a=3 (col B), mult_a=1 (col C), mult_b non traverse (vide).
+        self.assertEqual(vue.cell(row=6, column=2).value, 3)
+        self.assertEqual(vue.cell(row=6, column=3).value, 1)
+        self.assertIsNone(vue.cell(row=6, column=4).value)
+        # Couleur de fond conditionnelle : maitrise 1 -> rouge clair (FFC7CE).
+        self.assertTrue(str(vue.cell(row=6, column=3).fill.fgColor.rgb).endswith("FFC7CE"))
+        # Maitrise 3 -> vert (C6EFCE).
+        self.assertTrue(str(vue.cell(row=6, column=2).fill.fgColor.rgb).endswith("C6EFCE"))
+
+        # --- Feuille "Detail" : une ligne par eleve x concept ---
+        detail = wb["Detail"]
+        self.assertEqual(
+            [detail.cell(row=5, column=c).value for c in range(1, 7)],
+            ["Eleve", "Lecon", "Concept", "Maitrise", "Niveau", "Date"],
+        )
+        # 4 lignes de donnees (2 concepts par eleve).
+        lignes_detail = [
+            detail.cell(row=r, column=1).value
+            for r in range(6, detail.max_row + 1)
+            if detail.cell(row=r, column=1).value
+        ]
+        self.assertEqual(len(lignes_detail), 4)
+
+    def test_export_excel_classe_vide(self) -> None:
+        # Une classe sans eleve produit tout de meme un classeur valide.
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        reponse = self.client.get(
+            f"/classe/{classe['id']}/export_excel", headers=self._auth(token)
+        )
+        self.assertEqual(reponse.status_code, 200)
+        wb = self._ouvrir_classeur(reponse.content)
+        self.assertEqual(wb.sheetnames, ["Vue d'ensemble", "Detail"])
+        # En-tete present, aucune ligne d'eleve.
+        self.assertEqual(wb["Vue d'ensemble"].cell(row=5, column=1).value, "Eleve")
+        self.assertIsNone(wb["Vue d'ensemble"].cell(row=6, column=1).value)
+
+    def test_export_excel_reserve_au_proprietaire(self) -> None:
+        self._inscrire("profA", "secretA")
+        self._inscrire("profB", "secretB")
+        tokenA = self._token("profA", "secretA")
+        tokenB = self._token("profB", "secretB")
+        classeA = self._creer_classe(tokenA, "Classe de A", "CE1")
+
+        self.assertEqual(
+            self.client.get(
+                f"/classe/{classeA['id']}/export_excel", headers=self._auth(tokenB)
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(f"/classe/{classeA['id']}/export_excel").status_code, 401
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
