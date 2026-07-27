@@ -132,12 +132,18 @@ class Classe(Base):
 
 
 class Eleve(Base):
-    """Eleve : pas d'email, mais un PIN a 4 chiffres pour eviter l'usurpation.
+    """Eleve : pas d'email, mais deux secrets haches (jamais stockes en clair).
 
-    Le PIN est hache (bcrypt, comme le mot de passe enseignant) : jamais stocke
-    en clair. Il est genere a la creation de l'eleve et communique UNE seule
-    fois a l'enseignant. Colonne nullable car les eleves crees avant l'ajout du
-    PIN n'en ont pas (ils devront etre recrees pour pouvoir se connecter).
+    - pin_hash : le PIN a 4 chiffres de l'eleve (bcrypt, faible entropie donc
+      hash lent ; l'id de l'eleve est deja connu a la connexion).
+    - code_parent_hash : le code d'acces parent, a 8 caracteres (haute entropie).
+      Il est cherche a partir du seul code sur un endpoint public : on le stocke
+      donc en SHA-256 (deterministe, indexable) pour une recherche directe, la
+      ou bcrypt (sale) obligerait a iterer sur tous les eleves. Toujours hache,
+      jamais en clair.
+
+    Les deux colonnes sont nullable : les eleves crees avant leur ajout n'en ont
+    pas (ils devront etre recrees, respectivement pour se connecter / etre suivis).
     """
 
     __tablename__ = "eleve"
@@ -148,6 +154,10 @@ class Eleve(Base):
     )
     prenom: Mapped[str] = mapped_column(String(80), nullable=False)
     pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Unique + index : recherche directe du parent par son code (via son hash).
+    code_parent_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
     date_creation: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
@@ -258,6 +268,16 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
     if "pin_hash" not in colonnes:
         with eng.begin() as conn:
             conn.execute(text("ALTER TABLE eleve ADD COLUMN pin_hash VARCHAR(255)"))
+    if "code_parent_hash" not in colonnes:
+        with eng.begin() as conn:
+            conn.execute(text("ALTER TABLE eleve ADD COLUMN code_parent_hash VARCHAR(64)"))
+            # Index unique sur la nouvelle colonne (recherche du parent par code).
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_eleve_code_parent_hash "
+                    "ON eleve (code_parent_hash)"
+                )
+            )
 
 
 def init_db(target_engine: Engine | None = None) -> Engine:

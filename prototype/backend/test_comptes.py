@@ -504,6 +504,134 @@ class ComptesIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    # ---------- Portail parent (lecture seule) ----------
+    def _creer_eleve(self, token, classe_id, prenom):
+        """Renvoie le corps de creation (id, pin, code_parent : exposes une seule fois)."""
+        return self.client.post(
+            f"/classe/{classe_id}/eleve", json={"prenom": prenom}, headers=self._auth(token)
+        ).json()
+
+    def test_acces_parent_donne_la_progression_du_bon_eleve(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        eleve = self._creer_eleve(token, classe["id"], "Sofia")
+        self._seed_progression(eleve["id"], "division_exacte", "multiplication_division", 2)
+
+        # Le parent echange son code contre un token, puis lit la progression.
+        acces = self.client.get(f"/parent/acces/{eleve['code_parent']}")
+        self.assertEqual(acces.status_code, 200)
+        ptoken = acces.json()["token"]
+        self.assertEqual(acces.json()["eleve"]["id"], eleve["id"])
+        self.assertEqual(acces.json()["eleve"]["niveau_scolaire"], "CE3")
+
+        prog = self.client.get("/parent/progression", headers=self._auth(ptoken))
+        self.assertEqual(prog.status_code, 200)
+        corps = prog.json()
+        self.assertEqual(corps["eleve"]["id"], eleve["id"])
+        self.assertEqual(corps["eleve"]["prenom"], "Sofia")
+        self.assertEqual([p["pattern_name"] for p in corps["progression"]], ["division_exacte"])
+        self.assertEqual(corps["progression"][0]["maitrise"], 2)
+
+    def test_acces_parent_code_invalide(self) -> None:
+        response = self.client.get("/parent/acces/CODEFAUX9")
+        self.assertEqual(response.status_code, 403)
+
+    def test_parent_progression_sans_token(self) -> None:
+        # /parent/progression sans token parent -> refuse.
+        self.assertEqual(self.client.get("/parent/progression").status_code, 401)
+
+    def test_parent_ne_voit_que_son_enfant(self) -> None:
+        # Le token du parent de A ne donne QUE la progression de A, jamais celle de B.
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        a = self._creer_eleve(token, classe["id"], "Sofia")
+        b = self._creer_eleve(token, classe["id"], "Adam")
+        self._seed_progression(a["id"], "concept_a", "multiplication_division", 3)
+        self._seed_progression(b["id"], "concept_b", "multiplication_division", 1)
+
+        ptoken_a = self.client.get(f"/parent/acces/{a['code_parent']}").json()["token"]
+        corps = self.client.get("/parent/progression", headers=self._auth(ptoken_a)).json()
+        self.assertEqual(corps["eleve"]["id"], a["id"])
+        patterns = [p["pattern_name"] for p in corps["progression"]]
+        self.assertEqual(patterns, ["concept_a"])  # jamais concept_b
+
+    def test_regenerer_code_parent_invalide_l_ancien(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        eleve = self._creer_eleve(token, classe["id"], "Sofia")
+        ancien = eleve["code_parent"]
+
+        regen = self.client.post(
+            f"/classe/{classe['id']}/eleve/{eleve['id']}/code_parent", headers=self._auth(token)
+        )
+        self.assertEqual(regen.status_code, 200)
+        nouveau = regen.json()["code_parent"]
+        self.assertNotEqual(nouveau, ancien)
+        self.assertRegex(nouveau, r"^[A-Z0-9]{8}$")
+
+        # L'ancien code ne donne plus acces, le nouveau si.
+        self.assertEqual(self.client.get(f"/parent/acces/{ancien}").status_code, 403)
+        self.assertEqual(self.client.get(f"/parent/acces/{nouveau}").status_code, 200)
+
+    def test_regenerer_code_parent_reserve_au_proprietaire(self) -> None:
+        self._inscrire("profA", "secretA")
+        self._inscrire("profB", "secretB")
+        tokenA = self._token("profA", "secretA")
+        tokenB = self._token("profB", "secretB")
+        classeA = self._creer_classe(tokenA, "Classe de A", "CE1")
+        eleve = self._creer_eleve(tokenA, classeA["id"], "Sofia")
+
+        autre = self.client.post(
+            f"/classe/{classeA['id']}/eleve/{eleve['id']}/code_parent", headers=self._auth(tokenB)
+        )
+        self.assertEqual(autre.status_code, 403)
+        anon = self.client.post(f"/classe/{classeA['id']}/eleve/{eleve['id']}/code_parent")
+        self.assertEqual(anon.status_code, 401)
+
+    def test_token_parent_ne_permet_aucune_ecriture(self) -> None:
+        # Le token parent est en lecture seule : il ne doit ouvrir aucun endpoint
+        # d'ecriture / de gestion, ni la progression brute par id d'eleve.
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        eleve = self._creer_eleve(token, classe["id"], "Sofia")
+        ptoken = self.client.get(f"/parent/acces/{eleve['code_parent']}").json()["token"]
+        ph = self._auth(ptoken)
+
+        # Gestion de classe (enseignant) -> 401 (token non enseignant).
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{classe['id']}/eleve", json={"prenom": "Intrus"}, headers=ph
+            ).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{classe['id']}/eleve/{eleve['id']}/reinitialiser_pin", headers=ph
+            ).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{classe['id']}/eleve/{eleve['id']}/code_parent", headers=ph
+            ).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.delete(
+                f"/classe/{classe['id']}/eleve/{eleve['id']}", headers=ph
+            ).status_code,
+            401,
+        )
+        self.assertEqual(self.client.get("/classe", headers=ph).status_code, 401)
+        # Progression brute par id d'eleve (token eleve/enseignant only) -> 403.
+        self.assertEqual(
+            self.client.get(f"/eleve/{eleve['id']}/progression", headers=ph).status_code, 403
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

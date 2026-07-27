@@ -136,6 +136,23 @@ class JeuComptesTests(unittest.TestCase):
         )
         self.assertEqual(response.json()["progression"], [])
 
+    def test_token_parent_ne_lie_pas_la_session_de_jeu(self) -> None:
+        # Un token parent (lecture seule) presente au jeu ne doit rien ecrire :
+        # eleve_id_optionnel le rejette -> session anonyme -> progression vide.
+        ctx = self._prof_classe_eleve(niveau="CE3")
+        code_parent = self.client.post(
+            f"/classe/{ctx['classe']['id']}/eleve/{ctx['eleve_id']}/code_parent",
+            headers=self._auth(ctx["ptoken"]),
+        ).json()["code_parent"]
+        ptoken = self.client.get(f"/parent/acces/{code_parent}").json()["token"]
+
+        self._jouer_lecon("CE3", "multiplication_division", token=ptoken)
+
+        response = self.client.get(
+            f"/eleve/{ctx['eleve_id']}/progression", headers=self._auth(ctx["etoken"])
+        )
+        self.assertEqual(response.json()["progression"], [])
+
     # ---------- Meilleure maitrise conservee au rejeu ----------
     def test_meilleure_maitrise_conservee(self) -> None:
         ctx = self._prof_classe_eleve()

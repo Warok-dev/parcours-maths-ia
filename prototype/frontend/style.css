@@ -4132,3 +4132,202 @@ select.teacher-input {
   justify-content: space-between;
   gap: 12px;
 }
+
+/* Deux liens adultes cote a cote sur l'accueil (enseignant / parent). */
+.login-liens-adultes {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.login-liens-adultes .login-enseignant-lien {
+  margin-top: 0;
+}
+
+/* ============================================================
+   ESPACE PARENT (suivi en lecture seule, ton intermediaire :
+   plus chaleureux que l'espace enseignant, sans decor enfantin)
+   ============================================================ */
+.parent-screen {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 16px;
+  /* Fond doux, un cran plus chaleureux que l'espace enseignant. */
+  background:
+    radial-gradient(100% 70% at 100% 0%, rgba(111, 190, 83, 0.1), transparent 55%),
+    linear-gradient(160deg, #fbf7ef 0%, #f0eadd 100%);
+  overflow-y: auto;
+}
+
+.parent-card {
+  width: 100%;
+  max-width: 640px;
+  background: #fff;
+  border: 1px solid var(--cream-dark);
+  border-top: 3px solid var(--grass);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(61, 44, 30, 0.12);
+  padding: 28px 30px 26px;
+}
+
+.parent-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--grass-dark);
+  margin: 0 0 2px;
+}
+
+.parent-title {
+  font-size: 1.4rem;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.parent-lead {
+  color: var(--ink-soft);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+
+.parent-input {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.parent-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.parent-phrase {
+  font-size: 1.05rem;
+  color: var(--ink);
+  line-height: 1.5;
+  margin: 8px 0 18px;
+}
+
+/* Trois tuiles de synthese (acquis / en bonne voie / a retravailler). */
+.parent-tuiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.parent-tuile {
+  border-radius: 14px;
+  padding: 14px 10px;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.parent-tuile-nombre {
+  display: block;
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.parent-tuile-libelle {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.parent-tuile-acquis {
+  background: #e5f6e8;
+  color: #1f7a37;
+  border-color: #9fd8ab;
+}
+
+.parent-tuile-encours {
+  background: #fdf1d8;
+  color: var(--gold-dark);
+  border-color: #edcf8f;
+}
+
+.parent-tuile-retravailler {
+  background: #fbe4df;
+  color: #b23a22;
+  border-color: #eab0a3;
+}
+
+.parent-lecons {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.parent-lecon-titre {
+  font-size: 1.05rem;
+  color: var(--ink);
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--cream-dark);
+}
+
+.parent-concepts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.parent-concept {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fcfaf6;
+  border: 1px solid var(--cream-dark);
+}
+
+.parent-concept-nom {
+  color: var(--ink);
+}
+
+.parent-concept-badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.parent-concept.niveau-3 .parent-concept-badge {
+  background: #e5f6e8;
+  color: #1f7a37;
+}
+
+.parent-concept.niveau-2 .parent-concept-badge {
+  background: #fdf1d8;
+  color: var(--gold-dark);
+}
+
+.parent-concept.niveau-1 .parent-concept-badge {
+  background: #fbe4df;
+  color: #b23a22;
+}
+
+.parent-vide {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.parent-retour {
+  margin-top: 22px;
+}

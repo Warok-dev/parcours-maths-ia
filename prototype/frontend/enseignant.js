@@ -202,6 +202,13 @@
     return appel(`/classe/${classeId}/eleve/${eleveId}/reinitialiser_pin`, { method: "POST" });
   }
 
+  /* (Re)genere le code d'acces parent d'un eleve : renvoie { id, prenom,
+     code_parent } (nouveau code en clair, une seule fois). L'ancien cesse
+     aussitot de donner acces au suivi. */
+  async function regenererCodeParent(classeId, eleveId) {
+    return appel(`/classe/${classeId}/eleve/${eleveId}/code_parent`, { method: "POST" });
+  }
+
   async function chargerTableauDeBord(classeId) {
     return appel(`/classe/${classeId}/tableau_de_bord`, { method: "GET" });
   }
@@ -508,6 +515,7 @@
           <span class="teacher-eleve-date">Ajoute le ${formaterDate(e.date_creation)}</span>
           <span class="teacher-eleve-actions">
             <button type="button" class="ghost-button teacher-reset-pin" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Reinitialiser le code</button>
+            <button type="button" class="ghost-button teacher-code-parent" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Code parent</button>
             <button type="button" class="ghost-button teacher-remove" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Retirer</button>
           </span>
         </li>
@@ -544,6 +552,9 @@
     body.querySelectorAll(".teacher-reset-pin").forEach((bouton) => {
       bouton.addEventListener("click", () => demanderReinitPin(classeId, bouton));
     });
+    body.querySelectorAll(".teacher-code-parent").forEach((bouton) => {
+      bouton.addEventListener("click", () => demanderCodeParent(classeId, bouton));
+    });
     body.querySelector("#ens-ajout-eleve").addEventListener("submit", async (event) => {
       event.preventDefault();
       const prenom = body.querySelector("#ens-eleve-prenom").value.trim();
@@ -563,10 +574,17 @@
     });
   }
 
-  /* Popup de confirmation du PIN d'un eleve fraichement ajoute. Le code n'etant
-     plus jamais reaffiche en clair, on insiste ("il ne sera plus affiche") et on
-     offre un bouton pour le copier. Overlay maison (pas de dialog natif bloquant). */
-  function afficherPopupPin(prenom, pin, { titre = "Note ce code pour" } = {}) {
+  /* Popup de confirmation d'un code (PIN eleve ou code d'acces parent). Le code
+     n'etant jamais reaffiche en clair, on insiste ("il ne sera plus affiche") et
+     on offre un bouton pour le copier. Overlay maison (pas de dialog natif). */
+  function afficherPopupPin(
+    prenom,
+    pin,
+    {
+      titre = "Note ce code pour",
+      lead = "Il ne sera plus affiche apres. Communique-le a l'eleve : il en aura besoin pour se connecter.",
+    } = {},
+  ) {
     document.getElementById("ens-pin-overlay")?.remove();
     const overlay = document.createElement("div");
     overlay.id = "ens-pin-overlay";
@@ -574,7 +592,7 @@
     overlay.innerHTML = `
       <div class="pin-modal" role="dialog" aria-modal="true" aria-labelledby="pin-modal-titre">
         <h3 id="pin-modal-titre" class="pin-modal-titre">${echapper(titre)} ${echapper(prenom)}</h3>
-        <p class="pin-modal-lead">Il ne sera plus affiche apres. Communique-le a l'eleve : il en aura besoin pour se connecter.</p>
+        <p class="pin-modal-lead">${echapper(lead)}</p>
         <div class="pin-modal-code" id="pin-modal-code">${echapper(pin)}</div>
         <div class="pin-modal-actions">
           <button type="button" id="pin-modal-copier" class="btn-primary">Copier le code</button>
@@ -652,6 +670,37 @@
         await vueClasseDetail(classeId);
         setStatut("");
         afficherPopupPin(prenom, reponse.pin, { titre: "Nouveau code pour" });
+      } catch (error) {
+        setStatut(error.message, "erreur");
+      }
+    });
+  }
+
+  /* Confirmation en ligne du code d'acces parent. Le code n'etant jamais stocke
+     en clair, on ne peut pas le reafficher : on en genere un nouveau (ce qui
+     invalide l'ancien) et on l'affiche une seule fois dans la meme popup. */
+  function demanderCodeParent(classeId, bouton) {
+    const eleveId = Number(bouton.dataset.eleveId);
+    const prenom = bouton.dataset.prenom;
+    const actions = bouton.closest(".teacher-eleve-actions");
+    actions.innerHTML = `
+      <span class="teacher-confirm-label">Generer un code parent pour ${prenom} ? Un ancien code eventuel cessera de marcher.</span>
+      <button type="button" class="btn-primary teacher-confirm-oui">Generer</button>
+      <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
+    `;
+    actions.querySelector(".teacher-confirm-non").addEventListener("click", () =>
+      vueClasseDetail(classeId),
+    );
+    actions.querySelector(".teacher-confirm-oui").addEventListener("click", async () => {
+      setStatut("Generation du code parent...");
+      try {
+        const reponse = await regenererCodeParent(classeId, eleveId);
+        await vueClasseDetail(classeId);
+        setStatut("");
+        afficherPopupPin(prenom, reponse.code_parent, {
+          titre: "Code d'acces parent pour",
+          lead: "Il ne sera plus affiche apres. Communiquez-le au parent : il lui permet de suivre la progression de son enfant (lecture seule).",
+        });
       } catch (error) {
         setStatut(error.message, "erreur");
       }
@@ -829,6 +878,7 @@
     ajouterEleve,
     retirerEleve,
     reinitialiserPin,
+    regenererCodeParent,
     chargerTableauDeBord,
     chargerConceptsDifficiles,
     /* Coeur pur */

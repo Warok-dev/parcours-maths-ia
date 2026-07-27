@@ -2700,6 +2700,12 @@ function demarrerApplication() {
     window.ParcoursEnseignant.ouvrir();
     return;
   }
+  /* Espace parent : entree separee via l'ancre #parent (lien discret sur
+     l'ecran d'accueil). Lecture seule du suivi d'un enfant. */
+  if (window.ParcoursParent && window.ParcoursParent.demandeParURL()) {
+    window.ParcoursParent.ouvrir();
+    return;
+  }
   /* Connexion ensuite : rejoindre sa classe (compte eleve) ou essai libre.
      Tant que le choix n'est pas fait, l'ecran de connexion reste devant. */
   if (window.ParcoursCompte && !window.ParcoursCompte.aDecide()) {
