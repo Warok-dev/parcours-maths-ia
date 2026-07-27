@@ -734,6 +734,154 @@ class ComptesIntegrationTests(unittest.TestCase):
             self.client.get(f"/classe/{classeA['id']}/export_excel").status_code, 401
         )
 
+    # ---------- Assignations ----------
+    def test_assigner_lecon_cree_une_ligne_par_eleve(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        e1 = self._ajouter_eleve(token, classe["id"], "Sofia")
+        e2 = self._ajouter_eleve(token, classe["id"], "Adam")
+
+        rep = self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={"eleve_ids": [e1, e2], "lecon_id": "multiplication_division"},
+            headers=self._auth(token),
+        )
+        self.assertEqual(rep.status_code, 201)
+        assignations = rep.json()["assignations"]
+        self.assertEqual(len(assignations), 2)
+        self.assertTrue(all(a["type"] == "lecon" for a in assignations))
+        self.assertTrue(all(a["lecon_id"] == "multiplication_division" for a in assignations))
+        self.assertTrue(all(a["terminee"] is False for a in assignations))
+
+    def test_assigner_revision_ciblee(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        e1 = self._ajouter_eleve(token, classe["id"], "Sofia")
+        rep = self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={"eleve_ids": [e1], "patterns": ["division_exacte_partage"]},
+            headers=self._auth(token),
+        )
+        self.assertEqual(rep.status_code, 201)
+        a = rep.json()["assignations"][0]
+        self.assertEqual(a["type"], "revision")
+        self.assertEqual(a["patterns"], ["division_exacte_partage"])
+        self.assertIsNone(a["lecon_id"])
+
+    def test_assigner_exige_lecon_ou_patterns_exclusif(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token)
+        e1 = self._ajouter_eleve(token, classe["id"], "Sofia")
+        # Ni l'un ni l'autre -> 400.
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{classe['id']}/assigner",
+                json={"eleve_ids": [e1]},
+                headers=self._auth(token),
+            ).status_code,
+            400,
+        )
+        # Les deux a la fois -> 400.
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{classe['id']}/assigner",
+                json={"eleve_ids": [e1], "lecon_id": "x", "patterns": ["y"]},
+                headers=self._auth(token),
+            ).status_code,
+            400,
+        )
+
+    def test_assigner_cloisonne_par_enseignant(self) -> None:
+        self._inscrire("profA", "secretA")
+        self._inscrire("profB", "secretB")
+        tokenA = self._token("profA", "secretA")
+        tokenB = self._token("profB", "secretB")
+        classeA = self._creer_classe(tokenA, "Classe de A", "CE1")
+        classeB = self._creer_classe(tokenB, "Classe de B", "CE1")
+        eleveA = self._ajouter_eleve(tokenA, classeA["id"], "Sofia")
+        eleveB = self._ajouter_eleve(tokenB, classeB["id"], "Adam")
+
+        # B ne peut pas assigner dans la classe de A -> 403.
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{classeA['id']}/assigner",
+                json={"eleve_ids": [eleveA], "lecon_id": "l"},
+                headers=self._auth(tokenB),
+            ).status_code,
+            403,
+        )
+        # A ne peut pas assigner a un eleve qui n'est pas dans SA classe -> 400.
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{classeA['id']}/assigner",
+                json={"eleve_ids": [eleveA, eleveB], "lecon_id": "l"},
+                headers=self._auth(tokenA),
+            ).status_code,
+            400,
+        )
+
+    def test_eleve_ne_voit_que_ses_assignations(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        a = self._creer_eleve(token, classe["id"], "Sofia")
+        b = self._creer_eleve(token, classe["id"], "Adam")
+        self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={"eleve_ids": [a["id"]], "lecon_id": "multiplication_division"},
+            headers=self._auth(token),
+        )
+        # Token eleve de A : voit sa (une) assignation, pas celle des autres.
+        tok_a = self.client.post(
+            f"/eleve/{a['id']}/connexion",
+            json={"code_classe": classe["code_classe"], "pin": a["pin"]},
+        ).json()["token"]
+        mine = self.client.get(f"/eleve/{a['id']}/assignations", headers=self._auth(tok_a))
+        self.assertEqual(mine.status_code, 200)
+        self.assertEqual(len(mine.json()["assignations"]), 1)
+        # A ne peut pas lire les assignations de B (autre eleve) -> 403.
+        self.assertEqual(
+            self.client.get(f"/eleve/{b['id']}/assignations", headers=self._auth(tok_a)).status_code,
+            403,
+        )
+        # L'enseignant de la classe peut, lui, lire celles de B.
+        self.assertEqual(
+            self.client.get(f"/eleve/{b['id']}/assignations", headers=self._auth(token)).status_code,
+            200,
+        )
+
+    def test_statut_assignations_classe(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        e1 = self._ajouter_eleve(token, classe["id"], "Sofia")
+        self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={"eleve_ids": [e1], "lecon_id": "multiplication_division"},
+            headers=self._auth(token),
+        )
+        rep = self.client.get(f"/classe/{classe['id']}/assignations", headers=self._auth(token))
+        self.assertEqual(rep.status_code, 200)
+        lignes = rep.json()["assignations"]
+        self.assertEqual(len(lignes), 1)
+        self.assertEqual(lignes[0]["prenom"], "Sofia")
+        self.assertFalse(lignes[0]["terminee"])
+        # Cloisonnement : un autre enseignant ne voit pas le statut, et sans jeton 401.
+        self._inscrire("autre", "secret999")
+        tok2 = self._token("autre", "secret999")
+        self.assertEqual(
+            self.client.get(
+                f"/classe/{classe['id']}/assignations", headers=self._auth(tok2)
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(f"/classe/{classe['id']}/assignations").status_code, 401
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

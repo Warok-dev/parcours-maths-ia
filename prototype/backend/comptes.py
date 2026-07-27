@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import secrets
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Annotated
 
 import bcrypt
@@ -31,7 +32,15 @@ from sqlalchemy.orm import Session
 
 import database
 import export_excel
-from database import Classe, Ecole, Eleve, Enseignant, Progression, generer_code_classe
+from database import (
+    Assignation,
+    Classe,
+    Ecole,
+    Eleve,
+    Enseignant,
+    Progression,
+    generer_code_classe,
+)
 
 # Content-Type officiel des classeurs .xlsx (Office Open XML).
 _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -192,6 +201,12 @@ class EleveCreation(BaseModel):
 class EleveConnexion(BaseModel):
     code_classe: str
     pin: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+
+
+class AssignationCreation(BaseModel):
+    eleve_ids: list[int] = Field(min_length=1)
+    lecon_id: str | None = None
+    patterns: list[str] | None = None
 
 
 # --- Helpers ---
@@ -629,6 +644,128 @@ def export_excel_classe(
 
 
 # ============================================================
+#  ASSIGNATIONS : l'enseignant assigne un travail a ses eleves
+# ============================================================
+def _assignation_dict(a: Assignation, prenom: str | None = None) -> dict:
+    infos = {
+        "id": a.id,
+        "eleve_id": a.eleve_id,
+        "type": "revision" if a.patterns else "lecon",
+        "lecon_id": a.lecon_id,
+        "patterns": json.loads(a.patterns) if a.patterns else None,
+        "terminee": a.terminee,
+        "date_assignation": a.date_assignation.isoformat(),
+        "date_completion": a.date_completion.isoformat() if a.date_completion else None,
+    }
+    if prenom is not None:
+        infos["prenom"] = prenom
+    return infos
+
+
+def marquer_assignations_terminees(
+    db: Session,
+    eleve_id: int,
+    lecon_id: str | None,
+    concepts: list[str],
+    est_revision: bool,
+) -> None:
+    """Marque comme terminees les assignations en attente de l'eleve que la
+    session qui vient de s'achever satisfait. Appelee par main.py a la fin d'une
+    session liee. NE COMMIT PAS : l'appelant gere la transaction.
+
+    - session de lecon -> satisfait les assignations de meme lecon_id ;
+    - session de revision -> satisfait les assignations dont tous les patterns
+      cibles ont ete couverts par la session."""
+    en_attente = db.scalars(
+        select(Assignation).where(
+            Assignation.eleve_id == eleve_id, Assignation.terminee.is_(False)
+        )
+    ).all()
+    concepts_vus = set(concepts or [])
+    maintenant = datetime.now(timezone.utc)
+    for a in en_attente:
+        if est_revision and a.patterns:
+            cibles = set(json.loads(a.patterns))
+            satisfait = bool(cibles) and cibles.issubset(concepts_vus)
+        elif not est_revision and a.lecon_id is not None:
+            satisfait = a.lecon_id == lecon_id
+        else:
+            satisfait = False
+        if satisfait:
+            a.terminee = True
+            a.date_completion = maintenant
+
+
+@router.post("/classe/{classe_id}/assigner", status_code=201)
+def assigner_travail(
+    classe_id: int,
+    payload: AssignationCreation,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Assigne une lecon OU une revision ciblee (patterns) a un ou plusieurs
+    eleves de la classe. Protege : proprietaire, et les eleves vises doivent
+    tous appartenir a la classe (cloisonnement)."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    a_lecon = bool(payload.lecon_id)
+    a_patterns = bool(payload.patterns)
+    if a_lecon == a_patterns:
+        raise HTTPException(
+            status_code=400,
+            detail="Fournir soit une lecon, soit une liste de concepts (exactement l'un des deux).",
+        )
+    # Deduplication en gardant l'ordre ; tous les eleves doivent etre de la classe.
+    eleve_ids = list(dict.fromkeys(payload.eleve_ids))
+    presents = db.scalars(
+        select(Eleve.id).where(Eleve.id.in_(eleve_ids), Eleve.classe_id == classe.id)
+    ).all()
+    if set(presents) != set(eleve_ids):
+        raise HTTPException(
+            status_code=400, detail="Un ou plusieurs eleves n'appartiennent pas a cette classe."
+        )
+
+    patterns_json = json.dumps(payload.patterns) if a_patterns else None
+    creees = []
+    for eid in eleve_ids:
+        assignation = Assignation(
+            eleve_id=eid,
+            assignee_par=enseignant.id,
+            lecon_id=payload.lecon_id,
+            patterns=patterns_json,
+        )
+        db.add(assignation)
+        creees.append(assignation)
+    db.commit()
+    for a in creees:
+        db.refresh(a)
+    return {"assignations": [_assignation_dict(a) for a in creees]}
+
+
+@router.get("/classe/{classe_id}/assignations")
+def lister_assignations_classe(
+    classe_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Statut de toutes les assignations de la classe (qui a termine, qui pas
+    encore). Protege : proprietaire de la classe."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    rows = db.scalars(
+        select(Assignation)
+        .join(Eleve, Assignation.eleve_id == Eleve.id)
+        .where(Eleve.classe_id == classe.id)
+        .order_by(Assignation.date_assignation.desc(), Assignation.id.desc())
+    ).all()
+    prenoms = {
+        e.id: e.prenom
+        for e in db.scalars(select(Eleve).where(Eleve.classe_id == classe.id)).all()
+    }
+    return {
+        "assignations": [_assignation_dict(a, prenom=prenoms.get(a.eleve_id, "")) for a in rows]
+    }
+
+
+# ============================================================
 #  ELEVE : entree publique par code de classe, puis connexion
 # ============================================================
 @router.get("/classe/rejoindre/{code_classe}")
@@ -704,6 +841,44 @@ def progression_eleve(
         raise HTTPException(status_code=403, detail="Acces non autorise a cette progression.")
 
     return _progression_payload(db, eleve)
+
+
+@router.get("/eleve/{eleve_id}/assignations")
+def assignations_eleve(
+    eleve_id: int,
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Assignations EN ATTENTE d'un eleve (terminee=false).
+
+    Accessible par l'eleve lui-meme (son token) OU par l'enseignant de sa classe.
+    Un eleve ne voit donc que ses propres assignations."""
+    eleve = db.get(Eleve, eleve_id)
+    if eleve is None:
+        raise HTTPException(status_code=404, detail="Eleve introuvable.")
+
+    token = creds.credentials if creds else None
+    autorise = False
+    if token and _TOKENS_ELEVE.get(token) == eleve_id:
+        autorise = True
+    elif token and token in _TOKENS_ENSEIGNANT:
+        autorise = eleve.classe.enseignant_id == _TOKENS_ENSEIGNANT[token]
+    if not autorise:
+        raise HTTPException(status_code=403, detail="Acces non autorise a ces assignations.")
+
+    rows = db.scalars(
+        select(Assignation)
+        .where(Assignation.eleve_id == eleve_id, Assignation.terminee.is_(False))
+        .order_by(Assignation.date_assignation.desc(), Assignation.id.desc())
+    ).all()
+    return {
+        "eleve": {
+            "id": eleve.id,
+            "prenom": eleve.prenom,
+            "niveau_scolaire": eleve.classe.niveau_scolaire,
+        },
+        "assignations": [_assignation_dict(a) for a in rows],
+    }
 
 
 # ============================================================

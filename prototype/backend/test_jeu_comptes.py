@@ -102,6 +102,30 @@ class JeuComptesTests(unittest.TestCase):
                 exercice = body["exercice_suivant"]
         raise AssertionError("La lecon n'a pas ete terminee dans la limite d'essais.")
 
+    def _jouer_revision(self, niveau, patterns, token=None):
+        """Joue une revision ciblee jusqu'a la fin en repondant juste."""
+        headers = self._auth(token) if token else {}
+        start = self.client.post(
+            "/session/demarrer_revision",
+            json={"niveau_scolaire": niveau, "patterns_cibles": patterns},
+            headers=headers,
+        ).json()
+        sid, exercice = start["session_id"], start["exercice"]
+        for _ in range(80):
+            body = self.client.post(
+                "/evaluer",
+                json={
+                    "session_id": sid,
+                    "exercice_id": exercice["id"],
+                    "reponse_donnee": _answer_for(exercice),
+                },
+            ).json()
+            if body.get("progression", {}).get("terminee"):
+                return sid
+            if "exercice_suivant" in body:
+                exercice = body["exercice_suivant"]
+        raise AssertionError("La revision n'a pas ete terminee dans la limite d'essais.")
+
     # ---------- Une session liee ecrit la progression ----------
     def test_session_liee_ecrit_la_progression(self) -> None:
         ctx = self._prof_classe_eleve(niveau="CE3")
@@ -152,6 +176,62 @@ class JeuComptesTests(unittest.TestCase):
             f"/eleve/{ctx['eleve_id']}/progression", headers=self._auth(ctx["etoken"])
         )
         self.assertEqual(response.json()["progression"], [])
+
+    # ---------- Completion automatique des assignations ----------
+    def test_assignation_lecon_terminee_a_la_fin_de_la_session(self) -> None:
+        ctx = self._prof_classe_eleve(niveau="CE3")
+        self.client.post(
+            f"/classe/{ctx['classe']['id']}/assigner",
+            json={"eleve_ids": [ctx["eleve_id"]], "lecon_id": "multiplication_division"},
+            headers=self._auth(ctx["ptoken"]),
+        )
+        # En attente avant de jouer.
+        avant = self.client.get(
+            f"/eleve/{ctx['eleve_id']}/assignations", headers=self._auth(ctx["etoken"])
+        ).json()["assignations"]
+        self.assertEqual(len(avant), 1)
+
+        # L'eleve joue la lecon assignee (session liee a son compte).
+        self._jouer_lecon("CE3", "multiplication_division", token=ctx["etoken"])
+
+        # Plus rien en attente cote eleve, et statut "terminee" cote enseignant.
+        apres = self.client.get(
+            f"/eleve/{ctx['eleve_id']}/assignations", headers=self._auth(ctx["etoken"])
+        ).json()["assignations"]
+        self.assertEqual(apres, [])
+        statut = self.client.get(
+            f"/classe/{ctx['classe']['id']}/assignations", headers=self._auth(ctx["ptoken"])
+        ).json()["assignations"]
+        self.assertTrue(statut[0]["terminee"])
+        self.assertIsNotNone(statut[0]["date_completion"])
+
+    def test_assignation_revision_terminee_a_la_fin_de_la_session(self) -> None:
+        ctx = self._prof_classe_eleve(niveau="CE3")
+        cible = "division_exacte_partage"
+        self.client.post(
+            f"/classe/{ctx['classe']['id']}/assigner",
+            json={"eleve_ids": [ctx["eleve_id"]], "patterns": [cible]},
+            headers=self._auth(ctx["ptoken"]),
+        )
+        self._jouer_revision("CE3", [cible], token=ctx["etoken"])
+        apres = self.client.get(
+            f"/eleve/{ctx['eleve_id']}/assignations", headers=self._auth(ctx["etoken"])
+        ).json()["assignations"]
+        self.assertEqual(apres, [])
+
+    def test_assignation_pas_terminee_par_une_autre_lecon(self) -> None:
+        # Jouer une AUTRE lecon ne doit pas marquer l'assignation comme terminee.
+        ctx = self._prof_classe_eleve(niveau="CE3")
+        self.client.post(
+            f"/classe/{ctx['classe']['id']}/assigner",
+            json={"eleve_ids": [ctx["eleve_id"]], "lecon_id": "multiplication_division"},
+            headers=self._auth(ctx["ptoken"]),
+        )
+        self._jouer_lecon("CE3", "mesures_masse_duree", token=ctx["etoken"])
+        encore = self.client.get(
+            f"/eleve/{ctx['eleve_id']}/assignations", headers=self._auth(ctx["etoken"])
+        ).json()["assignations"]
+        self.assertEqual(len(encore), 1)  # toujours en attente
 
     # ---------- Meilleure maitrise conservee au rejeu ----------
     def test_meilleure_maitrise_conservee(self) -> None:

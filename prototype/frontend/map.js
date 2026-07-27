@@ -50,6 +50,7 @@ const startStatus = document.getElementById("start-status");
 const lessonTitle = document.getElementById("lesson-title");
 const lessonActions = document.getElementById("lesson-actions");
 const revisionZone = document.getElementById("revision-zone");
+const assignationZone = document.getElementById("assignation-zone");
 const lessonStatus = document.getElementById("lesson-status");
 const sessionTitle = document.getElementById("session-title");
 const currentLevelBadge = document.getElementById("current-level-badge");
@@ -86,6 +87,7 @@ const state = {
   selectedLevel: null,
   availableLessons: [],
   selectedLesson: null,
+  assignations: [], /* travaux assignes en attente (eleve connecte) */
   reinforcement: null,
   /* Tresor du raccourci courant, et cles de ceux deja ramasses dans cette
      session (persistees avec la reference de session : un rechargement ne
@@ -1936,6 +1938,8 @@ function renderLessonChoices() {
      le bouton reste, pour repartir vers un autre niveau. */
   backToLevelsButton.classList.toggle("hidden", Boolean(niveauImposeEleve()));
 
+  renderAssignationBanner();
+
   lessonActions.innerHTML = state.availableLessons
     .map(
       (lesson) => `
@@ -1989,6 +1993,58 @@ function renderRevisionChoice() {
       await startRevisionSession(state.selectedLevel, patterns);
     } catch (error) {
       lessonStatus.textContent = `Impossible de demarrer la revision : ${error.message}`;
+    }
+  });
+}
+
+/* Banniere "travail assigne par l'enseignant" : mise en avant AVANT le choix
+   libre des lecons. Le bouton demarre directement le travail (lecon ou revision
+   ciblee). N'apparait que pour un eleve connecte ayant une assignation en attente. */
+function renderAssignationBanner() {
+  if (!assignationZone) {
+    return;
+  }
+  const assignations = state.assignations || [];
+  if (!assignations.length) {
+    assignationZone.classList.add("hidden");
+    assignationZone.innerHTML = "";
+    return;
+  }
+  const a = assignations[0];
+  const conceptLabel = (p) =>
+    window.ParcoursCarnet?.conceptLabel?.(p) || String(p || "").replace(/_/g, " ");
+  const label =
+    a.type === "revision"
+      ? `Revision : ${(a.patterns || []).map(conceptLabel).join(", ")}`
+      : (state.availableLessons.find((l) => l.lecon_id === a.lecon_id) || {}).nom ||
+        a.lecon_id ||
+        "un exercice";
+  const autres =
+    assignations.length > 1
+      ? `<span class="assignation-plus">+${assignations.length - 1} autre(s) a suivre</span>`
+      : "";
+
+  assignationZone.innerHTML = `
+    <div class="assignation-banner">
+      <span class="assignation-icon" aria-hidden="true">&#127891;</span>
+      <div class="assignation-texte">
+        <span class="assignation-titre">Ton enseignant t'a prepare un exercice !</span>
+        <span class="assignation-travail">${label}</span>
+        ${autres}
+      </div>
+      <button id="assignation-demarrer" class="btn-primary assignation-btn" type="button">Demarrer</button>
+    </div>
+  `;
+  assignationZone.classList.remove("hidden");
+  assignationZone.querySelector("#assignation-demarrer").addEventListener("click", async () => {
+    try {
+      if (a.type === "revision") {
+        await startRevisionSession(state.selectedLevel, a.patterns || []);
+      } else {
+        await startSession(state.selectedLevel, a.lecon_id);
+      }
+    } catch (error) {
+      lessonStatus.textContent = `Impossible de demarrer le travail : ${error.message}`;
     }
   });
 }
@@ -2380,8 +2436,10 @@ function resetToStart() {
   revisionZone.classList.add("hidden");
 }
 
-function returnToLessonChoice() {
+async function returnToLessonChoice() {
   resetSharedState();
+  /* Rafraichit les travaux assignes : celui qu'on vient de terminer disparait. */
+  await rafraichirAssignations();
   renderLessonChoices();
   lessonStatus.textContent = "Choisis une lecon pour commencer.";
   showLessonScreen();
@@ -2742,11 +2800,20 @@ async function demarrerFluxEleve(niveau) {
   if (await tryResumeSession()) {
     return;
   }
+  await rafraichirAssignations();
   try {
     await loadLessons(niveau);
   } catch (error) {
     lessonStatus.textContent = `Impossible de charger les lecons : ${error.message}`;
   }
+}
+
+/* Recharge les travaux assignes en attente (uniquement pour un eleve connecte ;
+   vide en essai libre). Best-effort : ne bloque jamais le flux. */
+async function rafraichirAssignations() {
+  state.assignations = niveauImposeEleve()
+    ? (await window.ParcoursCompte?.chargerAssignations?.()) || []
+    : [];
 }
 
 demarrerApplication();

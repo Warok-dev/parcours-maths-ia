@@ -217,6 +217,22 @@
     return appel(`/classe/${classeId}/concepts_difficiles`, { method: "GET" });
   }
 
+  async function chargerLecons(niveau) {
+    const payload = await appel(`/lecons/${niveau}`, { method: "GET" });
+    return payload.lecons || [];
+  }
+
+  async function assignerTravail(classeId, payload) {
+    return appel(`/classe/${classeId}/assigner`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function chargerAssignationsClasse(classeId) {
+    return appel(`/classe/${classeId}/assignations`, { method: "GET" });
+  }
+
   const _nomsLeconsCache = {};
   async function chargerNomsLecons(niveau) {
     if (_nomsLeconsCache[niveau]) {
@@ -530,12 +546,49 @@
     setStatut(`Export telecharge : ${nomFichier}`, "succes");
   }
 
+  /* Statut des travaux assignes (qui a termine, qui pas encore). noms = table
+     lecon_id -> nom lisible, pour ne pas afficher d'identifiant technique. */
+  function assignationsStatutMarkup(assignations, noms) {
+    if (!assignations.length) {
+      return "";
+    }
+    const item = (a) => {
+      const label =
+        a.type === "revision"
+          ? `Revision : ${(a.patterns || []).map(libelleConcept).join(", ")}`
+          : noms[a.lecon_id] || a.lecon_id || "Lecon";
+      const statut = a.terminee
+        ? `<span class="assign-statut assign-faite">Termine</span>`
+        : `<span class="assign-statut assign-attente">En attente</span>`;
+      return `
+        <li class="assign-ligne">
+          <span class="assign-eleve">${echapper(a.prenom)}</span>
+          <span class="assign-travail">${echapper(label)}</span>
+          ${statut}
+        </li>`;
+    };
+    return `
+      <div class="teacher-assign-statut">
+        <h3 class="teacher-subtitle">Travaux assignes</h3>
+        <ul class="assign-liste">${assignations.map(item).join("")}</ul>
+      </div>`;
+  }
+
   /* --- Vue : detail d'une classe (eleves) --- */
   async function vueClasseDetail(classeId) {
     setStatut("Chargement des eleves...");
     let donnees;
+    let assignations = [];
+    let noms = {};
     try {
       donnees = await chargerEleves(classeId);
+      /* Best-effort : le statut des assignations ne doit pas bloquer la vue. */
+      noms = await chargerNomsLecons(donnees.classe.niveau_scolaire);
+      try {
+        assignations = (await chargerAssignationsClasse(classeId)).assignations || [];
+      } catch (_error) {
+        assignations = [];
+      }
     } catch (error) {
       setStatut(error.message, "erreur");
       return;
@@ -565,12 +618,14 @@
         <button type="button" id="ens-retour-dashboard" class="ghost-button">&#8592; Mes classes</button>
         <span class="teacher-topbar-actions">
           <button type="button" id="ens-tableau-bord" class="btn-primary teacher-dashboard-btn">Tableau de bord</button>
+          <button type="button" id="ens-assigner" class="btn-primary">Assigner un travail</button>
           <button type="button" id="ens-export-excel" class="ghost-button">Exporter en Excel</button>
           <button type="button" class="ghost-button teacher-copy" data-code="${classe.code_classe}">Copier le code ${classe.code_classe}</button>
         </span>
       </div>
       <h2 class="teacher-subtitle">${echapper(classe.nom)} <span class="hud-level">${classe.niveau_scolaire}</span></h2>
       <ul class="teacher-eleves">${lignes}</ul>
+      ${assignationsStatutMarkup(assignations, noms)}
       <form id="ens-ajout-eleve" class="teacher-create login-form" autocomplete="off">
         <div class="teacher-create-row">
           <input id="ens-eleve-prenom" class="login-input teacher-input" type="text" placeholder="Prenom du nouvel eleve" />
@@ -583,6 +638,7 @@
     body.querySelector("#ens-retour-dashboard").addEventListener("click", vueDashboard);
     body.querySelector("#ens-tableau-bord").addEventListener("click", () => vueTableauDeBord(classeId));
     body.querySelector("#ens-export-excel").addEventListener("click", () => exporterExcel(classe));
+    body.querySelector("#ens-assigner").addEventListener("click", () => vueAssignerTravail(classeId, classe, eleves));
     body.querySelector(".teacher-copy").addEventListener("click", () => copierCode(classe.code_classe));
     body.querySelectorAll(".teacher-remove").forEach((bouton) => {
       bouton.addEventListener("click", () => demanderRetrait(classeId, bouton));
@@ -606,6 +662,143 @@
         /* Le PIN n'est renvoye qu'ici, une seule fois : on le met en avant dans
            une popup a noter avant de rafraichir/quitter la vue. */
         afficherPopupPin(prenom, cree.pin);
+      } catch (error) {
+        setStatut(error.message, "erreur");
+      }
+    });
+  }
+
+  /* --- Vue : assigner un travail (lecon ou revision ciblee) --- */
+  async function vueAssignerTravail(classeId, classe, eleves) {
+    setStatut("Chargement...");
+    let lecons = [];
+    let difficiles = [];
+    try {
+      [lecons, difficiles] = await Promise.all([
+        chargerLecons(classe.niveau_scolaire),
+        chargerConceptsDifficiles(classeId)
+          .then((d) => d.concepts || [])
+          .catch(() => []),
+      ]);
+    } catch (error) {
+      setStatut(error.message, "erreur");
+      return;
+    }
+
+    if (!eleves.length) {
+      body.innerHTML = `
+        <div class="teacher-topbar">
+          <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour a la classe</button>
+        </div>
+        <p class="menu-lead">Ajoute d'abord des eleves pour pouvoir leur assigner un travail.</p>`;
+      body.querySelector("#ens-retour-detail").addEventListener("click", () => vueClasseDetail(classeId));
+      setStatut("");
+      return;
+    }
+
+    const casesEleves = eleves
+      .map(
+        (e) => `
+        <label class="assign-check">
+          <input type="checkbox" class="assign-eleve-case" value="${e.id}" checked />
+          <span>${echapper(e.prenom)}</span>
+        </label>`,
+      )
+      .join("");
+    const optionsLecons = lecons
+      .map((l) => `<option value="${echapper(l.lecon_id)}">${echapper(l.nom)}</option>`)
+      .join("");
+    /* Suggestion intelligente : le concept qui bloque le plus d'eleves (donnees
+       du tableau de bord) est pre-coche pour une revision ciblee. */
+    const suggere = difficiles[0] && difficiles[0].pattern_name;
+    const casesConcepts = difficiles.length
+      ? difficiles
+          .map(
+            (c) => `
+          <label class="assign-check">
+            <input type="checkbox" class="assign-concept-case" value="${echapper(c.pattern_name)}" ${
+              c.pattern_name === suggere ? "checked" : ""
+            } />
+            <span>${echapper(libelleConcept(c.pattern_name))}
+              <span class="assign-hint">(${c.nb_eleves_en_difficulte} en difficulte)</span></span>
+          </label>`,
+          )
+          .join("")
+      : `<p class="menu-note">Aucun concept en difficulte identifie pour l'instant.</p>`;
+
+    body.innerHTML = `
+      <div class="teacher-topbar">
+        <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour a la classe</button>
+      </div>
+      <h2 class="teacher-subtitle">Assigner un travail <span class="hud-level">${classe.niveau_scolaire}</span></h2>
+      <div class="assign-form">
+        <fieldset class="assign-bloc">
+          <legend>A quels eleves ?</legend>
+          <button type="button" id="assign-tout" class="ghost-button assign-tout">Tout (de)selectionner</button>
+          <div class="assign-cases">${casesEleves}</div>
+        </fieldset>
+        <fieldset class="assign-bloc">
+          <legend>Quel travail ?</legend>
+          <label class="assign-radio"><input type="radio" name="assign-type" value="lecon" checked /> Une lecon complete</label>
+          <label class="assign-radio"><input type="radio" name="assign-type" value="revision" /> Revision ciblee</label>
+          <div id="assign-lecon-zone" class="assign-type-zone">
+            <select id="assign-lecon" class="login-input teacher-input">${optionsLecons}</select>
+          </div>
+          <div id="assign-revision-zone" class="assign-type-zone hidden">
+            <p class="assign-hint">Concepts a retravailler (le plus bloquant est pre-coche) :</p>
+            <div class="assign-cases">${casesConcepts}</div>
+          </div>
+        </fieldset>
+        <button type="button" id="assign-valider" class="btn-primary">Assigner</button>
+      </div>`;
+    setStatut("");
+
+    body.querySelector("#ens-retour-detail").addEventListener("click", () => vueClasseDetail(classeId));
+    body.querySelector("#assign-tout").addEventListener("click", () => {
+      const cases = body.querySelectorAll(".assign-eleve-case");
+      const tousCoches = [...cases].every((c) => c.checked);
+      cases.forEach((c) => {
+        c.checked = !tousCoches;
+      });
+    });
+    body.querySelectorAll('input[name="assign-type"]').forEach((radio) => {
+      radio.addEventListener("change", () => {
+        const revision =
+          body.querySelector('input[name="assign-type"]:checked').value === "revision";
+        body.querySelector("#assign-lecon-zone").classList.toggle("hidden", revision);
+        body.querySelector("#assign-revision-zone").classList.toggle("hidden", !revision);
+      });
+    });
+    body.querySelector("#assign-valider").addEventListener("click", async () => {
+      const eleve_ids = [...body.querySelectorAll(".assign-eleve-case:checked")].map((c) =>
+        Number(c.value),
+      );
+      if (!eleve_ids.length) {
+        setStatut("Selectionne au moins un eleve.", "erreur");
+        return;
+      }
+      const type = body.querySelector('input[name="assign-type"]:checked').value;
+      const payload = { eleve_ids };
+      if (type === "lecon") {
+        payload.lecon_id = body.querySelector("#assign-lecon").value;
+        if (!payload.lecon_id) {
+          setStatut("Choisis une lecon.", "erreur");
+          return;
+        }
+      } else {
+        payload.patterns = [...body.querySelectorAll(".assign-concept-case:checked")].map(
+          (c) => c.value,
+        );
+        if (!payload.patterns.length) {
+          setStatut("Choisis au moins un concept a retravailler.", "erreur");
+          return;
+        }
+      }
+      setStatut("Assignation...");
+      try {
+        const rep = await assignerTravail(classeId, payload);
+        await vueClasseDetail(classeId);
+        setStatut(`Travail assigne a ${rep.assignations.length} eleve(s).`, "succes");
       } catch (error) {
         setStatut(error.message, "erreur");
       }
@@ -917,6 +1110,9 @@
     retirerEleve,
     reinitialiserPin,
     regenererCodeParent,
+    assignerTravail,
+    chargerAssignationsClasse,
+    chargerLecons,
     chargerTableauDeBord,
     chargerConceptsDifficiles,
     /* Coeur pur */

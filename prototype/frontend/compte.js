@@ -443,6 +443,23 @@
     });
   }
 
+  /* Assignations en attente de l'eleve connecte (travaux prepares par
+     l'enseignant). Best-effort : une erreur ne casse jamais le demarrage. */
+  async function chargerAssignations() {
+    if (!compte) {
+      return [];
+    }
+    try {
+      const payload = await appel(`/eleve/${compte.eleveId}/assignations`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${compte.token}` },
+      });
+      return payload.assignations || [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
   window.ParcoursCompte = {
     demarrerConnexion,
     aDecide: () => decision !== null,
@@ -453,6 +470,7 @@
     getPrenom: () => (compte ? compte.prenom : null),
     deconnecter,
     chargerEntreesCarnet,
+    chargerAssignations,
     /* Exposes pour les tests / l'affichage */
     grouperProgression,
   };

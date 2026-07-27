@@ -4331,3 +4331,163 @@ select.teacher-input {
 .parent-retour {
   margin-top: 22px;
 }
+
+/* ============================================================
+   ASSIGNATIONS (cote enseignant) : formulaire + statut
+   ============================================================ */
+.teacher-assign-statut {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cream-dark);
+}
+
+.assign-liste {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assign-ligne {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fcfaf6;
+  border: 1px solid var(--cream-dark);
+}
+
+.assign-eleve {
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 90px;
+}
+
+.assign-travail {
+  flex: 1;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.assign-statut {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.assign-faite {
+  background: #e5f6e8;
+  color: #1f7a37;
+}
+
+.assign-attente {
+  background: #fdf1d8;
+  color: var(--gold-dark);
+}
+
+/* --- Formulaire d'assignation --- */
+.assign-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.assign-bloc {
+  border: 1px solid var(--cream-dark);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.assign-bloc legend {
+  font-weight: 600;
+  color: var(--ink);
+  padding: 0 6px;
+}
+
+.assign-cases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 8px;
+}
+
+.assign-check,
+.assign-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.assign-radio {
+  margin-right: 18px;
+}
+
+.assign-type-zone {
+  margin-top: 12px;
+}
+
+.assign-tout {
+  font-size: 0.82rem;
+}
+
+.assign-hint {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+/* --- Banniere de travail assigne (cote eleve, univers du jeu) --- */
+.assignation-zone {
+  margin: 0 0 14px;
+}
+
+.assignation-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff4d6, #ffe6a8);
+  border: 3px solid var(--gold);
+  box-shadow: var(--shadow-chip);
+  text-align: left;
+}
+
+.assignation-icon {
+  font-size: 2rem;
+  flex: 0 0 auto;
+}
+
+.assignation-texte {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.assignation-titre {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.assignation-travail {
+  color: var(--wood-dark);
+  font-size: 0.95rem;
+}
+
+.assignation-plus {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.assignation-btn {
+  flex: 0 0 auto;
+}

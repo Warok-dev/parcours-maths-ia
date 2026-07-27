@@ -30,7 +30,12 @@ from generation.substitution import (
     patterns_disponibles_pour_niveau,
 )
 import tts
-from comptes import eleve_id_optionnel, get_db, router as comptes_router
+from comptes import (
+    eleve_id_optionnel,
+    get_db,
+    marquer_assignations_terminees,
+    router as comptes_router,
+)
 from database import Eleve, Progression, SessionJeu, init_db
 from tts import TTSConfigurationError, TTSServiceError
 from tutor import TutorServiceError, build_tutor_reply
@@ -881,6 +886,16 @@ def _enregistrer_evaluation_bd(db: Session, session: dict, statut: str | None) -
             session_jeu.date_derniere_activite = datetime.now(timezone.utc)
             if session.get("terminee"):
                 session_jeu.termine = True
+        # Session terminee : marque comme faite toute assignation en attente que
+        # ce travail satisfait (meme lecon, ou patterns de revision couverts).
+        if session.get("terminee"):
+            marquer_assignations_terminees(
+                db,
+                eleve_id,
+                session.get("lecon_id"),
+                session.get("concepts", []),
+                bool(session.get("revision")),
+            )
         db.commit()
     except Exception as exc:  # persistance best-effort, jamais fatale
         db.rollback()

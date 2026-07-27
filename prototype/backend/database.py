@@ -171,6 +171,9 @@ class Eleve(Base):
     sessions: Mapped[list["SessionJeu"]] = relationship(
         back_populates="eleve", passive_deletes=True
     )
+    assignations: Mapped[list["Assignation"]] = relationship(
+        back_populates="eleve", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class Progression(Base):
@@ -220,6 +223,36 @@ class SessionJeu(Base):
     termine: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     eleve: Mapped["Eleve | None"] = relationship(back_populates="sessions")
+
+
+class Assignation(Base):
+    """Un travail assigne par l'enseignant a UN eleve : soit une lecon complete
+    (lecon_id), soit une revision ciblee (patterns = liste de pattern_name en
+    JSON). Exactement l'un des deux est renseigne. terminee bascule a true
+    automatiquement quand l'eleve termine la session correspondante."""
+
+    __tablename__ = "assignation"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    eleve_id: Mapped[int] = mapped_column(
+        ForeignKey("eleve.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # L'enseignant qui a assigne (garde a titre indicatif ; SET NULL s'il part).
+    assignee_par: Mapped[int | None] = mapped_column(
+        ForeignKey("enseignant.id", ondelete="SET NULL"), nullable=True
+    )
+    lecon_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # Revision ciblee : liste de pattern_name serialisee en JSON (ou NULL).
+    patterns: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    date_assignation: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    terminee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    date_completion: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    eleve: Mapped["Eleve"] = relationship(back_populates="assignations")
 
 
 def _enable_sqlite_foreign_keys(engine: Engine) -> None:
