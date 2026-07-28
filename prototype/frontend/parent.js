@@ -62,7 +62,18 @@
     return `${nom} a travaille ${n} notion${n > 1 ? "s" : ""} : ${morceaux.join(", ")}.`;
   }
 
-  const coeur = { compterMaitrise, phraseBilan, BADGES_MAITRISE, STORAGE_KEY };
+  /* Extrait les messages d'alerte de blocage (resume backend) sous forme de
+     liste de chaines, en ignorant tout ce qui est mal forme. Fonction pure. */
+  function messagesAlerte(alerte) {
+    if (!alerte || !alerte.active || !Array.isArray(alerte.alertes)) {
+      return [];
+    }
+    return alerte.alertes
+      .map((a) => (a && typeof a.message === "string" ? a.message : ""))
+      .filter((m) => m.length > 0);
+  }
+
+  const coeur = { compterMaitrise, phraseBilan, messagesAlerte, BADGES_MAITRISE, STORAGE_KEY };
 
   /* En Node (tests), on s'arrete au coeur pur : pas de DOM ni de fetch. */
   if (typeof window === "undefined") {
@@ -234,6 +245,16 @@
     const infosEleve = payload.eleve || eleve || {};
     const lignes = payload.progression || [];
     const decomptes = compterMaitrise(lignes);
+    /* Resume hebdo + alertes (best-effort : leur absence ne casse pas le bilan). */
+    let notif = null;
+    try {
+      notif = await appel("/parent/notifications", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (_error) {
+      notif = null;
+    }
     const noms = await chargerNomsLecons(infosEleve.niveau_scolaire);
     /* Meme regroupement par lecon que le carnet eleve (reutilise compte.js). */
     const pages =
@@ -272,6 +293,29 @@
           .join("")
       : `<p class="parent-vide">Aucune notion travaillee pour l'instant. Le suivi se remplira au fur et a mesure des exercices.</p>`;
 
+    /* Banniere d'alerte (blocage) : visible seulement si un signal est actif. */
+    const alertes = messagesAlerte(notif && notif.alerte);
+    const banniere = alertes.length
+      ? `<div class="parent-alerte" role="alert">
+          <span class="parent-alerte-icone" aria-hidden="true">&#9888;</span>
+          <div class="parent-alerte-corps">
+            <strong class="parent-alerte-titre">Un petit coup de pouce ?</strong>
+            <ul class="parent-alerte-liste">
+              ${alertes.map((m) => `<li>${echapper(m)}</li>`).join("")}
+            </ul>
+          </div>
+        </div>`
+      : "";
+
+    /* Section "Cette semaine" : bilan hebdo genere par le backend (par regles). */
+    const resumeTexte = notif && notif.resume && notif.resume.texte;
+    const sectionSemaine = resumeTexte
+      ? `<section class="parent-semaine">
+          <h2 class="parent-semaine-titre">Cette semaine</h2>
+          <p class="parent-semaine-texte">${echapper(resumeTexte)}</p>
+        </section>`
+      : "";
+
     body.innerHTML = `
       <div class="parent-topbar">
         <div>
@@ -282,6 +326,8 @@
         </div>
         <button type="button" id="parent-deconnexion" class="ghost-button">Changer d'enfant</button>
       </div>
+      ${banniere}
+      ${sectionSemaine}
       <p class="parent-phrase">${echapper(phraseBilan(infosEleve.prenom, decomptes))}</p>
       <div class="parent-tuiles">
         ${tuile("acquis", decomptes.acquis, "Acquis")}
@@ -359,5 +405,6 @@
     /* Coeur pur expose pour les tests / l'affichage */
     compterMaitrise,
     phraseBilan,
+    messagesAlerte,
   };
 })();

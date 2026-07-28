@@ -847,13 +847,20 @@ def _upsert_progression(
     if ligne is None:
         db.add(
             Progression(
-                eleve_id=eleve_id, pattern_name=pattern_name, lecon_id=lecon_id, maitrise=maitrise
+                eleve_id=eleve_id,
+                pattern_name=pattern_name,
+                lecon_id=lecon_id,
+                maitrise=maitrise,
+                nb_tentatives=1,
             )
         )
         return
     # Rejeu : on ne baisse jamais la maitrise ; la lecon d'origine est conservee.
     if maitrise > ligne.maitrise:
         ligne.maitrise = maitrise
+    # Chaque concept re-acheve compte comme une tentative de plus (sert a reperer
+    # un concept retravaille plusieurs fois sans debloquer -> alerte parent).
+    ligne.nb_tentatives = (ligne.nb_tentatives or 0) + 1
     ligne.date_derniere_tentative = datetime.now(timezone.utc)
 
 

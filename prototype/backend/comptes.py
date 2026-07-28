@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 import database
 import export_excel
+import notifications
 from database import (
     Assignation,
     Classe,
@@ -917,3 +918,24 @@ def progression_parent(
     token parent (jamais fourni dans l'URL) : le parent ne peut voir que SON
     enfant. Aucun droit d'ecriture n'est attache a ce token."""
     return _progression_payload(db, eleve)
+
+
+@router.get("/parent/notifications")
+def notifications_parent(
+    eleve: Annotated[Eleve, Depends(parent_eleve_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Resume hebdomadaire et alertes de blocage pour l'enfant suivi (lecture
+    seule). Protege par le meme token parent que /parent/progression : l'eleve
+    est deduit du token, jamais de l'URL. Le contenu est genere par regles a
+    partir de la progression deja suivie (aucun email n'est encore envoye : le
+    parent le consulte ici)."""
+    return {
+        "eleve": {
+            "id": eleve.id,
+            "prenom": eleve.prenom,
+            "niveau_scolaire": eleve.classe.niveau_scolaire,
+        },
+        "resume": notifications.generer_resume_hebdomadaire(db, eleve.id),
+        "alerte": notifications.detecter_alerte_blocage(db, eleve.id),
+    }

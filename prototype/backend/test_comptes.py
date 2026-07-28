@@ -195,7 +195,7 @@ class ComptesIntegrationTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/classe/{classeA['id']}/eleves").status_code, 401)
 
     # ---------- Tableau de bord enseignant ----------
-    def _seed_progression(self, eleve_id, pattern_name, lecon_id, maitrise):
+    def _seed_progression(self, eleve_id, pattern_name, lecon_id, maitrise, nb_tentatives=1):
         """Insere une ligne de progression directement (sans jouer une session)."""
         with sessionmaker(bind=self.engine, class_=Session)() as db:
             db.add(
@@ -204,6 +204,7 @@ class ComptesIntegrationTests(unittest.TestCase):
                     pattern_name=pattern_name,
                     lecon_id=lecon_id,
                     maitrise=maitrise,
+                    nb_tentatives=nb_tentatives,
                 )
             )
             db.commit()
@@ -556,6 +557,55 @@ class ComptesIntegrationTests(unittest.TestCase):
         self.assertEqual(corps["eleve"]["id"], a["id"])
         patterns = [p["pattern_name"] for p in corps["progression"]]
         self.assertEqual(patterns, ["concept_a"])  # jamais concept_b
+
+    # ---------- Notifications parent (resume + alerte) ----------
+    def test_notifications_parent_sans_token(self) -> None:
+        # /parent/notifications sans token parent -> refuse (meme protection).
+        self.assertEqual(self.client.get("/parent/notifications").status_code, 401)
+
+    def test_notifications_parent_refuse_token_enseignant(self) -> None:
+        # Un token enseignant n'est PAS un token parent : acces refuse.
+        self._inscrire()
+        token = self._token()
+        self.assertEqual(
+            self.client.get("/parent/notifications", headers=self._auth(token)).status_code, 401
+        )
+
+    def test_notifications_parent_reflete_activite_et_alerte(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        eleve = self._creer_eleve(token, classe["id"], "Sofia")
+        # Activite recente (date par defaut = maintenant) : un concept bloque
+        # (maitrise 1 apres 3 tentatives) doit declencher l'alerte.
+        self._seed_progression(eleve["id"], "division_exacte", "mult_div", 1, nb_tentatives=3)
+
+        ptoken = self.client.get(f"/parent/acces/{eleve['code_parent']}").json()["token"]
+        reponse = self.client.get("/parent/notifications", headers=self._auth(ptoken))
+        self.assertEqual(reponse.status_code, 200)
+        corps = reponse.json()
+        self.assertEqual(corps["eleve"]["id"], eleve["id"])
+        # Le resume reflete l'activite recente.
+        travailles = [c["pattern_name"] for c in corps["resume"]["concepts_travailles"]]
+        self.assertIn("division_exacte", travailles)
+        # L'alerte de blocage est active et cible le bon concept.
+        self.assertTrue(corps["alerte"]["active"])
+        types = {a["type"] for a in corps["alerte"]["alertes"]}
+        self.assertIn("concept_bloque", types)
+
+    def test_notifications_parent_ne_voit_que_son_enfant(self) -> None:
+        # Le token du parent de A ne renvoie que les notifications de A.
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        a = self._creer_eleve(token, classe["id"], "Sofia")
+        b = self._creer_eleve(token, classe["id"], "Adam")
+        self._seed_progression(b["id"], "concept_b", "mult_div", 1, nb_tentatives=5)
+
+        ptoken_a = self.client.get(f"/parent/acces/{a['code_parent']}").json()["token"]
+        corps = self.client.get("/parent/notifications", headers=self._auth(ptoken_a)).json()
+        self.assertEqual(corps["eleve"]["id"], a["id"])
+        self.assertEqual(corps["resume"]["concepts_travailles"], [])  # A n'a rien fait
 
     def test_regenerer_code_parent_invalide_l_ancien(self) -> None:
         self._inscrire()

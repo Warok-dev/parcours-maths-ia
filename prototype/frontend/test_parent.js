@@ -67,6 +67,27 @@ function check(cond, label) {
   );
 }
 
+/* --- 6. Extraction des messages d'alerte de blocage --- */
+{
+  const actif = {
+    active: true,
+    alertes: [
+      { type: "stagnation", message: "Sofia s'entraine mais stagne." },
+      { type: "concept_bloque", message: "Sofia bute sur la division." },
+    ],
+  };
+  const msgs = parent.messagesAlerte(actif);
+  check(msgs.length === 2, "deux messages d'alerte extraits");
+  check(/division/.test(msgs[1]), "le message de blocage est conserve");
+
+  check(parent.messagesAlerte({ active: false, alertes: [] }).length === 0, "alerte inactive -> aucun message");
+  check(parent.messagesAlerte(null).length === 0, "entree nulle -> aucun message");
+  check(
+    parent.messagesAlerte({ active: true, alertes: [{ type: "x" }, { message: 5 }] }).length === 0,
+    "alertes mal formees ignorees",
+  );
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);

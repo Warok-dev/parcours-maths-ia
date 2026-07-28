@@ -196,6 +196,13 @@ class Progression(Base):
     pattern_name: Mapped[str] = mapped_column(String(80), nullable=False)
     lecon_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     maitrise: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Nombre de fois ou le concept a ete travaille (une session achevee = une
+    # tentative). La maitrise ne baisse jamais, donc ce compteur est le seul
+    # moyen de distinguer "vu une fois, encore a 1" de "retravaille plusieurs
+    # fois sans debloquer" -> sert a l'alerte de blocage parent.
+    nb_tentatives: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
     date_derniere_tentative: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
@@ -295,22 +302,33 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
     pas une table existante, donc une base deja creee resterait sans la colonne.
     Idempotent : on n'ajoute que ce qui manque."""
     inspector = inspect(eng)
-    if "eleve" not in inspector.get_table_names():
-        return
-    colonnes = {c["name"] for c in inspector.get_columns("eleve")}
-    if "pin_hash" not in colonnes:
-        with eng.begin() as conn:
-            conn.execute(text("ALTER TABLE eleve ADD COLUMN pin_hash VARCHAR(255)"))
-    if "code_parent_hash" not in colonnes:
-        with eng.begin() as conn:
-            conn.execute(text("ALTER TABLE eleve ADD COLUMN code_parent_hash VARCHAR(64)"))
-            # Index unique sur la nouvelle colonne (recherche du parent par code).
-            conn.execute(
-                text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_eleve_code_parent_hash "
-                    "ON eleve (code_parent_hash)"
+    tables = set(inspector.get_table_names())
+    if "eleve" in tables:
+        colonnes = {c["name"] for c in inspector.get_columns("eleve")}
+        if "pin_hash" not in colonnes:
+            with eng.begin() as conn:
+                conn.execute(text("ALTER TABLE eleve ADD COLUMN pin_hash VARCHAR(255)"))
+        if "code_parent_hash" not in colonnes:
+            with eng.begin() as conn:
+                conn.execute(text("ALTER TABLE eleve ADD COLUMN code_parent_hash VARCHAR(64)"))
+                # Index unique sur la nouvelle colonne (recherche du parent par code).
+                conn.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS ix_eleve_code_parent_hash "
+                        "ON eleve (code_parent_hash)"
+                    )
                 )
-            )
+    if "progression" in tables:
+        colonnes = {c["name"] for c in inspector.get_columns("progression")}
+        if "nb_tentatives" not in colonnes:
+            # Les lignes existantes prennent 1 (au moins une tentative pour exister).
+            with eng.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE progression "
+                        "ADD COLUMN nb_tentatives INTEGER NOT NULL DEFAULT 1"
+                    )
+                )
 
 
 def init_db(target_engine: Engine | None = None) -> Engine:
