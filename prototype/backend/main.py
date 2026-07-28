@@ -819,6 +819,16 @@ def _extract_answer(payload: EvaluationRequest) -> str:
 #  suivi reste cote frontend (localStorage), strictement inchange. Seules les
 #  sessions liees a un eleve connecte alimentent SessionJeu et Progression.
 # ============================================================
+def _niveau_scolaire_de_l_eleve(db: Session, eleve_id: int) -> str | None:
+    """Niveau de la classe de l'eleve : la source de verite cote serveur. None
+    si le token pointe vers un eleve supprime. Sert a forcer le niveau de jeu
+    d'un eleve connecte a celui de sa classe, sans jamais croire le client."""
+    eleve = db.get(Eleve, eleve_id)
+    if eleve is None:
+        return None
+    return eleve.classe.niveau_scolaire
+
+
 def _lier_session_a_eleve(db: Session, session: dict, eleve_id: int, niveau: str) -> None:
     """Cree la ligne SessionJeu et note le lien dans la session de jeu."""
     if db.get(Eleve, eleve_id) is None:
@@ -920,11 +930,19 @@ def demarrer_session(
     db: Annotated[Session, Depends(get_db)],
     eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
 ) -> dict:
-    session = _build_session(payload.niveau_scolaire, payload.lecon_id, theme=payload.theme)
+    # Un eleve connecte joue TOUJOURS au niveau de sa classe (lu en base) : on
+    # ignore le niveau_scolaire envoye par le client (jamais de confiance au
+    # frontend). Le mode invite, lui, garde le libre choix du niveau.
+    niveau = payload.niveau_scolaire
+    if eleve_id is not None:
+        niveau_classe = _niveau_scolaire_de_l_eleve(db, eleve_id)
+        if niveau_classe is not None:
+            niveau = niveau_classe
+    session = _build_session(niveau, payload.lecon_id, theme=payload.theme)
     # Token eleve valide -> on lie la session a son compte (sinon : invite, rien
     # en base, comportement inchange).
     if eleve_id is not None:
-        _lier_session_a_eleve(db, session, eleve_id, payload.niveau_scolaire)
+        _lier_session_a_eleve(db, session, eleve_id, niveau)
     return {
         "session_id": session["session_id"],
         "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
@@ -944,9 +962,16 @@ def demarrer_session_revision(
     lecons : l'eleve repasse exactement ses points faibles, une seule fois
     chacun, avec la meme mecanique de progression que d'habitude.
     """
-    concepts = _revision_concepts(payload.niveau_scolaire, payload.patterns_cibles)
+    # Comme pour /session/demarrer : un eleve connecte revise au niveau de sa
+    # classe (source serveur), jamais au niveau annonce par le client.
+    niveau = payload.niveau_scolaire
+    if eleve_id is not None:
+        niveau_classe = _niveau_scolaire_de_l_eleve(db, eleve_id)
+        if niveau_classe is not None:
+            niveau = niveau_classe
+    concepts = _revision_concepts(niveau, payload.patterns_cibles)
     session = _build_session(
-        payload.niveau_scolaire,
+        niveau,
         lecon_id=REVISION_LECON_ID,
         concepts=concepts,
         lecon_nom=REVISION_LECON_NOM,
@@ -954,7 +979,7 @@ def demarrer_session_revision(
         theme=payload.theme,
     )
     if eleve_id is not None:
-        _lier_session_a_eleve(db, session, eleve_id, payload.niveau_scolaire)
+        _lier_session_a_eleve(db, session, eleve_id, niveau)
     return {
         "session_id": session["session_id"],
         "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],

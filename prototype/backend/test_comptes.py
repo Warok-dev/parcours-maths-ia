@@ -661,6 +661,31 @@ class ComptesIntegrationTests(unittest.TestCase):
         self.assertEqual(corps["rapport"]["destinataire"], "parent")
         self.assertEqual(corps["rapport"]["texte"], self._RAPPORT_MOCK)
 
+    # ---------- Durcissement du niveau cote serveur ----------
+    def test_session_eleve_forcee_au_niveau_de_sa_classe(self) -> None:
+        # Un eleve d'une classe CE1 qui demande une session en CE5 doit jouer en
+        # CE1 : le niveau envoye par le client est ignore au profit de la base.
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE1")
+        eleve = self._creer_eleve(token, classe["id"], "Sofia")
+        tel = self.client.post(
+            f"/eleve/{eleve['id']}/connexion",
+            json={"code_classe": classe["code_classe"], "pin": eleve["pin"]},
+        ).json()["token"]
+
+        reponse = self.client.post(
+            "/session/demarrer", json={"niveau_scolaire": "CE5"}, headers=self._auth(tel)
+        )
+        self.assertEqual(reponse.status_code, 200)
+        # Le niveau reellement utilise est celui de la classe (CE1), pas CE5.
+        self.assertEqual(reponse.json()["progression"]["niveau_scolaire"], "CE1")
+
+        # Controle : en mode invite (sans token), le niveau demande est respecte.
+        invite = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE5"})
+        self.assertEqual(invite.status_code, 200)
+        self.assertEqual(invite.json()["progression"]["niveau_scolaire"], "CE5")
+
     def test_regenerer_code_parent_invalide_l_ancien(self) -> None:
         self._inscrire()
         token = self._token()
