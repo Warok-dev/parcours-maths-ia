@@ -971,7 +971,7 @@ def get_session(session_id: str) -> dict:
 @app.get("/lecons/{niveau_scolaire}")
 def get_lecons(niveau_scolaire: str) -> dict:
     if niveau_scolaire not in ALLOWED_LEVELS:
-        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 ou CE2.")
+        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
 
     return {
         "niveau_scolaire": niveau_scolaire,
@@ -982,7 +982,7 @@ def get_lecons(niveau_scolaire: str) -> dict:
 @app.get("/exercices/{niveau}")
 def get_exercice(niveau: str, pattern: str | None = None) -> dict:
     if niveau not in ALLOWED_LEVELS:
-        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 ou CE2.")
+        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
 
     if pattern is not None:
         patterns_disponibles = patterns_disponibles_pour_niveau(niveau)
@@ -1092,7 +1092,7 @@ def synthese_vocale(payload: SpeechRequest) -> dict:
 @app.get("/carte/{niveau}")
 def get_carte(niveau: str) -> dict:
     if niveau not in ALLOWED_LEVELS:
-        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 ou CE2.")
+        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
 
     cartes = load_json("cartes.json")
     if not isinstance(cartes, dict):
@@ -1113,7 +1113,7 @@ def get_themes() -> dict:
 @app.get("/generation/demo/{niveau}")
 def generation_demo(niveau: str, theme: str | None = None) -> dict:
     if niveau not in ALLOWED_LEVELS:
-        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 ou CE2.")
+        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
 
     return {
         "substitution": generer_lot(niveau, 1)[0],
