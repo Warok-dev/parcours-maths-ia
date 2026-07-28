@@ -1067,7 +1067,9 @@ def tuteur_aide(payload: TutorRequest) -> dict:
         exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)
 
     try:
-        tutor_reply = build_tutor_reply(exercice, payload.question, diagnostic=diagnostic)
+        tutor_reply = build_tutor_reply(
+            exercice, payload.question, diagnostic=diagnostic, niveau=payload.niveau
+        )
     except TutorServiceError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

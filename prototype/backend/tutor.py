@@ -19,9 +19,10 @@ BASE_MAX_OUTPUT_TOKENS = 500
 RETRY_MAX_OUTPUT_TOKENS = 4000
 VALID_ENDINGS = (".", "!", "?", "…")
 
-SYSTEM_INSTRUCTION = (
-    "Tu es un tuteur de mathématiques pour un élève de CE1 ou CE2 (6 à 8 ans). "
-    "Utilise des phrases courtes, un vocabulaire simple, un ton bienveillant et encourageant. "
+# Principes pedagogiques communs a TOUS les niveaux (inchanges) : seul le
+# registre de langue s'adapte a l'age, via _REGISTRE_PAR_NIVEAU ci-dessous.
+_INSTRUCTION_BASE = (
+    "Tu es un tuteur de mathématiques. "
     "Reste strictement sur l'exercice de mathématiques en cours. "
     "Si la question est hors sujet, redirige poliment vers l'exercice. "
     "N'invente jamais une méthode différente de etapes_methode. "
@@ -30,6 +31,43 @@ SYSTEM_INSTRUCTION = (
     "N'écris pas directement la réponse finale, sauf si le message de l'élève indique clairement plusieurs essais ou blocages répétés ; "
     "dans ce cas, donne la réponse en l'expliquant avec la méthode fournie."
 )
+
+# Registre de langue par tranche d'age : le SEUL element qui change selon le
+# niveau scolaire. Les regles pedagogiques (ci-dessus) restent identiques.
+_REGISTRE_CE1_CE2 = (
+    "Tu t'adresses à un élève de CE1 ou CE2 (6 à 8 ans). "
+    "Emploie des phrases très courtes, un vocabulaire très simple, un ton chaleureux et enjoué. "
+)
+_REGISTRE_CE3_CE4 = (
+    "Tu t'adresses à un élève de CE3 ou CE4 (8 à 10 ans). "
+    "Emploie un ton posé et encourageant, avec un vocabulaire un peu plus riche, sans être bébé. "
+)
+_REGISTRE_CE5_CE6 = (
+    "Tu t'adresses à un élève de CE5 ou CE6 (10 à 11 ans), en fin de primaire. "
+    "Adopte un ton respectueux et motivant, comme un enseignant avec un préadolescent, sans jamais l'infantiliser. "
+)
+
+_REGISTRE_PAR_NIVEAU = {
+    "CE1": _REGISTRE_CE1_CE2,
+    "CE2": _REGISTRE_CE1_CE2,
+    "CE3": _REGISTRE_CE3_CE4,
+    "CE4": _REGISTRE_CE3_CE4,
+    "CE5": _REGISTRE_CE5_CE6,
+    "CE6": _REGISTRE_CE5_CE6,
+}
+
+
+def construire_system_instruction(niveau: str | None) -> str:
+    """Instruction systeme = registre de langue adapte a l'age + principes
+    pedagogiques communs. Un niveau inconnu retombe sur le registre CE1/CE2
+    (le plus accompagne), par prudence."""
+    registre = _REGISTRE_PAR_NIVEAU.get(niveau or "", _REGISTRE_CE1_CE2)
+    return registre + _INSTRUCTION_BASE
+
+
+# Instruction par defaut (retro-compat + valeur des parametres) : registre le
+# plus accompagne, utilise quand aucun niveau n'est connu.
+SYSTEM_INSTRUCTION = construire_system_instruction(None)
 
 # Chaine de fallback (meme ordre que la generation narrative). Les callables
 # sont resolus par nom au moment de l'appel pour rester mockables en test.
@@ -100,11 +138,13 @@ def ensure_tutor_configured() -> str:
     return api_key
 
 
-@lru_cache(maxsize=1)
-def _build_model() -> genai.GenerativeModel:
+@lru_cache(maxsize=8)
+def _build_model(system_instruction: str = SYSTEM_INSTRUCTION) -> genai.GenerativeModel:
+    # Cache par instruction systeme : un modele distinct par registre de langue
+    # (3 au total), construit une seule fois chacun.
     api_key = ensure_tutor_configured()
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_INSTRUCTION)
+    return genai.GenerativeModel(MODEL_NAME, system_instruction=system_instruction)
 
 
 def _build_user_prompt(exercice: dict, question: str, diagnostic: str | None = None) -> str:
@@ -185,9 +225,9 @@ def _call_model(
     return _extract_text(response), _extract_finish_reason(response)
 
 
-def _call_gemini(prompt: str) -> str:
+def _call_gemini(prompt: str, system_instruction: str = SYSTEM_INSTRUCTION) -> str:
     """Priorite 1 : Gemini, avec retry sur troncature (comportement historique)."""
-    model = _build_model()
+    model = _build_model(system_instruction)
     text, finish_reason = _call_model(model, prompt, BASE_MAX_OUTPUT_TOKENS)
 
     if _is_max_tokens_finish_reason(finish_reason) or not _is_valid_tutor_text(text):
@@ -214,13 +254,13 @@ def _build_groq_client():
     return Groq(api_key=api_key, timeout=PROVIDER_TIMEOUT_SECONDS, max_retries=0)
 
 
-def _call_groq(prompt: str) -> str:
+def _call_groq(prompt: str, system_instruction: str = SYSTEM_INSTRUCTION) -> str:
     """Priorite 2 : Groq (llama-3.3-70b-versatile)."""
     client = _build_groq_client()
     completion = client.chat.completions.create(
         model=GROQ_MODEL_NAME,
         messages=[
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "system", "content": system_instruction},
             {"role": "user", "content": prompt},
         ],
         temperature=0.3,
@@ -244,13 +284,13 @@ def _build_mistral_client():
     return Mistral(api_key=api_key)
 
 
-def _call_mistral(prompt: str) -> str:
+def _call_mistral(prompt: str, system_instruction: str = SYSTEM_INSTRUCTION) -> str:
     """Priorite 3 : Mistral (mistral-small-latest)."""
     client = _build_mistral_client()
     response = client.chat.complete(
         model=MISTRAL_MODEL_NAME,
         messages=[
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "system", "content": system_instruction},
             {"role": "user", "content": prompt},
         ],
         temperature=0.3,
@@ -260,18 +300,25 @@ def _call_mistral(prompt: str) -> str:
     return (response.choices[0].message.content or "").strip()
 
 
-def build_tutor_reply(exercice: dict, question: str, diagnostic: str | None = None) -> dict:
+def build_tutor_reply(
+    exercice: dict, question: str, diagnostic: str | None = None, niveau: str | None = None
+) -> dict:
     """Reponse du tuteur via la chaine Gemini -> Groq -> Mistral.
 
     La MEME validation de sortie s'applique a chaque fournisseur ; le
-    diagnostic d'erreur (si present) est injecte dans le prompt commun.
+    diagnostic d'erreur (si present) est injecte dans le prompt commun. Le
+    REGISTRE de langue est adapte a l'age via l'instruction systeme (niveau
+    fourni par l'appelant, a defaut celui de l'exercice) ; les regles
+    pedagogiques restent identiques pour tous les niveaux.
     """
     prompt = _build_user_prompt(exercice, question, diagnostic)
+    niveau = niveau or exercice.get("niveau_scolaire")
+    system_instruction = construire_system_instruction(niveau)
 
     for provider_name, model_name, caller_name in TUTOR_PROVIDERS:
         caller = globals()[caller_name]
         try:
-            text = caller(prompt)
+            text = caller(prompt, system_instruction)
         except Exception as exc:
             LOGGER.warning("Tuteur : fournisseur '%s' en echec : %s", provider_name, exc)
             continue
