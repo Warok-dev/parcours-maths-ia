@@ -334,6 +334,12 @@
         ${tuile("encours", decomptes.enCours, "En bonne voie")}
         ${tuile("retravailler", decomptes.aRetravailler, "A retravailler")}
       </div>
+      <section class="parent-rapport">
+        <h2 class="parent-rapport-titre">Rapport de votre enfant</h2>
+        <p class="parent-rapport-lead">Un court bilan redige, personnalise a partir de l'activite de ${echapper(infosEleve.prenom || "votre enfant")}.</p>
+        <button type="button" id="parent-rapport-btn" class="btn-primary">Generer le rapport</button>
+        <div id="parent-rapport-zone" class="parent-rapport-zone" aria-live="polite"></div>
+      </section>
       <div class="parent-lecons">${sections}</div>
       <button type="button" id="parent-retour-jeu" class="ghost-button parent-retour">&#8592; Retour a l'accueil</button>
     `;
@@ -343,6 +349,28 @@
       vueAcces();
     });
     body.querySelector("#parent-retour-jeu").addEventListener("click", retourAuJeu);
+
+    /* Rapport IA a la demande : la generation cote serveur peut prendre quelques
+       secondes, on affiche donc un indicateur pendant l'attente. */
+    const boutonRapport = body.querySelector("#parent-rapport-btn");
+    const zoneRapport = body.querySelector("#parent-rapport-zone");
+    boutonRapport?.addEventListener("click", async () => {
+      boutonRapport.disabled = true;
+      zoneRapport.innerHTML = `<p class="parent-rapport-chargement"><span class="parent-rapport-spinner" aria-hidden="true"></span> Redaction du rapport en cours...</p>`;
+      try {
+        const reponse = await appel("/parent/rapport_ia", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const rapport = reponse.rapport || {};
+        zoneRapport.innerHTML = `<p class="parent-rapport-texte">${echapper(rapport.texte || "")}</p>`;
+        boutonRapport.textContent = "Regenerer le rapport";
+      } catch (error) {
+        zoneRapport.innerHTML = `<p class="parent-rapport-erreur">Rapport indisponible pour le moment : ${echapper(error.message)}</p>`;
+      } finally {
+        boutonRapport.disabled = false;
+      }
+    });
   }
 
   function deconnecter() {

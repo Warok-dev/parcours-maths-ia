@@ -3669,6 +3669,63 @@ code {
   flex-wrap: wrap;
 }
 
+/* Modale de rapport IA (enseignant) : texte lisible, aligne a gauche. */
+.rapport-modal {
+  max-width: 520px;
+  text-align: left;
+}
+
+.rapport-contenu {
+  min-height: 60px;
+  margin: 4px 0 18px;
+}
+
+.rapport-texte {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
+  font-size: 1rem;
+}
+
+.rapport-note {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.rapport-erreur {
+  margin: 0;
+  color: #b23a22;
+}
+
+.rapport-chargement,
+.parent-rapport-chargement {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* Spinner partage (rapport enseignant + parent). */
+.rapport-spinner,
+.parent-rapport-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--cream-dark, #d9cfc0);
+  border-top-color: var(--road-dark, #7a5a34);
+  border-radius: 50%;
+  display: inline-block;
+  animation: rapportSpin 0.8s linear infinite;
+}
+
+@keyframes rapportSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ============================================================
    ESPACE ENSEIGNANT (sobre, decor leger : outil pour adultes)
    Reutilise la palette et la police. Fond decore avec retenue
@@ -4267,6 +4324,46 @@ select.teacher-input {
   margin: 0;
   color: var(--ink);
   line-height: 1.5;
+}
+
+/* Section "Rapport de votre enfant" : bilan redige a la demande. */
+.parent-rapport {
+  background: #fff;
+  border: 1px solid #e4dccd;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 0 0 24px;
+}
+
+.parent-rapport-titre {
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+
+.parent-rapport-lead {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.parent-rapport-zone {
+  margin-top: 12px;
+}
+
+.parent-rapport-texte {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
+  background: #f7f4ee;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.parent-rapport-erreur {
+  margin: 0;
+  color: #b23a22;
 }
 
 /* Trois tuiles de synthese (acquis / en bonne voie / a retravailler). */

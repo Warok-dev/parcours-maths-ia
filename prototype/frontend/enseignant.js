@@ -217,6 +217,12 @@
     return appel(`/classe/${classeId}/concepts_difficiles`, { method: "GET" });
   }
 
+  /* Rapport d'apprentissage redige par IA pour un eleve (ton enseignant). Peut
+     prendre quelques secondes (appel LLM cote serveur). */
+  async function chargerRapportIa(classeId, eleveId) {
+    return appel(`/classe/${classeId}/rapport_ia/${eleveId}`, { method: "GET" });
+  }
+
   async function chargerLecons(niveau) {
     const payload = await appel(`/lecons/${niveau}`, { method: "GET" });
     return payload.lecons || [];
@@ -850,6 +856,48 @@
     });
   }
 
+  /* Modale de rapport IA : ouvre aussitot avec un indicateur de chargement
+     (la generation cote serveur peut prendre quelques secondes), puis remplace
+     par le texte genere. Un rapport de repli (source 'regles') est signale. */
+  async function genererRapportIa(classeId, eleve) {
+    document.getElementById("ens-rapport-overlay")?.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "ens-rapport-overlay";
+    overlay.className = "pin-overlay";
+    overlay.innerHTML = `
+      <div class="pin-modal rapport-modal" role="dialog" aria-modal="true" aria-labelledby="rapport-titre">
+        <h3 id="rapport-titre" class="pin-modal-titre">Rapport de ${echapper(eleve.prenom)}</h3>
+        <div id="rapport-contenu" class="rapport-contenu" aria-live="polite">
+          <p class="rapport-chargement"><span class="rapport-spinner" aria-hidden="true"></span> Redaction du rapport en cours...</p>
+        </div>
+        <div class="pin-modal-actions">
+          <button type="button" id="rapport-fermer" class="ghost-button">Fermer</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const fermer = () => overlay.remove();
+    overlay.querySelector("#rapport-fermer").addEventListener("click", fermer);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        fermer();
+      }
+    });
+
+    const contenu = overlay.querySelector("#rapport-contenu");
+    try {
+      const reponse = await chargerRapportIa(classeId, eleve.id);
+      const rapport = reponse.rapport || {};
+      const note =
+        rapport.source === "regles"
+          ? `<p class="rapport-note">Rapport simplifie (service IA momentanement indisponible).</p>`
+          : "";
+      contenu.innerHTML = `<p class="rapport-texte">${echapper(rapport.texte || "")}</p>${note}`;
+    } catch (error) {
+      contenu.innerHTML = `<p class="rapport-erreur">Impossible de generer le rapport : ${echapper(error.message)}</p>`;
+    }
+  }
+
   /* Confirmation en ligne (pas de dialog natif qui bloque) : retirer un eleve
      supprime aussi sa progression en cascade, on demande donc validation. */
   function demanderRetrait(classeId, bouton) {
@@ -1059,6 +1107,7 @@
     body.innerHTML = `
       <div class="teacher-topbar">
         <button type="button" id="ens-retour-bord" class="ghost-button">&#8592; Tableau de bord</button>
+        <button type="button" id="ens-rapport-ia" class="btn-primary">Generer un rapport</button>
       </div>
       <h2 class="teacher-subtitle">Progression de ${echapper(eleve.prenom)} <span class="hud-level">${classe.niveau_scolaire}</span></h2>
       ${badgesMarkup(eleve)}
@@ -1066,6 +1115,7 @@
     `;
     setStatut("");
     body.querySelector("#ens-retour-bord").addEventListener("click", () => vueTableauDeBord(classeId));
+    body.querySelector("#ens-rapport-ia").addEventListener("click", () => genererRapportIa(classeId, eleve));
   }
 
   /* ---------- Entree / sortie de l'espace ---------- */
