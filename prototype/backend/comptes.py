@@ -547,6 +547,27 @@ def tableau_de_bord(
     return {"classe": _classe_dict(classe), "eleves": [_resume(e) for e in eleves]}
 
 
+@router.get("/classe/{classe_id}/rapport_ia/{eleve_id}")
+def rapport_ia_enseignant(
+    classe_id: int,
+    eleve_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Rapport d'apprentissage redige par IA pour un eleve (vue enseignant :
+    ton factuel et complet). Protege : proprietaire de la classe, et l'eleve
+    doit lui appartenir. Le LLM ne met en mots que des donnees deja calculees ;
+    en cas d'echec, texte par regles (voir notifications.generer_rapport_ia)."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    eleve = db.get(Eleve, eleve_id)
+    if eleve is None or eleve.classe_id != classe.id:
+        raise HTTPException(status_code=404, detail="Eleve introuvable dans cette classe.")
+    return {
+        "eleve": {"id": eleve.id, "prenom": eleve.prenom},
+        "rapport": notifications.generer_rapport_ia(db, eleve_id, "enseignant"),
+    }
+
+
 @router.get("/classe/{classe_id}/concepts_difficiles")
 def concepts_difficiles(
     classe_id: int,
@@ -938,4 +959,22 @@ def notifications_parent(
         },
         "resume": notifications.generer_resume_hebdomadaire(db, eleve.id),
         "alerte": notifications.detecter_alerte_blocage(db, eleve.id),
+    }
+
+
+@router.get("/parent/rapport_ia")
+def rapport_ia_parent(
+    eleve: Annotated[Eleve, Depends(parent_eleve_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Rapport d'apprentissage redige par IA pour le parent (ton simple et
+    rassurant). Protege par le token parent existant : l'eleve est deduit du
+    token, jamais de l'URL. Meme mecanique que la vue enseignant, ton adapte."""
+    return {
+        "eleve": {
+            "id": eleve.id,
+            "prenom": eleve.prenom,
+            "niveau_scolaire": eleve.classe.niveau_scolaire,
+        },
+        "rapport": notifications.generer_rapport_ia(db, eleve.id, "parent"),
     }

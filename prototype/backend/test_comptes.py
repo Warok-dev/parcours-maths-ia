@@ -8,6 +8,7 @@ classe/eleves, le cloisonnement entre enseignants, et la connexion eleve.
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
@@ -606,6 +607,59 @@ class ComptesIntegrationTests(unittest.TestCase):
         corps = self.client.get("/parent/notifications", headers=self._auth(ptoken_a)).json()
         self.assertEqual(corps["eleve"]["id"], a["id"])
         self.assertEqual(corps["resume"]["concepts_travailles"], [])  # A n'a rien fait
+
+    # ---------- Rapport IA (endpoints, LLM mocke) ----------
+    _RAPPORT_MOCK = "Un texte d'appreciation redige, bienveillant et sans aucun chiffre invente."
+
+    def test_rapport_ia_enseignant_exige_le_proprietaire(self) -> None:
+        self._inscrire("profA", "secretA")
+        self._inscrire("profB", "secretB")
+        tokenA = self._token("profA", "secretA")
+        tokenB = self._token("profB", "secretB")
+        classeA = self._creer_classe(tokenA, "Classe A", "CE3")
+        eleve = self._creer_eleve(tokenA, classeA["id"], "Sofia")
+
+        url = f"/classe/{classeA['id']}/rapport_ia/{eleve['id']}"
+        # Sans token : 401 ; token d'un autre enseignant : 403.
+        self.assertEqual(self.client.get(url).status_code, 401)
+        self.assertEqual(self.client.get(url, headers=self._auth(tokenB)).status_code, 403)
+
+    def test_rapport_ia_enseignant_retourne_le_texte(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        eleve = self._creer_eleve(token, classe["id"], "Sofia")
+        self._seed_progression(eleve["id"], "division_exacte", "mult_div", 3)
+
+        with patch("notifications._appel_gemini_rapport", return_value=self._RAPPORT_MOCK):
+            reponse = self.client.get(
+                f"/classe/{classe['id']}/rapport_ia/{eleve['id']}", headers=self._auth(token)
+            )
+        self.assertEqual(reponse.status_code, 200)
+        corps = reponse.json()
+        self.assertEqual(corps["eleve"]["id"], eleve["id"])
+        self.assertEqual(corps["rapport"]["source"], "ia")
+        self.assertEqual(corps["rapport"]["destinataire"], "enseignant")
+        self.assertEqual(corps["rapport"]["texte"], self._RAPPORT_MOCK)
+
+    def test_rapport_ia_parent_sans_token(self) -> None:
+        self.assertEqual(self.client.get("/parent/rapport_ia").status_code, 401)
+
+    def test_rapport_ia_parent_retourne_le_texte(self) -> None:
+        self._inscrire()
+        token = self._token()
+        classe = self._creer_classe(token, niveau="CE3")
+        eleve = self._creer_eleve(token, classe["id"], "Sofia")
+        self._seed_progression(eleve["id"], "division_exacte", "mult_div", 2)
+        ptoken = self.client.get(f"/parent/acces/{eleve['code_parent']}").json()["token"]
+
+        with patch("notifications._appel_gemini_rapport", return_value=self._RAPPORT_MOCK):
+            reponse = self.client.get("/parent/rapport_ia", headers=self._auth(ptoken))
+        self.assertEqual(reponse.status_code, 200)
+        corps = reponse.json()
+        self.assertEqual(corps["eleve"]["id"], eleve["id"])
+        self.assertEqual(corps["rapport"]["destinataire"], "parent")
+        self.assertEqual(corps["rapport"]["texte"], self._RAPPORT_MOCK)
 
     def test_regenerer_code_parent_invalide_l_ancien(self) -> None:
         self._inscrire()
