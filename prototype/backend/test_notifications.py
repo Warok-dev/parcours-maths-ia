@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -192,6 +193,120 @@ class NotificationsTests(unittest.TestCase):
         self.assertIn("resume", envoi)
         self.assertIn("alerte", envoi)
         self.assertTrue(envoi["alerte"]["active"])  # concept bloque detecte
+
+
+    # ---------- Rapport redige par IA (LLM mocke) ----------
+    def _seed_scenario_variee(self) -> None:
+        """Un concept bien maitrise cette semaine + un concept bloque (m1 x4)."""
+        self._seed("addition_simple", 3, jours=1)
+        self._seed("soustraction_retenue", 1, jours=1, nb_tentatives=4)
+
+    def test_rapport_prompt_contient_les_vraies_donnees_sans_invention(self) -> None:
+        self._seed_scenario_variee()
+        captures: list[str] = []
+
+        def faux_gemini(prompt: str) -> str:
+            captures.append(prompt)
+            return (
+                "Sofia progresse : l'addition simple est desormais bien maitrisee. "
+                "La soustraction avec retenue reste difficile apres 4 essais. "
+                "Proposez-lui de courts exercices reguliers."
+            )
+
+        with patch("notifications._appel_gemini_rapport", side_effect=faux_gemini):
+            with self.Session() as db:
+                rapport = notifications.generer_rapport_ia(db, self.eleve_id, "enseignant")
+
+        self.assertEqual(rapport["source"], "ia")
+        self.assertEqual(rapport["modele"], notifications.tutor.MODEL_NAME)
+        prompt = captures[0]
+        # Le prompt contient les vraies donnees (libelles + comptes reels).
+        self.assertIn("addition simple", prompt)
+        self.assertIn("soustraction retenue", prompt)
+        self.assertIn("4 fois", prompt)  # nb_tentatives reel injecte
+        # Et interdit explicitement l'invention.
+        self.assertIn("N'invente aucun chiffre", prompt)
+
+    def test_rapport_ton_differe_selon_destinataire(self) -> None:
+        self._seed_scenario_variee()
+        vus: dict[str, str] = {}
+
+        def faux(prompt: str) -> str:
+            vus["dernier"] = prompt
+            return "Un texte d'appreciation valide et suffisamment long pour passer."
+
+        with patch("notifications._appel_gemini_rapport", side_effect=faux):
+            with self.Session() as db:
+                notifications.generer_rapport_ia(db, self.eleve_id, "enseignant")
+                prompt_ens = vus["dernier"]
+                notifications.generer_rapport_ia(db, self.eleve_id, "parent")
+                prompt_par = vus["dernier"]
+        self.assertIn("enseignant", prompt_ens.lower())
+        self.assertIn("parent", prompt_par.lower())
+        self.assertNotEqual(prompt_ens, prompt_par)
+
+    def test_rapport_accepte_texte_valide(self) -> None:
+        self._seed_scenario_variee()
+        texte = (
+            "Sofia a bien avance cette semaine et maitrise l'addition simple. "
+            "La soustraction avec retenue lui demande encore des efforts. "
+            "Un peu d'entrainement quotidien l'aidera a progresser."
+        )
+        with patch("notifications._appel_gemini_rapport", return_value=texte):
+            with self.Session() as db:
+                rapport = notifications.generer_rapport_ia(db, self.eleve_id, "parent")
+        self.assertEqual(rapport["source"], "ia")
+        self.assertEqual(rapport["texte"], texte)
+
+    def test_rapport_rejette_nombre_hallucine_et_repli_regles(self) -> None:
+        self._seed_scenario_variee()
+        # 25 n'apparait dans aucune donnee fournie -> chaque fournisseur rejete.
+        hallucine = "Sofia a brillamment resolu 25 exercices cette semaine, bravo a elle !"
+        with patch("notifications._appel_gemini_rapport", return_value=hallucine), patch(
+            "notifications._appel_groq_rapport", return_value=hallucine
+        ), patch("notifications._appel_mistral_rapport", return_value=hallucine):
+            with self.Session() as db:
+                resume = notifications.generer_resume_hebdomadaire(db, self.eleve_id)
+                rapport = notifications.generer_rapport_ia(db, self.eleve_id, "enseignant")
+        self.assertEqual(rapport["source"], "regles")
+        self.assertIsNone(rapport["modele"])
+        self.assertEqual(rapport["texte"], resume["texte"])
+
+    def test_rapport_fallback_sur_groq_si_gemini_hallucine(self) -> None:
+        self._seed_scenario_variee()
+        hallucine = "Sofia a resolu 99 problemes."  # 99 non fourni -> rejete
+        valide = (
+            "Sofia consolide bien l'addition simple. La soustraction avec retenue "
+            "reste a travailler. Quelques exercices cibles feront la difference."
+        )
+        with patch("notifications._appel_gemini_rapport", return_value=hallucine), patch(
+            "notifications._appel_groq_rapport", return_value=valide
+        ):
+            with self.Session() as db:
+                rapport = notifications.generer_rapport_ia(db, self.eleve_id, "enseignant")
+        self.assertEqual(rapport["source"], "ia")
+        self.assertEqual(rapport["modele"], notifications.tutor.GROQ_MODEL_NAME)
+        self.assertEqual(rapport["texte"], valide)
+
+    def test_rapport_repli_regles_si_les_trois_fournisseurs_echouent(self) -> None:
+        self._seed_scenario_variee()
+
+        def echec(_prompt: str) -> str:
+            raise RuntimeError("fournisseur indisponible")
+
+        with patch("notifications._appel_gemini_rapport", side_effect=echec), patch(
+            "notifications._appel_groq_rapport", side_effect=echec
+        ), patch("notifications._appel_mistral_rapport", side_effect=echec):
+            with self.Session() as db:
+                resume = notifications.generer_resume_hebdomadaire(db, self.eleve_id)
+                rapport = notifications.generer_rapport_ia(db, self.eleve_id, "parent")
+        self.assertEqual(rapport["source"], "regles")
+        self.assertEqual(rapport["texte"], resume["texte"])
+
+    def test_rapport_destinataire_invalide(self) -> None:
+        with self.Session() as db:
+            with self.assertRaises(ValueError):
+                notifications.generer_rapport_ia(db, self.eleve_id, "directeur")
 
 
 if __name__ == "__main__":

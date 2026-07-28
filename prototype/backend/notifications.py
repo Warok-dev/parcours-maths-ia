@@ -11,6 +11,13 @@ SMTP, ...), il suffit de remplacer le corps de cette seule fonction ; tout le
 reste (generation du contenu, composition du message) est deja en place et
 reutilisable tel quel via `envoyer_resume_hebdomadaire`.
 
+Un cran au-dessus du texte par regles, `generer_rapport_ia` produit une VRAIE
+appreciation redigee par un LLM (comme le ferait un enseignant), en reutilisant
+EXACTEMENT la chaine de fallback eprouvee du tuteur/narratif (Gemini -> Groq ->
+Mistral, meme timeout, meme gestion d'erreur). Le LLM n'invente rien : il ne
+recoit que des donnees deja calculees et verifiees, et sa sortie est validee
+(aucun nombre non fourni) ; en cas d'echec, on retombe sur le texte par regles.
+
 Regles de datation : la BD SQLite renvoie des datetimes naifs meme pour des
 colonnes timezone=True. On les normalise en UTC avant toute comparaison, pour
 ne jamais melanger naif et aware.
@@ -19,11 +26,15 @@ ne jamais melanger naif et aware.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
+import google.generativeai as genai
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+import tutor
 from database import Eleve, Progression
 
 logger = logging.getLogger("notifications")
@@ -263,3 +274,231 @@ def envoyer_resume_hebdomadaire(
     # Pas d'email parent stocke pour l'instant : adresse-marqueur explicite.
     envoyer_email(destinataire or f"parent-eleve-{eleve.id}@non-configure.local", sujet, corps)
     return {"resume": resume, "alerte": alerte, "sujet": sujet, "corps": corps}
+
+
+# ============================================================
+#  RAPPORT REDIGE PAR IA (appreciation en langage naturel)
+#
+#  Le LLM n'invente RIEN : il recoit uniquement des donnees deja calculees
+#  (concepts, maitrise, tentatives, alertes) et les met en mots. Meme chaine
+#  de fallback que le tuteur/narratif, meme timeout, meme gestion d'erreur.
+#  La sortie est validee (aucun nombre non fourni) ; sinon on retombe sur le
+#  texte par regles du resume hebdomadaire.
+# ============================================================
+RAPPORT_TIMEOUT_SECONDS = tutor.PROVIDER_TIMEOUT_SECONDS
+RAPPORT_MAX_OUTPUT_TOKENS = 600
+_NOMBRE_RE = re.compile(r"\d+")
+
+_SYSTEME_RAPPORT = (
+    "Tu rediges une courte appreciation d'apprentissage en francais, comme un enseignant "
+    "qui remplit un bulletin. Tu t'appuies UNIQUEMENT sur les donnees fournies : tu "
+    "n'inventes aucun chiffre, aucun concept, aucun fait qui n'y figure pas. "
+    "Tu ecris 3 a 4 phrases, en un seul paragraphe, sans liste ni markdown. "
+    "Tu n'ecris aucun nombre qui ne soit pas deja present dans les donnees."
+)
+
+# Ton et niveau de detail selon le destinataire.
+_TON_RAPPORT = {
+    "enseignant": (
+        "Destinataire : l'enseignant. Ton professionnel, factuel et precis. Tu peux nommer "
+        "les notions telles quelles et rester synthetique. Enchaine : ce qui est acquis, ce "
+        "qui merite attention, puis une suggestion pedagogique concrete."
+    ),
+    "parent": (
+        "Destinataire : le parent. Ton simple, chaleureux et rassurant, sans jargon ni terme "
+        "technique. Enchaine : ce qui va bien, ce sur quoi accompagner doucement l'enfant, "
+        "puis une suggestion concrete et encourageante a faire a la maison."
+    ),
+}
+
+# Chaine de fallback (meme ordre et memes modeles que tuteur/narratif). Les
+# callables sont resolus par nom au moment de l'appel pour rester mockables.
+RAPPORT_PROVIDERS = (
+    ("gemini", tutor.MODEL_NAME, "_appel_gemini_rapport"),
+    ("groq", tutor.GROQ_MODEL_NAME, "_appel_groq_rapport"),
+    ("mistral", tutor.MISTRAL_MODEL_NAME, "_appel_mistral_rapport"),
+)
+
+
+@lru_cache(maxsize=1)
+def _modele_gemini_rapport() -> genai.GenerativeModel:
+    api_key = tutor.ensure_tutor_configured()
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel(tutor.MODEL_NAME, system_instruction=_SYSTEME_RAPPORT)
+
+
+def _appel_gemini_rapport(prompt: str) -> str:
+    """Priorite 1 : Gemini. Timeout explicite obligatoire (meme fix que le
+    tuteur) : sans lui le SDK attend son defaut de 600 s et bloque tout le
+    fallback quand Gemini traine en limite de quota."""
+    modele = _modele_gemini_rapport()
+    reponse = modele.generate_content(
+        prompt,
+        generation_config={"temperature": 0.4, "max_output_tokens": RAPPORT_MAX_OUTPUT_TOKENS},
+        request_options={"timeout": RAPPORT_TIMEOUT_SECONDS},
+    )
+    texte = getattr(reponse, "text", None)
+    return texte.strip() if isinstance(texte, str) else ""
+
+
+def _appel_groq_rapport(prompt: str) -> str:
+    """Priorite 2 : Groq. Reutilise le meme client que le tuteur (timeout et
+    max_retries deja configures)."""
+    client = tutor._build_groq_client()
+    completion = client.chat.completions.create(
+        model=tutor.GROQ_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": _SYSTEME_RAPPORT},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.4,
+        max_tokens=RAPPORT_MAX_OUTPUT_TOKENS,
+    )
+    return (completion.choices[0].message.content or "").strip()
+
+
+def _appel_mistral_rapport(prompt: str) -> str:
+    """Priorite 3 : Mistral. Meme client que le tuteur, timeout explicite."""
+    client = tutor._build_mistral_client()
+    reponse = client.chat.complete(
+        model=tutor.MISTRAL_MODEL_NAME,
+        messages=[
+            {"role": "system", "content": _SYSTEME_RAPPORT},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.4,
+        max_tokens=RAPPORT_MAX_OUTPUT_TOKENS,
+        timeout_ms=RAPPORT_TIMEOUT_SECONDS * 1000,
+    )
+    return (reponse.choices[0].message.content or "").strip()
+
+
+def _donnees_rapport(resume: dict, alerte: dict, fenetre_jours: int) -> tuple[str, set[str]]:
+    """Construit le bloc de donnees VERIFIEES fourni au LLM, et l'ensemble des
+    nombres autorises : exactement ceux qui apparaissent dans ce bloc. Tout
+    autre nombre dans la sortie sera considere comme invente."""
+    prenom = resume.get("prenom") or "L'eleve"
+    travailles = resume.get("concepts_travailles", [])
+    maitrises = resume.get("nouvellement_maitrises", [])
+    difficiles = resume.get("en_difficulte", [])
+
+    lignes = [
+        f"Prenom de l'eleve : {prenom}",
+        f"Periode couverte : les {fenetre_jours} derniers jours",
+        f"Nombre de notions travaillees sur la periode : {len(travailles)}",
+    ]
+    if maitrises:
+        lignes.append(
+            f"Notions desormais bien maitrisees ({len(maitrises)}) : "
+            + " ; ".join(c["libelle"] for c in maitrises)
+        )
+    else:
+        lignes.append("Notions nouvellement maitrisees : aucune sur la periode")
+    if difficiles:
+        details = " ; ".join(
+            f"{c['libelle']} (retravaillee {c['nb_tentatives']} fois)" for c in difficiles
+        )
+        lignes.append(f"Notions encore en difficulte ({len(difficiles)}) : {details}")
+    else:
+        lignes.append("Notions en difficulte : aucune sur la periode")
+    if alerte.get("active"):
+        lignes.append("Alertes detectees par le systeme (regles) :")
+        lignes.extend(f"- {a['message']}" for a in alerte.get("alertes", []))
+    else:
+        lignes.append("Alerte de blocage : aucune")
+
+    bloc = "\n".join(lignes)
+    nombres_autorises = set(_NOMBRE_RE.findall(bloc))
+    return bloc, nombres_autorises
+
+
+def _prompt_rapport(bloc_donnees: str, destinataire: str) -> str:
+    ton = _TON_RAPPORT.get(destinataire, _TON_RAPPORT["parent"])
+    return (
+        f"{ton}\n\n"
+        "Donnees verifiees (les SEULES que tu peux utiliser) :\n"
+        f"{bloc_donnees}\n\n"
+        "Redige l'appreciation en 3 a 4 phrases. N'invente aucun chiffre ni aucune "
+        "information absente des donnees ci-dessus. Utilise les noms de notions tels "
+        "quels, en langage naturel."
+    )
+
+
+def _texte_rapport_valide(texte: str) -> bool:
+    """Garde-fou minimal : un rapport exploitable fait au moins quelques mots."""
+    return len(texte.strip()) >= 20
+
+
+def _nombres_tous_autorises(texte: str, nombres_autorises: set[str]) -> bool:
+    """Vrai si AUCUN nombre du texte n'est absent des donnees fournies (meme
+    esprit que la validation stricte de narrative.py, mais on autorise les
+    nombres qui viennent reellement des donnees)."""
+    return all(token in nombres_autorises for token in _NOMBRE_RE.findall(texte))
+
+
+def _generer_texte_rapport(
+    prompt: str, nombres_autorises: set[str]
+) -> tuple[str, str] | None:
+    """Parcourt la chaine Gemini -> Groq -> Mistral. La MEME validation
+    s'applique a chaque fournisseur : texte exploitable ET aucun nombre non
+    fourni. Toute sortie invalide compte comme un echec et passe au suivant.
+    Renvoie (texte, nom_du_modele) au premier succes, sinon None."""
+    for nom, modele_nom, caller_nom in RAPPORT_PROVIDERS:
+        caller = globals()[caller_nom]
+        try:
+            texte = caller(prompt)
+        except Exception as exc:  # SDK, reseau, quota, timeout...
+            logger.warning("Rapport IA : fournisseur '%s' en echec : %s", nom, exc)
+            continue
+        if not _texte_rapport_valide(texte):
+            logger.warning("Rapport IA : '%s' a renvoye un texte vide ou trop court.", nom)
+            continue
+        if not _nombres_tous_autorises(texte, nombres_autorises):
+            logger.warning(
+                "Rapport IA : '%s' a produit un nombre absent des donnees -> rejete.", nom
+            )
+            continue
+        logger.info("Rapport IA fourni par '%s'.", nom)
+        return texte, modele_nom
+    return None
+
+
+def generer_rapport_ia(
+    db: Session,
+    eleve_id: int,
+    destinataire: str,
+    fenetre_jours: int = FENETRE_RESUME_JOURS,
+) -> dict:
+    """Rapport d'apprentissage redige par IA pour 'enseignant' ou 'parent'.
+
+    Le LLM ne recoit que des donnees deja calculees et verifiees (resume hebdo
+    + alertes par regles) et se contente de les mettre en mots. Sa sortie est
+    validee (aucun nombre invente) ; si les trois fournisseurs echouent ou si
+    la validation echoue, on retombe sur le texte par regles du resume (jamais
+    de texte non fiable affiche). `source` indique 'ia' ou 'regles'."""
+    if destinataire not in ("enseignant", "parent"):
+        raise ValueError("destinataire doit valoir 'enseignant' ou 'parent'.")
+
+    resume = generer_resume_hebdomadaire(db, eleve_id, fenetre_jours=fenetre_jours)
+    alerte = detecter_alerte_blocage(db, eleve_id)
+    bloc, nombres_autorises = _donnees_rapport(resume, alerte, fenetre_jours)
+    prompt = _prompt_rapport(bloc, destinataire)
+
+    resultat = _generer_texte_rapport(prompt, nombres_autorises)
+    if resultat is not None:
+        texte, modele = resultat
+        source = "ia"
+    else:
+        # Repli sur le texte deja genere par regles (fiable par construction).
+        logger.info("Rapport IA indisponible : repli sur le texte par regles.")
+        texte, modele, source = resume["texte"], None, "regles"
+
+    return {
+        "eleve_id": eleve_id,
+        "prenom": resume["prenom"],
+        "destinataire": destinataire,
+        "periode": resume["periode"],
+        "texte": texte,
+        "source": source,
+        "modele": modele,
+    }
