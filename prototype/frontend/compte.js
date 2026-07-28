@@ -249,7 +249,7 @@
         (eleve) => `
           <button class="lesson-card login-eleve" type="button" data-eleve-id="${eleve.id}">
             <span class="lesson-card-icon">&#128100;</span>
-            <span><span class="lesson-card-title">${eleve.prenom}</span></span>
+            <span><span class="lesson-card-title">${escapeHtml(eleve.prenom)}</span></span>
           </button>
         `,
       )

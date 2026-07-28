@@ -906,7 +906,7 @@
     const prenom = bouton.dataset.prenom;
     const actions = bouton.closest(".teacher-eleve-actions");
     actions.innerHTML = `
-      <span class="teacher-confirm-label">Retirer ${prenom} et sa progression ?</span>
+      <span class="teacher-confirm-label">Retirer ${echapper(prenom)} et sa progression ?</span>
       <button type="button" class="btn-primary teacher-confirm-oui">Confirmer</button>
       <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
     `;
@@ -935,7 +935,7 @@
     const prenom = bouton.dataset.prenom;
     const actions = bouton.closest(".teacher-eleve-actions");
     actions.innerHTML = `
-      <span class="teacher-confirm-label">Reinitialiser le code de ${prenom} ? L'ancien ne marchera plus.</span>
+      <span class="teacher-confirm-label">Reinitialiser le code de ${echapper(prenom)} ? L'ancien ne marchera plus.</span>
       <button type="button" class="btn-primary teacher-confirm-oui">Confirmer</button>
       <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
     `;
@@ -963,7 +963,7 @@
     const prenom = bouton.dataset.prenom;
     const actions = bouton.closest(".teacher-eleve-actions");
     actions.innerHTML = `
-      <span class="teacher-confirm-label">Generer un code parent pour ${prenom} ? Un ancien code eventuel cessera de marcher.</span>
+      <span class="teacher-confirm-label">Generer un code parent pour ${echapper(prenom)} ? Un ancien code eventuel cessera de marcher.</span>
       <button type="button" class="btn-primary teacher-confirm-oui">Generer</button>
       <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
     `;
