@@ -3399,6 +3399,198 @@ input {
   }
 }
 
+/* --- Mini-jeu : la chasse aux nombres --- */
+.chasse {
+  position: relative;
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+
+.chasse-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.chasse-cible {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chasse-cible-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.85);
+}
+
+.chasse-cible-valeur {
+  display: grid;
+  place-items: center;
+  min-width: 54px;
+  height: 54px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: var(--gold);
+  border: 3px solid var(--gold-dark);
+  color: var(--wood-dark);
+  font-size: 1.9rem;
+  font-weight: 700;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
+}
+
+.chasse-compteur {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--cream);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chasse-timer {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.chasse-timer-bar {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(1);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7fd18b, #f0b84b 70%, #ef8f4a);
+}
+
+.chasse-aire {
+  width: 100%;
+  aspect-ratio: 640 / 420;
+  max-height: 58vh;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  touch-action: manipulation;
+}
+
+.chasse-nombre {
+  cursor: pointer;
+}
+
+.chasse-nombre-inner {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.chasse-nombre-bulle {
+  fill: #fbf3e7;
+  stroke: #8b5834;
+  stroke-width: 3;
+  transition: fill 0.12s ease;
+}
+
+.chasse-nombre:hover .chasse-nombre-bulle {
+  fill: #ffffff;
+}
+
+.chasse-nombre-texte {
+  font-family: "Fredoka", "Segoe UI", sans-serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  fill: #3d2c1e;
+  pointer-events: none;
+  user-select: none;
+}
+
+.chasse-nombre.trouve .chasse-nombre-inner {
+  animation: chassePop 0.26s ease-out forwards;
+}
+
+.chasse-nombre.rate .chasse-nombre-inner {
+  animation: chasseRate 0.3s ease;
+}
+
+@keyframes chassePop {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  40% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes chasseRate {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/* Ecran de fin : superpose l'aire, message positif quel que soit le score */
+.chasse-fin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(22, 31, 66, 0.7);
+}
+
+.chasse-fin-carte {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 26px 30px;
+  text-align: center;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chasse-fin-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.chasse-fin-titre {
+  margin: 0;
+  font-size: 1.6rem;
+  color: var(--ink);
+}
+
+.chasse-fin-detail {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.chasse-fin-bonus {
+  margin: 2px 0 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
 /* ============================================================
    PERSONNALISATION DU PERSONNAGE
    Meme carte que le bilan de session, avec un apercu du

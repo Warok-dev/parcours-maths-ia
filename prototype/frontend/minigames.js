@@ -210,6 +210,340 @@
   };
 
   /* ============================================================
+     MINI-JEU : LA CHASSE AUX NOMBRES
+     ------------------------------------------------------------
+     Plusieurs nombres flottent et rebondissent sur les bords pendant
+     ~16 s. Un nombre "cible" (tire parmi ceux affiches) est annonce en
+     haut ; l'eleve clique les nombres qui lui correspondent. Bon clic =
+     le nombre disparait et le compteur avance. Mauvais clic = rien (pas
+     d'echec possible, esprit detente). A la fin : message positif +
+     bonus cosmetique, puis retour a la carte via demonter().
+
+     La LOGIQUE PURE (generation, physique, detection de clic, decompte du
+     temps, fin de partie) est isolee du rendu SVG : genererConfig() et
+     creerChasseNombres() n'utilisent aucun DOM et sont testables en Node.
+     ============================================================ */
+  const CHASSE = {
+    DUREE_MS: 16000, /* dans la fourchette 15-20 s */
+    NB_NOMBRES: 9,
+    VALEUR_MIN: 1,
+    VALEUR_MAX: 12,
+    CIBLES_MIN: 2, /* au moins 2 nombres corrects a l'ecran (rule 3) */
+    CIBLES_MAX: 4,
+    LARGEUR: 640,
+    HAUTEUR: 420,
+    RAYON: 34,
+    VITESSE_MIN: 34, /* px/s : deplacement doux */
+    VITESSE_MAX: 74,
+    BONUS_BASE: 10, /* petit bonus de participation... */
+    BONUS_PAR_TROUVE: 10, /* ...plus un bonus par nombre attrape */
+  };
+
+  /* Construit une partie initiale (nombres + cible) sans aucun DOM.
+     La cible est TOUJOURS presente parmi les nombres affiches, en au moins
+     CIBLES_MIN exemplaires. Hasard injecte pour des parties reproductibles. */
+  function genererConfig(random = Math.random, options = {}) {
+    const cfg = { ...CHASSE, ...options };
+    const rnd = typeof random === "function" ? random : Math.random;
+    const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+    const cible = ri(cfg.VALEUR_MIN, cfg.VALEUR_MAX);
+    const nbCibles = Math.min(cfg.NB_NOMBRES, ri(cfg.CIBLES_MIN, cfg.CIBLES_MAX));
+    const valeurs = [];
+    for (let i = 0; i < nbCibles; i += 1) {
+      valeurs.push(cible);
+    }
+    while (valeurs.length < cfg.NB_NOMBRES) {
+      valeurs.push(ri(cfg.VALEUR_MIN, cfg.VALEUR_MAX));
+    }
+    /* Melange (Fisher-Yates) pour que les cibles ne soient pas groupees. */
+    for (let i = valeurs.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rnd() * (i + 1));
+      const tmp = valeurs[i];
+      valeurs[i] = valeurs[j];
+      valeurs[j] = tmp;
+    }
+    const marge = cfg.RAYON;
+    const nombres = valeurs.map((valeur, id) => {
+      const angle = rnd() * Math.PI * 2;
+      const vitesse = cfg.VITESSE_MIN + rnd() * (cfg.VITESSE_MAX - cfg.VITESSE_MIN);
+      return {
+        id,
+        valeur,
+        x: marge + rnd() * (cfg.LARGEUR - 2 * marge),
+        y: marge + rnd() * (cfg.HAUTEUR - 2 * marge),
+        vx: Math.cos(angle) * vitesse,
+        vy: Math.sin(angle) * vitesse,
+      };
+    });
+    return {
+      cible,
+      dureeMs: cfg.DUREE_MS,
+      largeur: cfg.LARGEUR,
+      hauteur: cfg.HAUTEUR,
+      rayon: cfg.RAYON,
+      nombres,
+    };
+  }
+
+  /* Coeur de jeu (sans DOM) : etat mutable + methodes. */
+  function creerChasseNombres(config) {
+    const rayon = config.rayon || CHASSE.RAYON;
+    const largeur = config.largeur;
+    const hauteur = config.hauteur;
+    const state = {
+      cible: config.cible,
+      dureeMs: config.dureeMs,
+      tempsRestantMs: config.dureeMs,
+      nombres: config.nombres.map((n) => ({ ...n, trouve: false })),
+      trouves: 0,
+      termine: false,
+    };
+    /* Combien de bons nombres a trouver au total (denominateur du compteur). */
+    const total = state.nombres.filter((n) => n.valeur === state.cible).length;
+
+    /* Avance la physique et le chrono de dtMs millisecondes. */
+    function avancer(dtMs) {
+      if (state.termine) {
+        return;
+      }
+      const dt = dtMs / 1000;
+      for (const n of state.nombres) {
+        if (n.trouve) {
+          continue;
+        }
+        n.x += n.vx * dt;
+        n.y += n.vy * dt;
+        /* Rebond sur les bords : on replace dans l'aire et on inverse la
+           composante concernee (jamais coince hors-champ). */
+        if (n.x < rayon) {
+          n.x = rayon;
+          n.vx = Math.abs(n.vx);
+        } else if (n.x > largeur - rayon) {
+          n.x = largeur - rayon;
+          n.vx = -Math.abs(n.vx);
+        }
+        if (n.y < rayon) {
+          n.y = rayon;
+          n.vy = Math.abs(n.vy);
+        } else if (n.y > hauteur - rayon) {
+          n.y = hauteur - rayon;
+          n.vy = -Math.abs(n.vy);
+        }
+      }
+      state.tempsRestantMs = Math.max(0, state.tempsRestantMs - dtMs);
+      if (state.tempsRestantMs <= 0) {
+        state.termine = true;
+      }
+    }
+
+    /* Detecte un bon clic. Aucun effet de bord penalisant sur un mauvais
+       clic : on renvoie simplement { bon:false }. */
+    function cliquer(id) {
+      if (state.termine) {
+        return { bon: false };
+      }
+      const n = state.nombres.find((x) => x.id === id);
+      if (!n || n.trouve) {
+        return { bon: false };
+      }
+      if (n.valeur === state.cible) {
+        n.trouve = true;
+        state.trouves += 1;
+        /* Tout trouve avant la fin du temps : victoire anticipee. */
+        if (state.trouves >= total) {
+          state.termine = true;
+        }
+        return { bon: true };
+      }
+      return { bon: false };
+    }
+
+    return {
+      avancer,
+      cliquer,
+      cible: () => state.cible,
+      aTrouver: () => total,
+      trouves: () => state.trouves,
+      tempsRestantMs: () => state.tempsRestantMs,
+      dureeMs: () => state.dureeMs,
+      estTermine: () => state.termine,
+      tousTrouves: () => state.trouves >= total,
+      /* Copies defensives : le rendu lit les positions sans pouvoir alterer
+         l'etat interne. */
+      nombres: () => state.nombres.map((n) => ({ ...n })),
+      nombresActifs: () => state.nombres.filter((n) => !n.trouve).map((n) => ({ ...n })),
+      bonus: () => CHASSE.BONUS_BASE + state.trouves * CHASSE.BONUS_PAR_TROUVE,
+    };
+  }
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  const MINIGAME_CHASSE = {
+    id: "chasse-nombres",
+    nom: "la chasse aux nombres",
+    monter(zone, { terminer }) {
+      const config = genererConfig(Math.random);
+      const partie = creerChasseNombres(config);
+      const W = config.largeur;
+      const H = config.hauteur;
+      const R = config.rayon;
+
+      zone.innerHTML = `
+        <div class="chasse">
+          <div class="chasse-header">
+            <div class="chasse-cible">
+              <span class="chasse-cible-label">Attrape tous les</span>
+              <span class="chasse-cible-valeur">${config.cible}</span>
+            </div>
+            <div class="chasse-compteur" id="chasse-compteur">0/${partie.aTrouver()} trouves</div>
+          </div>
+          <div class="chasse-timer"><div class="chasse-timer-bar" id="chasse-timer-bar"></div></div>
+          <svg class="chasse-aire" id="chasse-aire" viewBox="0 0 ${W} ${H}"
+               preserveAspectRatio="xMidYMid meet" aria-label="Aire de jeu : nombres flottants"></svg>
+          <div class="chasse-fin hidden" id="chasse-fin"></div>
+        </div>
+      `;
+
+      const svg = zone.querySelector("#chasse-aire");
+      const compteur = zone.querySelector("#chasse-compteur");
+      const timerBar = zone.querySelector("#chasse-timer-bar");
+      const finBox = zone.querySelector("#chasse-fin");
+
+      /* Un jeton = un groupe positionne (translate) contenant un groupe
+         interieur (pop/wobble) : ainsi l'animation CSS de scale ne se bat
+         pas avec l'attribut transform qui porte la position. */
+      const tokens = new Map();
+      for (const n of partie.nombres()) {
+        const g = document.createElementNS(SVG_NS, "g");
+        g.setAttribute("class", "chasse-nombre");
+        g.setAttribute("transform", `translate(${n.x.toFixed(1)}, ${n.y.toFixed(1)})`);
+        g.dataset.id = String(n.id);
+        const inner = document.createElementNS(SVG_NS, "g");
+        inner.setAttribute("class", "chasse-nombre-inner");
+        const c = document.createElementNS(SVG_NS, "circle");
+        c.setAttribute("r", String(R));
+        c.setAttribute("class", "chasse-nombre-bulle");
+        const t = document.createElementNS(SVG_NS, "text");
+        t.setAttribute("text-anchor", "middle");
+        t.setAttribute("dy", "0.34em");
+        t.setAttribute("class", "chasse-nombre-texte");
+        t.textContent = String(n.valeur);
+        inner.appendChild(c);
+        inner.appendChild(t);
+        g.appendChild(inner);
+        svg.appendChild(g);
+        tokens.set(n.id, g);
+      }
+
+      let raf = null;
+      let last = null;
+      let finTimer = null;
+      let fini = false;
+
+      function majCompteur() {
+        compteur.textContent = `${partie.trouves()}/${partie.aTrouver()} trouves`;
+      }
+
+      function onClick(event) {
+        const g = event.target.closest(".chasse-nombre");
+        if (!g) {
+          return;
+        }
+        const id = Number(g.dataset.id);
+        const res = partie.cliquer(id);
+        if (res.bon) {
+          g.classList.add("trouve");
+          tokens.delete(id);
+          window.setTimeout(() => g.remove(), 260);
+          majCompteur();
+          window.ParcoursAudio?.playCorrect?.();
+          if (partie.estTermine()) {
+            finir();
+          }
+        } else {
+          /* Mauvais clic : petite secousse, aucune penalite. */
+          g.classList.remove("rate");
+          void g.offsetWidth;
+          g.classList.add("rate");
+        }
+      }
+      svg.addEventListener("click", onClick);
+
+      function boucle(ts) {
+        if (last === null) {
+          last = ts;
+        }
+        let dt = ts - last;
+        last = ts;
+        if (dt > 50) {
+          dt = 50; /* onglet en arriere-plan : pas de saut geant */
+        }
+        partie.avancer(dt);
+        for (const n of partie.nombresActifs()) {
+          const g = tokens.get(n.id);
+          if (g) {
+            g.setAttribute("transform", `translate(${n.x.toFixed(1)}, ${n.y.toFixed(1)})`);
+          }
+        }
+        const frac = partie.dureeMs() ? Math.max(0, partie.tempsRestantMs() / partie.dureeMs()) : 0;
+        timerBar.style.transform = `scaleX(${frac.toFixed(3)})`;
+        if (partie.estTermine()) {
+          finir();
+          return;
+        }
+        raf = window.requestAnimationFrame(boucle);
+      }
+      raf = window.requestAnimationFrame(boucle);
+
+      function finir() {
+        if (fini) {
+          return;
+        }
+        fini = true;
+        if (raf) {
+          window.cancelAnimationFrame(raf);
+          raf = null;
+        }
+        svg.removeEventListener("click", onClick);
+        const trouves = partie.trouves();
+        const total = partie.aTrouver();
+        const bonus = partie.bonus();
+        const pluriel = trouves > 1 ? "s" : "";
+        finBox.innerHTML = `
+          <div class="chasse-fin-carte">
+            <div class="chasse-fin-emoji" aria-hidden="true">&#127881;</div>
+            <h2 class="chasse-fin-titre">Bien joue !</h2>
+            <p class="chasse-fin-detail">Tu as attrape ${trouves} nombre${pluriel} sur ${total}.</p>
+            <p class="chasse-fin-bonus">+${bonus} etoiles &#10024;</p>
+            <button id="chasse-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
+          </div>
+        `;
+        finBox.classList.remove("hidden");
+        const btn = finBox.querySelector("#chasse-fin-btn");
+        btn.addEventListener("click", () => terminer(bonus));
+        btn.focus();
+        /* Retour automatique apres une courte celebration, si l'eleve ne
+           clique pas lui-meme (terminer est idempotent cote orchestrateur). */
+        finTimer = window.setTimeout(() => terminer(bonus), 3200);
+      }
+
+      /* Nettoyage (demonter) : coupe la boucle, le minuteur et les ecouteurs. */
+      return () => {
+        if (raf) {
+          window.cancelAnimationFrame(raf);
+          raf = null;
+        }
+        if (finTimer) {
+          window.clearTimeout(finTimer);
+          finTimer = null;
+        }
+        svg.removeEventListener("click", onClick);
+        zone.innerHTML = "";
+      };
+    },
+  };
+
+  /* ============================================================
      COUCHE NAVIGATEUR : adapter reel (DOM + carte via ParcoursApp)
      ============================================================ */
   function el(id) {
@@ -284,10 +618,12 @@
     };
   }
 
-  /* Instance reelle : registre garni du placeholder, orchestrateur branche
-     sur l'adapter navigateur. */
+  /* Instance reelle : registre garni des vrais mini-jeux, orchestrateur
+     branche sur l'adapter navigateur. Le placeholder MINIGAME_A_VENIR reste
+     defini (reference et tests) mais n'est plus propose : la chasse aux
+     nombres est le premier vrai mini-jeu. */
   const registreReel = creerRegistre();
-  registreReel.enregistrer(MINIGAME_A_VENIR);
+  registreReel.enregistrer(MINIGAME_CHASSE);
   const orchestrateurReel = creerOrchestrateur({
     declencheur: creerDeclencheur(),
     registre: registreReel,
@@ -311,6 +647,10 @@
     creerRegistre,
     creerOrchestrateur,
     MINIGAME_A_VENIR,
+    MINIGAME_CHASSE,
+    genererConfig,
+    creerChasseNombres,
+    CHASSE,
     PROBABILITE_DEFAUT,
     ESPACEMENT_MIN_CONCEPTS,
   };

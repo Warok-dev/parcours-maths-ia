@@ -316,6 +316,196 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   check(zone.innerHTML === "", "placeholder : le nettoyage vide la zone");
 }
 
+/* ============================================================
+   7. MINI-JEU : LA CHASSE AUX NOMBRES (logique pure)
+   ============================================================ */
+
+/* Petit hasard deterministe : consomme une liste de valeurs (puis boucle). */
+function randomSeq(valeurs) {
+  let i = 0;
+  return () => {
+    const v = valeurs[i % valeurs.length];
+    i += 1;
+    return v;
+  };
+}
+
+/* --- 7a. Generation de partie : cible presente, contraintes respectees --- */
+{
+  const cfg = minigames.genererConfig(Math.random);
+  check(cfg.nombres.length === minigames.CHASSE.NB_NOMBRES, "genererConfig : bon nombre de nombres");
+
+  const matches = cfg.nombres.filter((n) => n.valeur === cfg.cible).length;
+  check(matches >= minigames.CHASSE.CIBLES_MIN, "la cible est presente en au moins CIBLES_MIN exemplaires");
+  check(
+    cfg.nombres.some((n) => n.valeur === cfg.cible),
+    "la cible est TOUJOURS tiree parmi les nombres affiches",
+  );
+
+  const ids = cfg.nombres.map((n) => n.id);
+  check(new Set(ids).size === ids.length, "les identifiants des nombres sont uniques");
+
+  const R = cfg.rayon;
+  const dansLAire = cfg.nombres.every(
+    (n) => n.x >= R && n.x <= cfg.largeur - R && n.y >= R && n.y <= cfg.hauteur - R,
+  );
+  check(dansLAire, "tous les nombres demarrent a l'interieur de l'aire");
+
+  const bougent = cfg.nombres.every((n) => Math.abs(n.vx) + Math.abs(n.vy) > 0);
+  check(bougent, "chaque nombre a une vitesse non nulle (il flotte)");
+
+  /* Reproductible : meme hasard -> meme partie. */
+  const seed = () => randomSeq([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+  const a = minigames.genererConfig(seed());
+  const b = minigames.genererConfig(seed());
+  check(JSON.stringify(a) === JSON.stringify(b), "genererConfig est deterministe a hasard egal");
+}
+
+/* --- 7b. Detection de bon clic (aucune penalite sur un mauvais) --- */
+{
+  const config = {
+    cible: 7,
+    dureeMs: 10000,
+    largeur: 640,
+    hauteur: 420,
+    rayon: 34,
+    nombres: [
+      { id: 0, valeur: 7, x: 100, y: 100, vx: 10, vy: 0 },
+      { id: 1, valeur: 7, x: 200, y: 200, vx: 0, vy: 10 },
+      { id: 2, valeur: 3, x: 300, y: 300, vx: -10, vy: 0 },
+    ],
+  };
+  const jeu = minigames.creerChasseNombres(config);
+  check(jeu.aTrouver() === 2, "aTrouver = nombre de cibles a l'ecran (2)");
+  check(jeu.trouves() === 0, "au depart : 0 trouve");
+
+  const bon = jeu.cliquer(0);
+  check(bon.bon === true && jeu.trouves() === 1, "clic sur une cible : bon, compteur +1");
+
+  const reclic = jeu.cliquer(0);
+  check(reclic.bon === false && jeu.trouves() === 1, "reclic sur un nombre deja trouve : sans effet");
+
+  const mauvais = jeu.cliquer(2);
+  check(mauvais.bon === false, "clic sur un mauvais nombre : bon=false");
+  check(jeu.trouves() === 1, "mauvais clic : AUCUNE penalite (compteur inchange)");
+  check(!jeu.estTermine(), "mauvais clic : la partie continue (pas d'echec possible)");
+
+  const inconnu = jeu.cliquer(999);
+  check(inconnu.bon === false, "clic sur un id inexistant : ignore proprement");
+
+  /* Le nombre trouve n'apparait plus parmi les nombres actifs. */
+  check(!jeu.nombresActifs().some((n) => n.id === 0), "un nombre trouve quitte les nombres actifs");
+  check(jeu.nombresActifs().length === 2, "il reste 2 nombres actifs apres 1 trouve");
+}
+
+/* --- 7c. Fin par decompte du temps --- */
+{
+  const config = {
+    cible: 5,
+    dureeMs: 1000,
+    largeur: 640,
+    hauteur: 420,
+    rayon: 34,
+    nombres: [{ id: 0, valeur: 5, x: 100, y: 100, vx: 0, vy: 0 }],
+  };
+  const jeu = minigames.creerChasseNombres(config);
+  jeu.avancer(400);
+  check(jeu.tempsRestantMs() === 600 && !jeu.estTermine(), "le temps decompte (1000 -> 600), partie en cours");
+  jeu.avancer(600);
+  check(jeu.tempsRestantMs() === 0 && jeu.estTermine(), "temps ecoule : partie terminee");
+  jeu.avancer(500);
+  check(jeu.tempsRestantMs() === 0, "le temps ne devient jamais negatif");
+
+  const apres = jeu.cliquer(0);
+  check(apres.bon === false && jeu.trouves() === 0, "apres la fin, plus aucun clic ne compte");
+}
+
+/* --- 7d. Fin anticipee : tout trouve avant la fin du temps --- */
+{
+  const config = {
+    cible: 4,
+    dureeMs: 20000,
+    largeur: 640,
+    hauteur: 420,
+    rayon: 34,
+    nombres: [
+      { id: 0, valeur: 4, x: 100, y: 100, vx: 0, vy: 0 },
+      { id: 1, valeur: 4, x: 200, y: 200, vx: 0, vy: 0 },
+      { id: 2, valeur: 9, x: 300, y: 300, vx: 0, vy: 0 },
+    ],
+  };
+  const jeu = minigames.creerChasseNombres(config);
+  jeu.cliquer(0);
+  check(!jeu.estTermine(), "une seule cible trouvee sur deux : partie en cours");
+  jeu.cliquer(1);
+  check(jeu.estTermine() && jeu.tousTrouves(), "toutes les cibles trouvees : victoire anticipee");
+}
+
+/* --- 7e. Physique : rebond sur les bords, jamais hors-champ --- */
+{
+  const config = {
+    cible: 1,
+    dureeMs: 100000,
+    largeur: 200,
+    hauteur: 200,
+    rayon: 20,
+    nombres: [
+      { id: 0, valeur: 1, x: 25, y: 100, vx: -100, vy: 0 }, /* fonce vers le bord gauche */
+      { id: 1, valeur: 1, x: 175, y: 100, vx: 100, vy: 0 }, /* vers le bord droit */
+    ],
+  };
+  const jeu = minigames.creerChasseNombres(config);
+  let aRebondi = false; /* id 0 part vers la gauche (vx<0) : un rebond le rend positif */
+  for (let i = 0; i < 200; i += 1) {
+    jeu.avancer(16);
+    if (jeu.nombres().find((n) => n.id === 0).vx > 0) {
+      aRebondi = true;
+    }
+  }
+  const dans = jeu
+    .nombres()
+    .every((n) => n.x >= config.rayon - 0.001 && n.x <= config.largeur - config.rayon + 0.001 && n.y >= config.rayon - 0.001 && n.y <= config.hauteur - config.rayon + 0.001);
+  check(dans, "apres de nombreux pas, les nombres restent dans l'aire (rebonds)");
+  check(aRebondi, "le nombre lance vers le bord gauche a rebondi (vx est repasse positif)");
+}
+
+/* --- 7f. Bonus cosmetique croissant avec le nombre de trouves --- */
+{
+  const mk = () => minigames.creerChasseNombres({
+    cible: 2,
+    dureeMs: 20000,
+    largeur: 640,
+    hauteur: 420,
+    rayon: 34,
+    nombres: [
+      { id: 0, valeur: 2, x: 100, y: 100, vx: 0, vy: 0 },
+      { id: 1, valeur: 2, x: 200, y: 200, vx: 0, vy: 0 },
+      { id: 2, valeur: 8, x: 300, y: 300, vx: 0, vy: 0 },
+    ],
+  });
+  const zero = mk();
+  check(zero.bonus() === minigames.CHASSE.BONUS_BASE, "bonus avec 0 trouve = bonus de base (participation)");
+  const un = mk();
+  un.cliquer(0);
+  check(
+    un.bonus() === minigames.CHASSE.BONUS_BASE + minigames.CHASSE.BONUS_PAR_TROUVE,
+    "bonus croit d'un cran par nombre trouve",
+  );
+  check(un.bonus() > zero.bonus(), "plus on attrape, plus le bonus cosmetique est grand");
+  check(minigames.CHASSE.DUREE_MS >= 15000 && minigames.CHASSE.DUREE_MS <= 20000, "duree dans la fourchette 15-20 s");
+}
+
+/* --- 7g. Le mini-jeu est bien celui propose par le registre reel --- */
+{
+  const noms = minigames.liste().map((j) => j.id);
+  check(noms.includes("chasse-nombres"), "la chasse aux nombres est enregistree dans le registre reel");
+  const jeu = minigames.MINIGAME_CHASSE;
+  check(
+    Boolean(jeu.id && jeu.nom && typeof jeu.monter === "function"),
+    "MINIGAME_CHASSE respecte l'interface commune {id, nom, monter}",
+  );
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);
