@@ -3285,6 +3285,121 @@ input {
 }
 
 /* ============================================================
+   MINI-JEUX : proposition de pause + ecran du mini-jeu
+   ============================================================ */
+
+/* --- La proposition : meme carte que le bilan, ton festif --- */
+.minigame-invite-overlay {
+  z-index: 59; /* au-dessus du bilan, sous le carnet/personnage */
+}
+
+.minigame-invite-card {
+  text-align: center;
+  border-top-color: var(--sky, #3d9cd4);
+}
+
+.minigame-invite-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--road-dark);
+}
+
+.minigame-invite-emoji {
+  font-size: 2.8rem;
+  line-height: 1;
+  margin: 4px 0 6px;
+  animation: minigameBob 1.8s ease-in-out infinite;
+}
+
+.minigame-invite-title {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  color: var(--ink);
+}
+
+.minigame-invite-text {
+  margin: 0 0 18px;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.minigame-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* --- L'ecran du mini-jeu : zone plein cadre, distincte de la carte --- */
+.minigame-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 61; /* au-dessus de tout le HUD de la carte */
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  /* Fond franchement different de la carte : ciel nocturne ludique, pour
+     bien signaler qu'on a quitte l'aventure le temps d'une pause. */
+  background: radial-gradient(circle at 50% 20%, #3a4d8c, #22305f 60%, #161f42);
+}
+
+.minigame-stage {
+  width: min(640px, 100%);
+  min-height: min(60vh, 420px);
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-radius: 24px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- Placeholder "Mini-jeu a venir" --- */
+.minigame-placeholder {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+  color: var(--cream);
+}
+
+.minigame-placeholder-emoji {
+  font-size: 4rem;
+  line-height: 1;
+  animation: minigameBob 1.8s ease-in-out infinite;
+}
+
+.minigame-placeholder-title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.minigame-placeholder-text {
+  margin: 0;
+  max-width: 380px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(251, 243, 231, 0.82);
+}
+
+@keyframes minigameBob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* ============================================================
    PERSONNALISATION DU PERSONNAGE
    Meme carte que le bilan de session, avec un apercu du
    personnage et deux listes (couleurs, accessoires).

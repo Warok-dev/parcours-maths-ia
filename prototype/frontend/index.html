@@ -291,6 +291,16 @@
         <div id="bilan-card" class="bilan-card" role="dialog" aria-modal="true" aria-label="Bilan de session"></div>
       </div>
 
+      <!-- Proposition de pause mini-jeu : optionnelle, apres un concept debloque -->
+      <div id="minigame-invite-overlay" class="carnet-overlay minigame-invite-overlay hidden">
+        <div id="minigame-invite-card" class="bilan-card minigame-invite-card" role="dialog" aria-modal="true" aria-label="Pause detente"></div>
+      </div>
+
+      <!-- Ecran du mini-jeu : zone de jeu distincte de la carte principale -->
+      <div id="minigame-overlay" class="minigame-overlay hidden">
+        <div id="minigame-stage" class="minigame-stage" role="dialog" aria-modal="true" aria-label="Mini-jeu"></div>
+      </div>
+
       <!-- Journal de debug (masque, conserve pour l'outillage) -->
       <section id="debug-panel" class="hidden">
         <pre id="debug-log" class="debug-log"></pre>
@@ -310,6 +320,7 @@
     <script src="enseignant.js"></script>
     <script src="parent.js"></script>
     <script src="map.js"></script>
+    <script src="minigames.js"></script>
     <script src="carnet.js"></script>
     <script src="chat.js"></script>
     <script src="proactive.js"></script>

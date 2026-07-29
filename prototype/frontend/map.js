@@ -1372,6 +1372,8 @@ function refreshScenePaused() {
     exerciseOverlay,
     document.getElementById("carnet-overlay"),
     document.getElementById("bilan-overlay"),
+    document.getElementById("minigame-invite-overlay"),
+    document.getElementById("minigame-overlay"),
   ];
   const overlayOpen = overlays.some((node) => node && !node.classList.contains("hidden"));
   mapElement.classList.toggle("scene-paused", overlayOpen);
@@ -2264,6 +2266,14 @@ function applyEvaluationResult(payload, context) {
     clearFeedback();
   }
 
+  /* Pause detente : apres un concept debloque, on PROPOSE parfois un
+     mini-jeu (jamais impose, sans aucun enjeu pedagogique). Le module
+     decide seul de la frequence et de l'espacement, et gere sa propre
+     bascule/retour ; la progression sur la carte n'est jamais touchee. */
+  if (unlocked) {
+    window.ParcoursMinigames?.conceptDebloque?.();
+  }
+
   if (state.panelOpen) {
     /* Seule la saisie clavier se vide manuellement : les autres mecaniques
        viennent d'etre remontees par le re-rendu de la popup et gerent
@@ -2709,6 +2719,22 @@ window.ParcoursApp = {
   getInteractionTarget: () => interactionTarget(),
   openExercisePanel,
   refreshScenePaused,
+  /* Pause mini-jeu : on reutilise panelOpen (qui fige deja le mouvement et
+     les interactions dans la boucle de jeu) pour immobiliser la carte le
+     temps de l'aparte detente. La position et la camera ne bougent pas :
+     le retour se fait donc exactement la ou l'on etait. */
+  mettreEnPausePourMinigame: () => {
+    state.panelOpen = true;
+    refreshScenePaused();
+  },
+  reprendreApresMinigame: () => {
+    state.panelOpen = false;
+    refreshScenePaused();
+  },
+  /* Bonus purement cosmetique d'un mini-jeu : alimente les memes etoiles
+     que le tresor du raccourci (garde-robe), jamais la maitrise ni la
+     progression pedagogique. */
+  ajouterBonusCosmetique: (points) => addScore(points),
   /* Personnalisation : le dessin du personnage et son rafraichissement sur
      la carte restent proprietes de map.js, qui possede la scene. */
   playerMarkup: () => ASSETS.player(),
