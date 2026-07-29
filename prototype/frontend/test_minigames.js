@@ -644,6 +644,120 @@ function memoryFixe() {
   );
 }
 
+/* ============================================================
+   9. MINI-JEU : LE PUZZLE DE LA CARTE (logique pure + persistance)
+   ============================================================ */
+
+/* --- 9a. Deblocage : une piece de plus a chaque declenchement --- */
+{
+  let prog = minigames.progressionVierge({ rows: 3, cols: 3 });
+  check(prog.total === 9 && prog.debloquees.length === 0, "progression vierge : 9 pieces, 0 debloquee");
+
+  const d1 = minigames.debloquerPiece(prog, () => 0);
+  check(d1.progression.debloquees.length === 1, "1er declenchement : 1 piece debloquee");
+  check(prog.debloquees.length === 0, "debloquerPiece ne modifie pas l'entree (immuable)");
+  check(typeof d1.piece === "number", "l'id de la piece debloquee est renvoye");
+
+  /* Debloque toutes les pieces une par une : jamais de doublon. */
+  let p = minigames.progressionVierge({ rows: 3, cols: 3 });
+  const vues = new Set();
+  for (let i = 0; i < 9; i += 1) {
+    const d = minigames.debloquerPiece(p, Math.random);
+    p = d.progression;
+    check(!vues.has(d.piece), `piece ${d.piece} debloquee une seule fois (tour ${i + 1})`);
+    vues.add(d.piece);
+  }
+  check(p.debloquees.length === 9, "apres 9 declenchements : toutes les pieces debloquees");
+  const dExtra = minigames.debloquerPiece(p, Math.random);
+  check(dExtra.piece === null && dExtra.progression.debloquees.length === 9, "tout debloque : plus rien a debloquer (piece=null)");
+}
+
+/* --- 9b. Placement : bon emplacement uniquement, sans penalite --- */
+{
+  /* Pieces 0 et 2 debloquees (pas la 1). */
+  const jeu = minigames.creerPuzzle({ rows: 3, cols: 3, total: 9, debloquees: [0, 2], placees: [], complet: false });
+  check(jeu.enBac().length === 2, "2 pieces debloquees non posees dans le bac");
+
+  const bon = jeu.placer(0, 0);
+  check(bon.ok === true && jeu.estPlacee(0), "piece 0 sur le slot 0 : bien placee");
+  check(jeu.enBac().length === 1, "une piece de moins dans le bac apres placement");
+
+  const mauvais = jeu.placer(2, 5);
+  check(mauvais.ok === false && !jeu.estPlacee(2), "piece 2 sur un mauvais slot : refusee (revient au bac)");
+  check(jeu.enBac().includes(2), "la piece mal placee reste disponible dans le bac (aucune penalite)");
+
+  const verrou = jeu.placer(1, 1);
+  check(verrou.ok === false, "on ne peut pas placer une piece non debloquee");
+
+  const occupe = jeu.placer(2, 0);
+  check(occupe.ok === false, "on ne peut pas poser sur un slot deja occupe");
+
+  const rejoue = jeu.placer(0, 0);
+  check(rejoue.ok === false, "une piece deja posee ne se repose pas");
+}
+
+/* --- 9c. Completion : toutes les pieces debloquees et placees --- */
+{
+  const jeu = minigames.creerPuzzle({
+    rows: 3, cols: 3, total: 9,
+    debloquees: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    placees: [0, 1, 2, 3, 4, 5, 6, 7],
+    complet: false,
+  });
+  check(!jeu.estComplet(), "8 pieces sur 9 : pas encore complet");
+  const fin = jeu.placer(8, 8);
+  check(fin.ok === true && fin.complet === true && jeu.estComplet(), "derniere piece posee : puzzle complet");
+  check(jeu.placer(0, 0).ok === false, "puzzle complet : plus aucun placement");
+}
+
+/* --- 9d. Persistance : la progression survit a une re-serialisation --- */
+{
+  /* Simule le cycle localStorage : on serialise l'etat, on le relit dans une
+     nouvelle instance (comme au rechargement de page). */
+  let prog = minigames.progressionVierge({ rows: 3, cols: 3 });
+  prog = minigames.debloquerPiece(prog, () => 0).progression; /* debloque piece 0 */
+  let jeu = minigames.creerPuzzle(prog);
+  jeu.placer(0, 0);
+  const sauvegarde = JSON.parse(JSON.stringify(jeu.progression())); /* == ce qu'on ecrit en localStorage */
+
+  const jeuRecharge = minigames.creerPuzzle(sauvegarde);
+  check(jeuRecharge.estPlacee(0), "apres rechargement : la piece placee est conservee");
+  check(jeuRecharge.debloquees().length === 1, "apres rechargement : les pieces debloquees sont conservees");
+  check(jeuRecharge.placeesSession() === 0, "le compteur de session repart a 0 a chaque instance");
+
+  /* Le declenchement suivant debloque une piece de PLUS, sans perdre l'acquis. */
+  const suite = minigames.debloquerPiece(sauvegarde, Math.random);
+  check(suite.progression.debloquees.length === 2, "declenchement suivant : +1 piece, progression conservee");
+  check(suite.progression.placees.length === 1, "la piece deja placee reste placee au declenchement suivant");
+}
+
+/* --- 9e. Bonus cosmetique et interface --- */
+{
+  const jeu = minigames.creerPuzzle({ rows: 3, cols: 3, total: 9, debloquees: [0, 1], placees: [], complet: false });
+  check(jeu.bonus() === minigames.PUZZLE.BONUS_BASE, "bonus initial = base (aucune piece posee dans la session)");
+  jeu.placer(0, 0);
+  check(jeu.bonus() === minigames.PUZZLE.BONUS_BASE + minigames.PUZZLE.BONUS_PAR_PIECE, "bonus +1 cran par piece posee");
+
+  const presqueFini = minigames.creerPuzzle({
+    rows: 3, cols: 3, total: 9,
+    debloquees: [0, 1, 2, 3, 4, 5, 6, 7, 8], placees: [0, 1, 2, 3, 4, 5, 6, 7], complet: false,
+  });
+  presqueFini.placer(8, 8);
+  check(
+    presqueFini.bonus() === minigames.PUZZLE.BONUS_BASE + minigames.PUZZLE.BONUS_PAR_PIECE + minigames.PUZZLE.BONUS_COMPLETION,
+    "completer le puzzle ajoute la prime de completion",
+  );
+
+  const noms = minigames.liste().map((j) => j.id);
+  check(noms.includes("puzzle-carte"), "le puzzle de la carte est enregistre dans le registre reel");
+  check(minigames.liste().length === 3, "trois vrais mini-jeux enregistres (chasse, memory, puzzle)");
+  const jeuDef = minigames.MINIGAME_PUZZLE;
+  check(
+    Boolean(jeuDef.id && jeuDef.nom && typeof jeuDef.monter === "function"),
+    "MINIGAME_PUZZLE respecte l'interface commune {id, nom, monter}",
+  );
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);

@@ -811,6 +811,326 @@
   };
 
   /* ============================================================
+     MINI-JEU : LE PUZZLE DE LA CARTE
+     ------------------------------------------------------------
+     Une fresque du monde (chateau, route, decor -- reutilisee de map.js via
+     ParcoursApp.fresqueMondeMarkup) decoupee en grille 3x3. PARTICULARITE :
+     la progression est PERSISTANTE d'une session a l'autre (localStorage,
+     comme le carnet). A chaque declenchement on debloque UNE piece de plus ;
+     l'eleve la place (clic piece puis clic emplacement) parmi celles deja
+     debloquees. Une piece bien placee s'enclenche, une mal placee revient au
+     bac sans penalite. Puzzle complet -> celebration ; au declenchement
+     suivant, un nouveau puzzle repart a zero.
+
+     La LOGIQUE PURE (deblocage d'une piece, detection de bon placement, etat
+     debloquee/placee, serialisation de la progression) est isolee du rendu
+     et de localStorage : progressionVierge(), debloquerPiece() et
+     creerPuzzle() n'utilisent aucun DOM ni stockage, et sont testables.
+     ============================================================ */
+  const PUZZLE = {
+    ROWS: 3,
+    COLS: 3,
+    FRESQUE_W: 300,
+    FRESQUE_H: 240,
+    STORAGE_KEY: "parcours-puzzle-v1",
+    BONUS_BASE: 8,
+    BONUS_PAR_PIECE: 6, /* par piece placee dans la session courante */
+    BONUS_COMPLETION: 30, /* prime quand le puzzle entier est reconstitue */
+  };
+
+  /* Progression neuve : aucune piece debloquee ni placee. */
+  function progressionVierge(options = {}) {
+    const rows = options.rows || PUZZLE.ROWS;
+    const cols = options.cols || PUZZLE.COLS;
+    return { rows, cols, total: rows * cols, debloquees: [], placees: [], complet: false };
+  }
+
+  /* Debloque UNE piece supplementaire (au hasard parmi les verrouillees).
+     Ne modifie pas l'objet d'entree : renvoie une nouvelle progression et
+     l'id de la piece debloquee (ou null si tout etait deja debloque). */
+  function debloquerPiece(progression, random = Math.random) {
+    const rnd = typeof random === "function" ? random : Math.random;
+    const total = progression.total || progression.rows * progression.cols;
+    const dejaLa = progression.debloquees || [];
+    const verrouillees = [];
+    for (let i = 0; i < total; i += 1) {
+      if (!dejaLa.includes(i)) {
+        verrouillees.push(i);
+      }
+    }
+    if (!verrouillees.length) {
+      return { progression: { ...progression, debloquees: dejaLa.slice() }, piece: null };
+    }
+    const piece = verrouillees[Math.floor(rnd() * verrouillees.length)];
+    return { progression: { ...progression, debloquees: [...dejaLa, piece] }, piece };
+  }
+
+  /* Coeur de jeu (sans DOM ni stockage). Une piece i a pour bon emplacement
+     le slot i : le placement est correct ssi slotId === pieceId. */
+  function creerPuzzle(progression) {
+    const rows = progression.rows;
+    const cols = progression.cols;
+    const total = progression.total || rows * cols;
+    const state = {
+      debloquees: (progression.debloquees || []).slice(),
+      placees: (progression.placees || []).slice(),
+      complet: Boolean(progression.complet),
+      placeesSession: 0,
+    };
+    const estDebloquee = (id) => state.debloquees.includes(id);
+    const estPlacee = (id) => state.placees.includes(id);
+
+    function placer(pieceId, slotId) {
+      if (state.complet) {
+        return { ok: false };
+      }
+      if (!estDebloquee(pieceId) || estPlacee(pieceId)) {
+        return { ok: false }; /* piece non debloquee ou deja posee */
+      }
+      if (estPlacee(slotId)) {
+        return { ok: false }; /* emplacement deja occupe */
+      }
+      if (slotId !== pieceId) {
+        return { ok: false }; /* mauvais emplacement : la piece revient au bac */
+      }
+      state.placees.push(pieceId);
+      state.placeesSession += 1;
+      if (state.placees.length >= total) {
+        state.complet = true;
+      }
+      return { ok: true, complet: state.complet };
+    }
+
+    return {
+      rows: () => rows,
+      cols: () => cols,
+      total: () => total,
+      placer,
+      estDebloquee,
+      estPlacee,
+      debloquees: () => state.debloquees.slice(),
+      placees: () => state.placees.slice(),
+      /* Pieces debloquees mais pas encore posees (le contenu du bac). */
+      enBac: () => state.debloquees.filter((id) => !state.placees.includes(id)),
+      estComplet: () => state.complet,
+      placeesSession: () => state.placeesSession,
+      /* Snapshot serialisable : ce que la couche navigateur persiste. */
+      progression: () => ({
+        rows,
+        cols,
+        total,
+        debloquees: state.debloquees.slice(),
+        placees: state.placees.slice(),
+        complet: state.complet,
+      }),
+      bonus: () =>
+        PUZZLE.BONUS_BASE +
+        state.placeesSession * PUZZLE.BONUS_PAR_PIECE +
+        (state.complet ? PUZZLE.BONUS_COMPLETION : 0),
+    };
+  }
+
+  /* --- Persistance (couche navigateur, tres fine) --- */
+  function chargerProgressionPuzzle() {
+    if (typeof localStorage === "undefined") {
+      return null;
+    }
+    try {
+      const raw = JSON.parse(localStorage.getItem(PUZZLE.STORAGE_KEY) || "null");
+      if (!raw || !Array.isArray(raw.debloquees) || !Array.isArray(raw.placees)) {
+        return null;
+      }
+      return raw;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function sauvegarderProgressionPuzzle(progression) {
+    if (typeof localStorage === "undefined") {
+      return;
+    }
+    try {
+      localStorage.setItem(PUZZLE.STORAGE_KEY, JSON.stringify(progression));
+    } catch (_error) {
+      /* stockage indisponible : la partie continue, sans persistance */
+    }
+  }
+
+  const MINIGAME_PUZZLE = {
+    id: "puzzle-carte",
+    nom: "le puzzle de la carte",
+    monter(zone, { terminer }) {
+      /* Reprise de la progression ; si le puzzle precedent etait complet, on
+         repart sur un puzzle vierge. Puis on debloque UNE piece. */
+      let progression = chargerProgressionPuzzle();
+      if (!progression || progression.complet) {
+        progression = progressionVierge();
+      }
+      const deblocage = debloquerPiece(progression, Math.random);
+      progression = deblocage.progression;
+      const nouvellePiece = deblocage.piece;
+      sauvegarderProgressionPuzzle(progression);
+
+      const jeu = creerPuzzle(progression);
+      const rows = jeu.rows();
+      const cols = jeu.cols();
+      const total = jeu.total();
+      const cellW = PUZZLE.FRESQUE_W / cols;
+      const cellH = PUZZLE.FRESQUE_H / rows;
+      const fresque = window.ParcoursApp?.fresqueMondeMarkup?.() || "";
+
+      /* Image d'une piece = la fresque entiere, cadree (viewBox) sur la
+         cellule de cette piece. Une fois posee, elle s'aligne avec ses
+         voisines pour reformer l'image. */
+      const pieceImg = (id) => {
+        const r = Math.floor(id / cols);
+        const c = id % cols;
+        return `<svg class="puzzle-img" viewBox="${(c * cellW).toFixed(2)} ${(r * cellH).toFixed(2)} ${cellW.toFixed(2)} ${cellH.toFixed(2)}" preserveAspectRatio="none" aria-hidden="true">${fresque}</svg>`;
+      };
+
+      let slotsHtml = "";
+      for (let i = 0; i < total; i += 1) {
+        const placee = jeu.estPlacee(i);
+        slotsHtml += `<div class="puzzle-slot${placee ? " placee" : ""}" data-slot="${i}">${placee ? pieceImg(i) : ""}</div>`;
+      }
+
+      /* Bac : pieces debloquees non posees, dans un ordre melange. */
+      const bac = jeu.enBac();
+      for (let i = bac.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = bac[i];
+        bac[i] = bac[j];
+        bac[j] = tmp;
+      }
+      const bacHtml = bac.length
+        ? bac
+            .map(
+              (id) => `<button class="puzzle-piece${id === nouvellePiece ? " nouvelle" : ""}" type="button" data-id="${id}" aria-label="Piece de puzzle a placer">${pieceImg(id)}</button>`,
+            )
+            .join("")
+        : `<p class="puzzle-bac-vide">Tout est place ! Reviens debloquer la piece suivante.</p>`;
+
+      zone.innerHTML = `
+        <div class="puzzle">
+          <div class="puzzle-header">
+            <div class="puzzle-consigne">Reforme la carte du monde, piece par piece</div>
+            <div class="puzzle-compteur" id="puzzle-compteur">${jeu.placees().length}/${total} pieces</div>
+          </div>
+          <div class="puzzle-plateau">
+            <div class="puzzle-cadre" id="puzzle-cadre" style="--rows:${rows}; --cols:${cols}; aspect-ratio:${PUZZLE.FRESQUE_W}/${PUZZLE.FRESQUE_H};">${slotsHtml}</div>
+            <div class="puzzle-bac" id="puzzle-bac">${bacHtml}</div>
+          </div>
+          <div class="puzzle-actions">
+            <button id="puzzle-retour" class="puzzle-retour" type="button">Revenir a l'aventure</button>
+          </div>
+          <div class="puzzle-fin hidden" id="puzzle-fin"></div>
+        </div>
+      `;
+
+      const cadre = zone.querySelector("#puzzle-cadre");
+      const bacNode = zone.querySelector("#puzzle-bac");
+      const compteur = zone.querySelector("#puzzle-compteur");
+      const finBox = zone.querySelector("#puzzle-fin");
+      const retour = zone.querySelector("#puzzle-retour");
+
+      let selection = null; /* id de la piece choisie dans le bac */
+      let finTimer = null;
+      let fini = false;
+
+      function deselectionner() {
+        selection = null;
+        bacNode.querySelectorAll(".puzzle-piece.selectionnee").forEach((b) => b.classList.remove("selectionnee"));
+      }
+
+      function onBacClick(event) {
+        const b = event.target.closest(".puzzle-piece");
+        if (!b) {
+          return;
+        }
+        selection = Number(b.dataset.id);
+        bacNode.querySelectorAll(".puzzle-piece").forEach((btn) => {
+          btn.classList.toggle("selectionnee", Number(btn.dataset.id) === selection);
+        });
+      }
+
+      function onCadreClick(event) {
+        const slot = event.target.closest(".puzzle-slot");
+        if (!slot || selection === null) {
+          return;
+        }
+        const slotId = Number(slot.dataset.slot);
+        const pieceId = selection;
+        const res = jeu.placer(pieceId, slotId);
+        if (res.ok) {
+          slot.innerHTML = pieceImg(pieceId);
+          slot.classList.add("placee", "vient-de-placer");
+          window.setTimeout(() => slot.classList.remove("vient-de-placer"), 500);
+          bacNode.querySelector(`.puzzle-piece[data-id="${pieceId}"]`)?.remove();
+          deselectionner();
+          compteur.textContent = `${jeu.placees().length}/${total} pieces`;
+          sauvegarderProgressionPuzzle(jeu.progression());
+          window.ParcoursAudio?.playCorrect?.();
+          if (!bacNode.querySelector(".puzzle-piece")) {
+            bacNode.innerHTML = `<p class="puzzle-bac-vide">Tout est place ! Reviens debloquer la piece suivante.</p>`;
+          }
+          if (res.complet) {
+            finir();
+          }
+        } else {
+          /* Mauvais emplacement : la piece reste au bac, petite secousse. */
+          const b = bacNode.querySelector(`.puzzle-piece[data-id="${pieceId}"]`);
+          if (b) {
+            b.classList.remove("rate");
+            void b.offsetWidth;
+            b.classList.add("rate");
+          }
+          deselectionner();
+        }
+      }
+
+      bacNode.addEventListener("click", onBacClick);
+      cadre.addEventListener("click", onCadreClick);
+      retour.addEventListener("click", () => terminer(jeu.bonus()));
+
+      function finir() {
+        if (fini) {
+          return;
+        }
+        fini = true;
+        sauvegarderProgressionPuzzle(jeu.progression()); /* complet=true persiste */
+        const bonus = jeu.bonus();
+        finBox.innerHTML = `
+          <div class="puzzle-fin-carte">
+            <div class="puzzle-fin-image">
+              <svg viewBox="0 0 ${PUZZLE.FRESQUE_W} ${PUZZLE.FRESQUE_H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${fresque}</svg>
+            </div>
+            <h2 class="puzzle-fin-titre">Carte du monde reconstituee !</h2>
+            <p class="puzzle-fin-detail">Tu as replace toutes les pieces. Un nouveau puzzle t'attend la prochaine fois.</p>
+            <p class="puzzle-fin-bonus">+${bonus} etoiles &#10024;</p>
+            <button id="puzzle-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
+          </div>
+        `;
+        finBox.classList.remove("hidden");
+        const btn = finBox.querySelector("#puzzle-fin-btn");
+        btn.addEventListener("click", () => terminer(bonus));
+        btn.focus();
+        finTimer = window.setTimeout(() => terminer(bonus), 3600);
+      }
+
+      return () => {
+        if (finTimer) {
+          window.clearTimeout(finTimer);
+          finTimer = null;
+        }
+        bacNode.removeEventListener("click", onBacClick);
+        cadre.removeEventListener("click", onCadreClick);
+        zone.innerHTML = "";
+      };
+    },
+  };
+
+  /* ============================================================
      COUCHE NAVIGATEUR : adapter reel (DOM + carte via ParcoursApp)
      ============================================================ */
   function el(id) {
@@ -892,6 +1212,7 @@
   const registreReel = creerRegistre();
   registreReel.enregistrer(MINIGAME_CHASSE);
   registreReel.enregistrer(MINIGAME_MEMORY);
+  registreReel.enregistrer(MINIGAME_PUZZLE);
   const orchestrateurReel = creerOrchestrateur({
     declencheur: creerDeclencheur(),
     registre: registreReel,
@@ -923,6 +1244,11 @@
     genererPaires,
     creerMemory,
     MEMORY,
+    MINIGAME_PUZZLE,
+    progressionVierge,
+    debloquerPiece,
+    creerPuzzle,
+    PUZZLE,
     PROBABILITE_DEFAUT,
     ESPACEMENT_MIN_CONCEPTS,
   };

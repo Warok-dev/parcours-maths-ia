@@ -2701,6 +2701,31 @@ backToLevelsButton.addEventListener("click", resetToStart);
 window.addEventListener("keydown", handleKeyDown);
 window.addEventListener("keyup", handleKeyUp);
 
+/* Fresque du monde : une scene fixe (ciel, herbe, route, chateau, arbres)
+   composee a partir des memes briques SVG que la carte (ASSETS.castle,
+   tree, bush, flower, rock) et des couleurs du jeu. Sert d'image de base au
+   mini-jeu puzzle, qui la decoupe en pieces. ViewBox de reference : 300x240. */
+function worldFresqueMarkup() {
+  return `
+    <rect x="0" y="0" width="300" height="240" fill="#bfe6f5"></rect>
+    <circle cx="250" cy="44" r="24" fill="#ffd66b"></circle>
+    <circle cx="250" cy="44" r="24" fill="none" stroke="#ffc23e" stroke-width="4" opacity="0.55"></circle>
+    <ellipse cx="70" cy="152" rx="120" ry="58" fill="#85d066"></ellipse>
+    <ellipse cx="252" cy="156" rx="128" ry="52" fill="#7ac95e"></ellipse>
+    <rect x="0" y="150" width="300" height="90" fill="#6fbe53"></rect>
+    <path d="M 128 240 L 172 240 L 158 152 L 142 152 Z" fill="#e8703a"></path>
+    <path d="M 142 152 L 158 152 L 156 166 L 144 166 Z" fill="#f5905c" opacity="0.7"></path>
+    <g transform="translate(150,120) scale(0.5)">${ASSETS.castle(true)}</g>
+    <g transform="translate(38,168) scale(0.7)">${ASSETS.tree()}</g>
+    <g transform="translate(266,172) scale(0.62)">${ASSETS.tree()}</g>
+    <g transform="translate(95,204) scale(0.6)">${ASSETS.bush()}</g>
+    <g transform="translate(208,208) scale(0.58)">${ASSETS.bush()}</g>
+    <g transform="translate(58,220) scale(1)">${ASSETS.flower()}</g>
+    <g transform="translate(238,206) scale(1)">${ASSETS.flowerPink()}</g>
+    <g transform="translate(20,142) scale(0.7)">${ASSETS.rock()}</g>
+  `;
+}
+
 window.ParcoursApp = {
   getSessionId: () => state.sessionId,
   getCurrentExercise: () => state.currentExercise,
@@ -2739,6 +2764,9 @@ window.ParcoursApp = {
      la carte restent proprietes de map.js, qui possede la scene. */
   playerMarkup: () => ASSETS.player(),
   refreshPlayerToken,
+  /* Fresque du monde (chateau, route, decor) pour le mini-jeu puzzle :
+     composee des memes briques SVG que la carte. */
+  fresqueMondeMarkup: () => worldFresqueMarkup(),
 };
 
 if (!animationFrameId) {

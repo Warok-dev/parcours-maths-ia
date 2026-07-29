@@ -3759,6 +3759,236 @@ input {
   color: var(--road-dark);
 }
 
+/* --- Mini-jeu : le puzzle de la carte --- */
+.puzzle {
+  position: relative;
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+
+.puzzle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.puzzle-consigne {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.9);
+}
+
+.puzzle-compteur {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--cream);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.puzzle-plateau {
+  display: grid;
+  gap: 16px;
+}
+
+/* Cadre du puzzle : grille de slots, garde le ratio de la fresque. */
+.puzzle-cadre {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-rows: repeat(var(--rows), 1fr);
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 3px solid rgba(255, 255, 255, 0.22);
+}
+
+.puzzle-slot {
+  position: relative;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  outline: 1px dashed rgba(255, 255, 255, 0.18);
+  outline-offset: -3px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.puzzle-slot.placee {
+  outline: none;
+  cursor: default;
+}
+
+.puzzle-slot.vient-de-placer {
+  animation: puzzleSnap 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.puzzle-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Bac de pieces melangees, sous le cadre. */
+.puzzle-bac {
+  min-height: 76px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 2px dashed rgba(255, 255, 255, 0.22);
+}
+
+.puzzle-piece {
+  width: 74px;
+  aspect-ratio: 5 / 4;
+  padding: 0;
+  border: 3px solid var(--wood);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #bfe6f5;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.22);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.puzzle-piece:hover {
+  transform: translateY(-2px);
+}
+
+.puzzle-piece.selectionnee {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(240, 184, 75, 0.6), 0 3px 0 rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Piece tout juste debloquee : petite pulsation pour attirer l'oeil. */
+.puzzle-piece.nouvelle {
+  animation: puzzleNouvelle 1.4s ease-in-out 2;
+}
+
+.puzzle-piece.rate {
+  animation: chasseRate 0.3s ease;
+}
+
+.puzzle-bac-vide {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.75);
+}
+
+.puzzle-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.puzzle-retour {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(251, 243, 231, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cream);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.puzzle-retour:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@keyframes puzzleSnap {
+  0% {
+    transform: scale(1.18);
+    filter: brightness(1.4);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes puzzleNouvelle {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(240, 184, 75, 0), 0 3px 0 rgba(0, 0, 0, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(240, 184, 75, 0.75), 0 3px 0 rgba(0, 0, 0, 0.22);
+  }
+}
+
+/* Ecran de fin du puzzle : la carte complete + celebration. */
+.puzzle-fin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(22, 31, 66, 0.74);
+}
+
+.puzzle-fin-carte {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px 26px;
+  text-align: center;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.puzzle-fin-image {
+  width: min(280px, 70vw);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 3px solid var(--wood);
+}
+
+.puzzle-fin-image svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.puzzle-fin-titre {
+  margin: 4px 0 0;
+  font-size: 1.4rem;
+  color: var(--ink);
+}
+
+.puzzle-fin-detail {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  max-width: 320px;
+}
+
+.puzzle-fin-bonus {
+  margin: 2px 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
 /* ============================================================
    PERSONNALISATION DU PERSONNAGE
    Meme carte que le bilan de session, avec un apercu du
