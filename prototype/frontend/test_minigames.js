@@ -750,11 +750,95 @@ function memoryFixe() {
 
   const noms = minigames.liste().map((j) => j.id);
   check(noms.includes("puzzle-carte"), "le puzzle de la carte est enregistre dans le registre reel");
-  check(minigames.liste().length === 3, "trois vrais mini-jeux enregistres (chasse, memory, puzzle)");
+  check(noms.includes("chasse-nombres") && noms.includes("memory-tables"), "chasse et memory restent enregistres aux cotes du puzzle");
   const jeuDef = minigames.MINIGAME_PUZZLE;
   check(
     Boolean(jeuDef.id && jeuDef.nom && typeof jeuDef.monter === "function"),
     "MINIGAME_PUZZLE respecte l'interface commune {id, nom, monter}",
+  );
+}
+
+/* ============================================================
+   10. MINI-JEU : LA DECORATION / PETIT JARDIN (logique pure)
+   ============================================================ */
+
+/* --- 10a. Deblocage des objets selon le seuil d'etoiles cumulees --- */
+{
+  /* Meme regle que le personnage : total >= cout. */
+  const fleurs = minigames.objetDeco("fleurs"); /* cout 10 */
+  const fontaine = minigames.objetDeco("fontaine"); /* cout 100 */
+  check(minigames.estDebloqueDeco(fleurs, 10) === true, "seuil atteint (10>=10) : objet debloque");
+  check(minigames.estDebloqueDeco(fleurs, 9) === false, "sous le seuil (9<10) : objet verrouille");
+  check(minigames.estDebloqueDeco(fontaine, 100) === true, "fontaine debloquee a 100 etoiles");
+  check(minigames.estDebloqueDeco(fontaine, 99) === false, "fontaine verrouillee a 99 etoiles");
+
+  check(minigames.etoilesRestantesDeco(fontaine, 60) === 40, "etoiles restantes = cout - total (40)");
+  check(minigames.etoilesRestantesDeco(fleurs, 999) === 0, "objet deja debloque : 0 etoile restante");
+
+  const debloques = minigames.objetsDebloquesDeco(30); /* fleurs(10), buisson(25) */
+  check(debloques.includes("fleurs") && debloques.includes("buisson"), "a 30 etoiles : fleurs et buisson debloques");
+  check(!debloques.includes("arbre") && !debloques.includes("fontaine"), "a 30 etoiles : arbre (50) et fontaine (100) verrouilles");
+  check(minigames.objetsDebloquesDeco(0).length === 0, "a 0 etoile : aucun objet (le moins cher coute 10)");
+  check(minigames.objetsDebloquesDeco(1000).length === minigames.DECO.CATALOGUE.length, "avec beaucoup d'etoiles : tout est debloque");
+}
+
+/* --- 10b. Placement d'un objet (uniquement si debloque, sur un slot valide) --- */
+{
+  const deco = minigames.creerDeco({});
+  check(deco.estVide(), "jardin neuf : vide");
+
+  check(deco.placer(0, "fleurs", 10) === true, "place fleurs (debloque) sur l'emplacement 0");
+  check(deco.objetSur(0) === "fleurs", "l'emplacement 0 porte bien les fleurs");
+  check(deco.nbPlaces() === 1, "un objet place");
+
+  check(deco.placer(1, "fontaine", 30) === false, "refuse un objet verrouille (fontaine a 30 etoiles)");
+  check(deco.objetSur(1) === null, "l'emplacement reste vide apres un refus");
+
+  check(deco.placer(99, "fleurs", 999) === false, "refuse un emplacement hors grille");
+  check(deco.placer(0, "inconnu", 999) === false, "refuse un objet inconnu");
+
+  /* Reposer sur un emplacement occupe : remplace (amenagement libre). */
+  check(deco.placer(0, "buisson", 30) === true, "remplace l'objet d'un emplacement occupe");
+  check(deco.objetSur(0) === "buisson", "l'emplacement 0 porte maintenant le buisson");
+  check(deco.nbPlaces() === 1, "toujours un seul objet sur cet emplacement");
+}
+
+/* --- 10c. Retrait d'un objet --- */
+{
+  const deco = minigames.creerDeco({ 0: "arbre", 2: "banc" });
+  check(deco.nbPlaces() === 2, "disposition initiale : 2 objets");
+  check(deco.retirer(0) === "arbre", "retirer renvoie l'objet enleve");
+  check(deco.objetSur(0) === null, "l'emplacement est vide apres retrait");
+  check(deco.nbPlaces() === 1, "un objet de moins");
+  check(deco.retirer(5) === null, "retirer un emplacement vide : rien (null)");
+}
+
+/* --- 10d. Persistance de la disposition (round-trip serialisation) --- */
+{
+  const deco = minigames.creerDeco({});
+  deco.placer(0, "fleurs", 200);
+  deco.placer(4, "fontaine", 200);
+  const sauvegarde = JSON.parse(JSON.stringify({ disposition: deco.disposition() })); /* == localStorage */
+
+  const recharge = minigames.creerDeco(sauvegarde.disposition);
+  check(recharge.objetSur(0) === "fleurs" && recharge.objetSur(4) === "fontaine", "apres rechargement : disposition conservee");
+  check(recharge.nbPlaces() === 2, "apres rechargement : bon nombre d'objets");
+
+  /* Une disposition bricolee (slot invalide, objet inconnu) est nettoyee. */
+  const sale = minigames.creerDeco({ 0: "arbre", 99: "arbre", 2: "pas-un-objet" });
+  check(sale.objetSur(0) === "arbre", "entree valide conservee");
+  check(sale.nbPlaces() === 1, "emplacement hors grille et objet inconnu ignores au chargement");
+}
+
+/* --- 10e. Interface et enregistrement --- */
+{
+  const noms = minigames.liste().map((j) => j.id);
+  check(noms.includes("deco-jardin"), "la decoration est enregistree dans le registre reel");
+  check(minigames.liste().length === 4, "quatre vrais mini-jeux enregistres (chasse, memory, puzzle, deco)");
+  const jeuDef = minigames.MINIGAME_DECO;
+  check(
+    Boolean(jeuDef.id && jeuDef.nom && typeof jeuDef.monter === "function"),
+    "MINIGAME_DECO respecte l'interface commune {id, nom, monter}",
   );
 }
 

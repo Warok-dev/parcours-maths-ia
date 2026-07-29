@@ -1131,6 +1131,287 @@
   };
 
   /* ============================================================
+     MINI-JEU : LA DECORATION (le petit jardin)
+     ------------------------------------------------------------
+     Pas un jeu a objectif : un espace de personnalisation libre. L'eleve
+     amenage un petit jardin avec des objets debloques par ses etoiles
+     CUMULEES -- exactement la meme monnaie et la meme regle de seuil que la
+     personnalisation du personnage (personnage.js) : un objet est debloque
+     ssi etoiles_totales >= cout (miroir de ParcoursPersonnage.estDebloque).
+     Le personnage personnalise (couleur/accessoires deja choisis) apparait
+     dans le jardin pour la coherence visuelle. La disposition persiste en
+     localStorage. Aucune fin : un bouton "Retour a l'aventure" toujours la.
+
+     La LOGIQUE PURE (deblocage selon le seuil, placement/retrait, etat de la
+     disposition) est isolee du rendu et du stockage, donc testable.
+     ============================================================ */
+  const DECO = {
+    STORAGE_KEY: "parcours-deco-v1",
+    NB_SPOTS: 6,
+    /* Memes paliers d'esprit que le personnage (10, 25, 50, 100...). Le cout
+       est un SEUIL d'etoiles cumulees, jamais une depense : gagner ne retire
+       rien, exactement comme pour les couleurs et accessoires. */
+    CATALOGUE: [
+      { id: "fleurs", nom: "Parterre de fleurs", cout: 10 },
+      { id: "buisson", nom: "Buisson rond", cout: 25 },
+      { id: "arbre", nom: "Petit arbre", cout: 50 },
+      { id: "banc", nom: "Banc en bois", cout: 75 },
+      { id: "fontaine", nom: "Fontaine", cout: 100 },
+      { id: "lanterne", nom: "Lanterne doree", cout: 150 },
+    ],
+  };
+
+  /* Dessins vus du dessus, centres sur (0,0), palette du jeu. Rendu seul :
+     la logique pure n'en depend pas. */
+  const DECO_SVG = {
+    fleurs: `
+      <ellipse cx="0" cy="5" rx="25" ry="16" fill="#8a6d4b" opacity="0.35"></ellipse>
+      <g><circle cx="-9" cy="-2" r="5.5" fill="#ff9db0"></circle><circle cx="-9" cy="-2" r="2.2" fill="#ffd66b"></circle></g>
+      <g><circle cx="8" cy="-6" r="5.5" fill="#ffd66b"></circle><circle cx="8" cy="-6" r="2.2" fill="#e8703a"></circle></g>
+      <g><circle cx="4" cy="8" r="5.5" fill="#b98bd6"></circle><circle cx="4" cy="8" r="2.2" fill="#fffdf6"></circle></g>
+      <g><circle cx="-10" cy="10" r="4.5" fill="#ff9db0"></circle><circle cx="-10" cy="10" r="1.8" fill="#ffd66b"></circle></g>
+    `,
+    buisson: `
+      <ellipse cx="2" cy="8" rx="20" ry="10" fill="#3f7a2e" opacity="0.3"></ellipse>
+      <circle cx="-9" cy="0" r="12" fill="#55a53d"></circle>
+      <circle cx="8" cy="-3" r="13" fill="#6fbe53"></circle>
+      <circle cx="2" cy="6" r="10" fill="#85d066"></circle>
+    `,
+    arbre: `
+      <ellipse cx="4" cy="9" rx="22" ry="11" fill="#3f7a2e" opacity="0.3"></ellipse>
+      <circle cx="0" cy="0" r="22" fill="#55a53d"></circle>
+      <circle cx="-7" cy="-5" r="12" fill="#6fbe53"></circle>
+      <circle cx="8" cy="3" r="10" fill="#6fbe53"></circle>
+      <circle cx="-8" cy="-7" r="6" fill="#85d066"></circle>
+    `,
+    banc: `
+      <ellipse cx="0" cy="10" rx="24" ry="7" fill="#3f2c1a" opacity="0.25"></ellipse>
+      <rect x="-22" y="-9" width="44" height="18" rx="4" fill="#8b5834"></rect>
+      <line x1="-22" y1="-3" x2="22" y2="-3" stroke="#6e4a2e" stroke-width="1.8"></line>
+      <line x1="-22" y1="3" x2="22" y2="3" stroke="#6e4a2e" stroke-width="1.8"></line>
+      <rect x="-20" y="-11" width="5" height="22" rx="2" fill="#6e4a2e"></rect>
+      <rect x="15" y="-11" width="5" height="22" rx="2" fill="#6e4a2e"></rect>
+    `,
+    fontaine: `
+      <ellipse cx="0" cy="10" rx="24" ry="8" fill="#333" opacity="0.2"></ellipse>
+      <circle cx="0" cy="0" r="23" fill="#9aa0a6"></circle>
+      <circle cx="0" cy="0" r="18" fill="#8fc4de"></circle>
+      <circle cx="0" cy="0" r="10" fill="#bfe6f5"></circle>
+      <circle cx="0" cy="0" r="4.5" fill="#eaf6fb"></circle>
+    `,
+    lanterne: `
+      <ellipse cx="0" cy="9" rx="14" ry="6" fill="#333" opacity="0.2"></ellipse>
+      <circle cx="0" cy="0" r="13" fill="#ffe08a" opacity="0.55"></circle>
+      <circle cx="0" cy="0" r="8" fill="#ffc23e"></circle>
+      <rect x="-4" y="-4" width="8" height="8" rx="2" fill="#8b5834"></rect>
+      <circle cx="0" cy="0" r="2.4" fill="#fff3c4"></circle>
+    `,
+  };
+
+  function objetDeco(id) {
+    return DECO.CATALOGUE.find((o) => o.id === id) || null;
+  }
+
+  /* Miroir EXACT de ParcoursPersonnage.estDebloque : total cumule >= seuil. */
+  function estDebloqueDeco(objet, etoilesTotales) {
+    return Boolean(objet) && (etoilesTotales || 0) >= objet.cout;
+  }
+
+  function etoilesRestantesDeco(objet, etoilesTotales) {
+    return Math.max(0, objet.cout - (etoilesTotales || 0));
+  }
+
+  function objetsDebloquesDeco(etoilesTotales) {
+    return DECO.CATALOGUE.filter((o) => estDebloqueDeco(o, etoilesTotales)).map((o) => o.id);
+  }
+
+  /* Etat de la disposition (sans DOM ni stockage). Une disposition associe un
+     emplacement (0..NB_SPOTS-1) a l'id d'un objet. */
+  function creerDeco(dispositionBrute) {
+    const disposition = {};
+    const src = dispositionBrute && typeof dispositionBrute === "object" ? dispositionBrute : {};
+    for (const cle of Object.keys(src)) {
+      const spot = Number(cle);
+      if (Number.isInteger(spot) && spot >= 0 && spot < DECO.NB_SPOTS && objetDeco(src[cle])) {
+        disposition[spot] = src[cle];
+      }
+    }
+
+    function placer(spotId, objetId, etoilesTotales) {
+      if (!Number.isInteger(spotId) || spotId < 0 || spotId >= DECO.NB_SPOTS) {
+        return false;
+      }
+      const objet = objetDeco(objetId);
+      if (!objet || !estDebloqueDeco(objet, etoilesTotales)) {
+        return false; /* objet inconnu ou encore verrouille */
+      }
+      disposition[spotId] = objetId;
+      return true;
+    }
+
+    function retirer(spotId) {
+      if (disposition[spotId] === undefined) {
+        return null;
+      }
+      const id = disposition[spotId];
+      delete disposition[spotId];
+      return id;
+    }
+
+    return {
+      placer,
+      retirer,
+      objetSur: (spotId) => disposition[spotId] || null,
+      disposition: () => ({ ...disposition }),
+      nbPlaces: () => Object.keys(disposition).length,
+      estVide: () => Object.keys(disposition).length === 0,
+    };
+  }
+
+  /* --- Persistance (couche navigateur, tres fine) --- */
+  function chargerDispositionDeco() {
+    if (typeof localStorage === "undefined") {
+      return {};
+    }
+    try {
+      const raw = JSON.parse(localStorage.getItem(DECO.STORAGE_KEY) || "null");
+      return raw && typeof raw === "object" && raw.disposition ? raw.disposition : {};
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function sauvegarderDispositionDeco(disposition) {
+    if (typeof localStorage === "undefined") {
+      return;
+    }
+    try {
+      localStorage.setItem(DECO.STORAGE_KEY, JSON.stringify({ disposition }));
+    } catch (_error) {
+      /* stockage indisponible : l'amenagement ne sera pas conserve */
+    }
+  }
+
+  const MINIGAME_DECO = {
+    id: "deco-jardin",
+    nom: "ton petit jardin",
+    monter(zone, { terminer }) {
+      /* Meme monnaie que la personnalisation : les etoiles CUMULEES. */
+      const total = window.ParcoursPersonnage?.getEtat?.().etoiles_totales || 0;
+      const deco = creerDeco(chargerDispositionDeco());
+      const perso = window.ParcoursApp?.playerMarkup?.() || "";
+
+      const objetSvg = (id) => `<svg viewBox="-30 -30 60 60" class="deco-objet-svg" aria-hidden="true">${DECO_SVG[id] || ""}</svg>`;
+
+      let spotsHtml = "";
+      for (let i = 0; i < DECO.NB_SPOTS; i += 1) {
+        const objId = deco.objetSur(i);
+        spotsHtml += `<button class="deco-spot${objId ? " occupe" : ""}" type="button" data-spot="${i}" aria-label="Emplacement ${i + 1}">${objId ? objetSvg(objId) : ""}</button>`;
+      }
+
+      const paletteHtml = DECO.CATALOGUE.map((objet) => {
+        const debloque = estDebloqueDeco(objet, total);
+        const restantes = etoilesRestantesDeco(objet, total);
+        const statut = debloque
+          ? `<span class="deco-objet-nom">${objet.nom}</span>`
+          : `<span class="deco-objet-verrou">&#128274; ${restantes} &#9733;</span>`;
+        return `
+          <button class="deco-objet${debloque ? "" : " verrouille"}" type="button" data-objet="${objet.id}" ${debloque ? "" : "disabled aria-disabled=\"true\""}>
+            ${objetSvg(objet.id)}
+            ${statut}
+          </button>`;
+      }).join("");
+
+      zone.innerHTML = `
+        <div class="deco">
+          <div class="deco-header">
+            <div class="deco-consigne">Amenage ton petit jardin</div>
+            <div class="deco-etoiles">&#9733; ${total} etoiles</div>
+          </div>
+          <div class="deco-scene">
+            <div class="deco-grille" id="deco-grille">${spotsHtml}</div>
+            <div class="deco-perso"><svg viewBox="-26 -26 52 52" class="deco-perso-svg" aria-label="Ton personnage"><g class="player-token">${perso}</g></svg></div>
+          </div>
+          <p class="deco-hint" id="deco-hint">Choisis un objet, puis clique un emplacement. (Gomme pour retirer.)</p>
+          <div class="deco-palette" id="deco-palette">
+            ${paletteHtml}
+            <button class="deco-objet deco-gomme" type="button" data-outil="retirer" aria-label="Retirer">
+              <span class="deco-gomme-icone" aria-hidden="true">&#9003;</span>
+              <span class="deco-objet-nom">Gomme</span>
+            </button>
+          </div>
+          <div class="deco-actions">
+            <button id="deco-retour" class="puzzle-retour" type="button">Retour a l'aventure</button>
+          </div>
+        </div>
+      `;
+
+      const grille = zone.querySelector("#deco-grille");
+      const palette = zone.querySelector("#deco-palette");
+      const hint = zone.querySelector("#deco-hint");
+      const retour = zone.querySelector("#deco-retour");
+
+      let outil = null; /* id d'objet, ou "retirer", ou null */
+
+      function majSelection() {
+        palette.querySelectorAll(".deco-objet").forEach((b) => {
+          const sel = (b.dataset.objet && b.dataset.objet === outil) || (b.dataset.outil && b.dataset.outil === outil);
+          b.classList.toggle("selectionne", Boolean(sel));
+        });
+      }
+
+      function onPaletteClick(event) {
+        const b = event.target.closest(".deco-objet");
+        if (!b || b.disabled) {
+          return;
+        }
+        outil = b.dataset.outil ? b.dataset.outil : b.dataset.objet;
+        majSelection();
+        hint.textContent = outil === "retirer"
+          ? "Clique un objet du jardin pour le retirer."
+          : "Clique un emplacement pour y poser l'objet.";
+      }
+
+      function onGrilleClick(event) {
+        const spot = event.target.closest(".deco-spot");
+        if (!spot) {
+          return;
+        }
+        const spotId = Number(spot.dataset.spot);
+        if (outil === null) {
+          hint.textContent = "Choisis d'abord un objet dans la reserve.";
+          return;
+        }
+        if (outil === "retirer") {
+          if (deco.retirer(spotId) !== null) {
+            spot.innerHTML = "";
+            spot.classList.remove("occupe");
+            sauvegarderDispositionDeco(deco.disposition());
+          }
+          return;
+        }
+        if (deco.placer(spotId, outil, total)) {
+          spot.innerHTML = objetSvg(outil);
+          spot.classList.add("occupe", "vient-de-poser");
+          window.setTimeout(() => spot.classList.remove("vient-de-poser"), 400);
+          sauvegarderDispositionDeco(deco.disposition());
+          window.ParcoursAudio?.playCorrect?.();
+        }
+      }
+
+      palette.addEventListener("click", onPaletteClick);
+      grille.addEventListener("click", onGrilleClick);
+      retour.addEventListener("click", () => terminer(0)); /* espace libre : pas de bonus */
+
+      return () => {
+        palette.removeEventListener("click", onPaletteClick);
+        grille.removeEventListener("click", onGrilleClick);
+        zone.innerHTML = "";
+      };
+    },
+  };
+
+  /* ============================================================
      COUCHE NAVIGATEUR : adapter reel (DOM + carte via ParcoursApp)
      ============================================================ */
   function el(id) {
@@ -1213,6 +1494,7 @@
   registreReel.enregistrer(MINIGAME_CHASSE);
   registreReel.enregistrer(MINIGAME_MEMORY);
   registreReel.enregistrer(MINIGAME_PUZZLE);
+  registreReel.enregistrer(MINIGAME_DECO);
   const orchestrateurReel = creerOrchestrateur({
     declencheur: creerDeclencheur(),
     registre: registreReel,
@@ -1249,6 +1531,13 @@
     debloquerPiece,
     creerPuzzle,
     PUZZLE,
+    MINIGAME_DECO,
+    creerDeco,
+    objetDeco,
+    estDebloqueDeco,
+    etoilesRestantesDeco,
+    objetsDebloquesDeco,
+    DECO,
     PROBABILITE_DEFAUT,
     ESPACEMENT_MIN_CONCEPTS,
   };
