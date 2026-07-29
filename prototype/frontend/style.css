@@ -1613,6 +1613,84 @@ input {
   transform: translateY(-2px);
 }
 
+/* ----- Glisser-deposer en ordre ----- */
+.order-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(124, 182, 104, 0.16);
+  border: 3px dashed var(--grass-dark);
+}
+
+.order-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.order-slot,
+.order-piece {
+  min-width: 54px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-family: var(--font-round);
+  font-size: 1.3rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.order-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: rgba(61, 44, 30, 0.1);
+  border: 3px dashed var(--grass-dark);
+  color: var(--grass-dark);
+}
+
+.order-slot-rang {
+  font-size: 0.9rem;
+  opacity: 0.55;
+}
+
+.order-slot.rempli {
+  background: linear-gradient(180deg, var(--grass-light), var(--grass));
+  border: 3px solid var(--grass-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+}
+
+.order-piece {
+  background: linear-gradient(180deg, var(--grass-light), var(--grass));
+  border: 3px solid var(--grass-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.order-piece.selectionne {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(240, 184, 75, 0.6), var(--shadow-chip);
+  transform: translateY(-2px);
+}
+
+.order-piece.placee {
+  opacity: 0.28;
+  cursor: default;
+  pointer-events: none;
+}
+
+.order-piece:not(.placee):hover,
+.order-slot.rempli:hover {
+  transform: translateY(-2px);
+}
+
 /* ----- Ligne numerique ----- */
 .mech-line {
   padding: 12px 8px 8px;

@@ -76,7 +76,14 @@
       return ["clavier"];
     }
     if (info.format === "liste_ordonnee") {
-      return Array.isArray(info.raw) && info.raw.length >= 2 ? ["ligne"] : ["clavier"];
+      /* Deux representations complementaires d'une suite ordonnee :
+         - "ligne" : completer la suite sur une ligne graduee (reperes
+           visibles, on cherche le pas et les valeurs manquantes) ;
+         - "ordre" : remettre toute la suite, donnee melangee en blocs, dans
+           le bon ordre (competence "ranger dans l'ordre").
+         Elles ne se remplacent pas : la rotation par exercice alterne les
+         deux, la ligne garde son role. */
+      return Array.isArray(info.raw) && info.raw.length >= 2 ? ["ligne", "ordre"] : ["clavier"];
     }
     if (info.format === "choix_multiple") {
       return ["planches"];
@@ -632,6 +639,195 @@
     root.focus();
   }
 
+  /* ----- Glisser-deposer en ordre -----------------------------
+     L'eleve recoit tous les elements MELANGES dans une zone de depart et
+     les remet dans le bon ordre, en les glissant ou en cliquant l'element
+     puis l'emplacement (meme principe que le puzzle, accessible tactile).
+     Aucune validation par bloc : le bouton "Valider" du modal verifie
+     l'ordre complet d'un coup (la valeur soumise n'est renseignee qu'une
+     fois tous les emplacements remplis).
+
+     Le COEUR (placement, detection du bon ordre) est pur et sans DOM, donc
+     testable en Node. */
+
+  /* Melange qui evite de rendre l'ordre attendu tel quel (sinon les blocs
+     seraient deja tries). Deterministe par graine. */
+  function melangerOrdre(valeurs, seed) {
+    const attendu = [...valeurs];
+    let melange = seededShuffle(valeurs, seed);
+    let essai = 0;
+    while (melange.every((v, i) => v === attendu[i]) && essai < 8) {
+      essai += 1;
+      melange = seededShuffle(melange, seed + essai);
+    }
+    if (melange.length > 1 && melange.every((v, i) => v === attendu[i])) {
+      [melange[0], melange[1]] = [melange[1], melange[0]];
+    }
+    return melange;
+  }
+
+  /* Etat de placement (sans DOM). `elements` : [{id, valeur}] a ranger ;
+     `ordreAttendu` : la suite des valeurs dans le bon ordre. */
+  function creerPlacementOrdre({ elements, ordreAttendu }) {
+    const slots = new Array(ordreAttendu.length).fill(null); /* id d'element, ou null */
+    const placeDe = {}; /* id d'element -> index d'emplacement */
+
+    const existe = (id) => elements.some((e) => e.id === id);
+    const valeurDe = (id) => {
+      const e = elements.find((x) => x.id === id);
+      return e ? e.valeur : null;
+    };
+
+    function placer(elementId, slotIndex) {
+      if (!existe(elementId) || slotIndex < 0 || slotIndex >= slots.length) {
+        return false;
+      }
+      if (slots[slotIndex] !== null) {
+        return false; /* emplacement deja occupe : retirer d'abord */
+      }
+      if (placeDe[elementId] !== undefined) {
+        slots[placeDe[elementId]] = null; /* l'element se deplace */
+      }
+      slots[slotIndex] = elementId;
+      placeDe[elementId] = slotIndex;
+      return true;
+    }
+
+    function retirer(slotIndex) {
+      const id = slots[slotIndex];
+      if (id === null || id === undefined) {
+        return null;
+      }
+      slots[slotIndex] = null;
+      delete placeDe[id];
+      return id;
+    }
+
+    function ordreActuel() {
+      return slots.map((id) => (id === null ? null : valeurDe(id)));
+    }
+    function estComplet() {
+      return slots.every((id) => id !== null);
+    }
+    /* Detection du bon ordre : complet ET chaque emplacement porte la valeur
+       attendue a sa position. */
+    function estCorrect() {
+      return estComplet() && ordreActuel().every((v, i) => String(v) === String(ordreAttendu[i]));
+    }
+    /* Valeur soumise au backend : la suite reconstituee, au meme format que
+       la ligne numerique ("v0, v1, ..."). Vide tant que c'est incomplet. */
+    function valeur() {
+      return estComplet() ? ordreActuel().join(", ") : "";
+    }
+
+    return {
+      placer,
+      retirer,
+      slots: () => slots.slice(),
+      enPool: () => elements.filter((e) => placeDe[e.id] === undefined).map((e) => e.id),
+      estPlace: (id) => placeDe[id] !== undefined,
+      ordreActuel,
+      estComplet,
+      estCorrect,
+      valeur,
+    };
+  }
+
+  function mountOrder(container, exercise, api) {
+    const raw = answerInfo(exercise).raw;
+    const ordreAttendu = Array.isArray(raw) ? raw.map(Number) : [];
+    const seed = hashString(exercise.id);
+    const melange = melangerOrdre(ordreAttendu, seed);
+    const elements = melange.map((valeur, i) => ({ id: i, valeur }));
+    const placement = creerPlacementOrdre({ elements, ordreAttendu });
+
+    container.innerHTML = `
+      <p class="mech-hint">Glisse (ou clique l'etiquette puis l'emplacement) pour remettre la suite dans l'ordre.</p>
+      <div class="order-slots" role="group" aria-label="Emplacements ordonnes">
+        ${ordreAttendu
+          .map((_, i) => `<button type="button" class="order-slot" data-slot="${i}" aria-label="Emplacement ${i + 1}"><span class="order-slot-rang">${i + 1}</span></button>`)
+          .join("")}
+      </div>
+      <div class="order-pool" role="group" aria-label="Etiquettes a ranger">
+        ${elements
+          .map((e) => `<button type="button" class="order-piece" draggable="true" data-id="${e.id}">${e.valeur}</button>`)
+          .join("")}
+      </div>
+    `;
+
+    const slotNodes = [...container.querySelectorAll(".order-slot")];
+    const poolNode = container.querySelector(".order-pool");
+    let selection = null; /* id d'element choisi (clic) */
+
+    function refresh() {
+      const slots = placement.slots();
+      slotNodes.forEach((node, i) => {
+        const id = slots[i];
+        const rempli = id !== null && id !== undefined;
+        node.classList.toggle("rempli", rempli);
+        node.innerHTML = rempli
+          ? `<span class="order-slot-valeur">${elements.find((e) => e.id === id).valeur}</span>`
+          : `<span class="order-slot-rang">${i + 1}</span>`;
+      });
+      [...poolNode.querySelectorAll(".order-piece")].forEach((node) => {
+        const place = placement.estPlace(Number(node.dataset.id));
+        node.classList.toggle("placee", place);
+        node.classList.toggle("selectionne", Number(node.dataset.id) === selection);
+        node.setAttribute("aria-hidden", place ? "true" : "false");
+      });
+      /* Rien n'est valide ici : on ne renseigne la reponse que si complete. */
+      api.setValue(placement.valeur());
+    }
+
+    function poser(elementId, slotIndex) {
+      if (placement.placer(elementId, slotIndex)) {
+        selection = null;
+        refresh();
+      }
+    }
+
+    poolNode.querySelectorAll(".order-piece").forEach((node) => {
+      const id = Number(node.dataset.id);
+      node.addEventListener("click", () => {
+        if (placement.estPlace(id)) {
+          return;
+        }
+        selection = selection === id ? null : id;
+        refresh();
+      });
+      node.addEventListener("dragstart", (event) => {
+        selection = id;
+        event.dataTransfer?.setData("text/plain", String(id));
+      });
+    });
+
+    slotNodes.forEach((node, slotIndex) => {
+      node.addEventListener("click", () => {
+        const occupant = placement.slots()[slotIndex];
+        if (occupant !== null && occupant !== undefined) {
+          placement.retirer(slotIndex); /* reclic sur un emplacement rempli : liberer */
+          selection = null;
+          refresh();
+          return;
+        }
+        if (selection !== null) {
+          poser(selection, slotIndex);
+        }
+      });
+      node.addEventListener("dragover", (event) => event.preventDefault());
+      node.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const id = Number(event.dataTransfer?.getData("text/plain"));
+        if (!Number.isNaN(id)) {
+          poser(id, slotIndex);
+        }
+      });
+    });
+
+    refresh();
+    poolNode.querySelector(".order-piece")?.focus();
+  }
+
   /* ----- Panier a remplir : denombrer en cliquant -------------- */
   function mountBasket(container, exercise, api) {
     const info = answerInfo(exercise);
@@ -693,6 +889,7 @@
     cadenas: mountLock,
     panier: mountBasket,
     horloge: mountClock,
+    ordre: mountOrder,
   };
 
   const api = {
@@ -712,6 +909,8 @@
     maskedLinePositions,
     missingLineValues,
     shuffleMissingValues,
+    creerPlacementOrdre,
+    melangerOrdre,
   };
 
   if (typeof window !== "undefined") {
