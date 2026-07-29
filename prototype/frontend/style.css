@@ -3343,6 +3343,7 @@ input {
   display: grid;
   place-items: center;
   padding: 20px;
+  overflow-y: auto; /* grilles hautes (memory) : jamais tronquees */
   /* Fond franchement different de la carte : ciel nocturne ludique, pour
      bien signaler qu'on a quitte l'aventure le temps d'une pause. */
   background: radial-gradient(circle at 50% 20%, #3a4d8c, #22305f 60%, #161f42);
@@ -3585,6 +3586,173 @@ input {
 }
 
 .chasse-fin-bonus {
+  margin: 2px 0 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
+/* --- Mini-jeu : le memory des tables --- */
+.memory {
+  position: relative;
+  width: 100%;
+  display: grid;
+  gap: 16px;
+}
+
+.memory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.memory-consigne {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.9);
+}
+
+.memory-compteur {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--cream);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.memory-grille {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  justify-content: center;
+}
+
+.memory-carte {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 3px solid var(--wood);
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: "Fredoka", "Segoe UI", sans-serif;
+  font-weight: 700;
+  /* Dos de carte : motif bois/creme, sobre. */
+  background: linear-gradient(160deg, #6a86c4, #43589a 60%, #33447d);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+  transition: transform 0.12s ease, background 0.18s ease;
+}
+
+.memory-carte:hover {
+  transform: translateY(-2px);
+}
+
+.memory-carte-dos {
+  font-size: 1.8rem;
+  color: rgba(251, 243, 231, 0.85);
+}
+
+.memory-carte-face {
+  display: none;
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+
+/* Carte retournee ou trouvee : on montre la face creme, on cache le dos. */
+.memory-carte.retournee,
+.memory-carte.trouvee {
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 78%, var(--cream-dark));
+  animation: memoryFlip 0.22s ease-out;
+}
+
+.memory-carte.retournee .memory-carte-dos,
+.memory-carte.trouvee .memory-carte-dos {
+  display: none;
+}
+
+.memory-carte.retournee .memory-carte-face,
+.memory-carte.trouvee .memory-carte-face {
+  display: block;
+}
+
+.memory-carte.trouvee {
+  border-color: #2c8440;
+  box-shadow: 0 0 0 3px rgba(127, 209, 139, 0.55), 0 4px 0 rgba(0, 0, 0, 0.18);
+  cursor: default;
+  animation: memoryTrouve 0.4s ease-out;
+}
+
+.memory-carte:disabled {
+  cursor: default;
+}
+
+@keyframes memoryFlip {
+  0% {
+    transform: rotateY(80deg);
+  }
+  100% {
+    transform: rotateY(0);
+  }
+}
+
+@keyframes memoryTrouve {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.08);
+  }
+}
+
+/* Ecran de fin du memory : reprend la carte de fin de la chasse */
+.memory-fin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(22, 31, 66, 0.72);
+}
+
+.memory-fin-carte {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 26px 30px;
+  text-align: center;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.memory-fin-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.memory-fin-titre {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+
+.memory-fin-detail {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.memory-fin-bonus {
   margin: 2px 0 10px;
   font-size: 1.05rem;
   font-weight: 700;

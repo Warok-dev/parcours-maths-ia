@@ -544,6 +544,273 @@
   };
 
   /* ============================================================
+     MINI-JEU : LE MEMORY DES TABLES
+     ------------------------------------------------------------
+     Une grille de cartes face cachee : chaque paire associe un calcul
+     direct (une multiplication, comme la famille calcul_direct du jeu) a
+     son resultat -- "6 x 7" avec "42". L'eleve retourne deux cartes ; si
+     elles se correspondent elles restent visibles, sinon elles se
+     recachent apres un court delai. Aucune limite de temps, aucune
+     penalite (esprit detente). Toutes les paires trouvees : message
+     positif + bonus cosmetique, retour a la carte via demonter().
+
+     La LOGIQUE PURE (generation des paires, detection de correspondance,
+     etat retournee/trouvee des cartes) est isolee du rendu : genererPaires()
+     et creerMemory() n'utilisent aucun DOM et sont testables en Node.
+     ============================================================ */
+  const MEMORY = {
+    PAIRES_MIN: 6, /* 6 a 8 paires -> 12 a 16 cartes */
+    PAIRES_MAX: 8,
+    FACTEUR_MIN: 2, /* tables simples : facteurs de 2 a 9 */
+    FACTEUR_MAX: 9,
+    DELAI_RESOLUTION_MS: 900, /* delai avant de recacher une mauvaise paire */
+    BONUS_BASE: 10,
+    BONUS_PAR_PAIRE: 8,
+  };
+
+  /* Construit la liste des cartes (calcul + resultat, melangees) sans DOM.
+     Les resultats sont TOUS distincts : une carte resultat ne correspond
+     qu'a un seul calcul, pas d'ambiguite. Hasard injecte -> reproductible. */
+  function genererPaires(random = Math.random, options = {}) {
+    const cfg = { ...MEMORY, ...options };
+    const rnd = typeof random === "function" ? random : Math.random;
+    const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+    const nbPairesVoulu = options.nbPaires || ri(cfg.PAIRES_MIN, cfg.PAIRES_MAX);
+
+    const resultatsUtilises = new Set();
+    const paires = [];
+    let garde = 0;
+    while (paires.length < nbPairesVoulu && garde < 1000) {
+      garde += 1;
+      const a = ri(cfg.FACTEUR_MIN, cfg.FACTEUR_MAX);
+      const b = ri(cfg.FACTEUR_MIN, cfg.FACTEUR_MAX);
+      const valeur = a * b;
+      if (resultatsUtilises.has(valeur)) {
+        continue; /* resultat deja pris : on retente pour garder l'unicite */
+      }
+      resultatsUtilises.add(valeur);
+      paires.push({ paireId: paires.length, calcul: `${a} × ${b}`, valeur });
+    }
+
+    const cartes = [];
+    for (const pr of paires) {
+      cartes.push({ id: cartes.length, paireId: pr.paireId, face: "calcul", texte: pr.calcul, valeur: pr.valeur });
+      cartes.push({ id: cartes.length, paireId: pr.paireId, face: "resultat", texte: String(pr.valeur), valeur: pr.valeur });
+    }
+    /* Melange des positions (Fisher-Yates). Les id restent stables : ils
+       identifient la carte, seule sa place dans la grille est brassee. */
+    for (let i = cartes.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rnd() * (i + 1));
+      const tmp = cartes[i];
+      cartes[i] = cartes[j];
+      cartes[j] = tmp;
+    }
+    return { nbPaires: paires.length, cartes };
+  }
+
+  /* Coeur de jeu (sans DOM) : etat mutable des cartes + methodes. */
+  function creerMemory(config) {
+    const state = {
+      cartes: config.cartes.map((c) => ({ ...c, retournee: false, trouvee: false })),
+      selection: [], /* ids des cartes retournees en attente d'evaluation */
+      pairesTrouvees: 0,
+      nbPaires: config.nbPaires,
+      coups: 0,
+      termine: false,
+    };
+    const parId = (id) => state.cartes.find((c) => c.id === id);
+
+    /* Retourne une carte. Renvoie l'etat resultant :
+       - 'ignore'   : clic sans effet (carte deja vue, ou 2 deja retournees) ;
+       - 'premiere' : premiere carte d'une tentative ;
+       - 'paire'    : deux cartes qui correspondent (restent visibles) ;
+       - 'rate'     : deux cartes differentes (a recacher via resoudre()). */
+    function retourner(id) {
+      if (state.termine || state.selection.length >= 2) {
+        return { etat: "ignore" };
+      }
+      const c = parId(id);
+      if (!c || c.trouvee || c.retournee) {
+        return { etat: "ignore" };
+      }
+      c.retournee = true;
+      state.selection.push(id);
+      if (state.selection.length < 2) {
+        return { etat: "premiere", carte: id };
+      }
+      const [ida, idb] = state.selection;
+      const ca = parId(ida);
+      const cb = parId(idb);
+      state.coups += 1;
+      /* Correspondance = meme paire (donc un calcul + son bon resultat). */
+      const correspond = ca.paireId === cb.paireId && ca.id !== cb.id;
+      if (correspond) {
+        ca.trouvee = true;
+        cb.trouvee = true;
+        state.selection = [];
+        state.pairesTrouvees += 1;
+        if (state.pairesTrouvees >= state.nbPaires) {
+          state.termine = true;
+        }
+        return { etat: "paire", cartes: [ida, idb] };
+      }
+      /* Mauvaise paire : aucune penalite, on laisse voir puis on recache. */
+      return { etat: "rate", cartes: [ida, idb] };
+    }
+
+    /* Recache les cartes en attente (appele apres le delai d'une mauvaise
+       paire). Sans effet si une paire venait d'etre validee. */
+    function resoudre() {
+      if (state.selection.length < 2) {
+        return [];
+      }
+      const ids = state.selection.slice();
+      for (const id of ids) {
+        const c = parId(id);
+        if (c && !c.trouvee) {
+          c.retournee = false;
+        }
+      }
+      state.selection = [];
+      return ids;
+    }
+
+    return {
+      retourner,
+      resoudre,
+      cartes: () => state.cartes.map((c) => ({ ...c })),
+      carte: (id) => {
+        const c = parId(id);
+        return c ? { ...c } : null;
+      },
+      selection: () => state.selection.slice(),
+      enAttenteResolution: () => state.selection.length >= 2,
+      pairesTrouvees: () => state.pairesTrouvees,
+      nbPaires: () => state.nbPaires,
+      coups: () => state.coups,
+      estTermine: () => state.termine,
+      bonus: () => MEMORY.BONUS_BASE + state.pairesTrouvees * MEMORY.BONUS_PAR_PAIRE,
+    };
+  }
+
+  const MINIGAME_MEMORY = {
+    id: "memory-tables",
+    nom: "le memory des tables",
+    monter(zone, { terminer }) {
+      const config = genererPaires(Math.random);
+      const jeu = creerMemory(config);
+
+      const cartesMarkup = jeu
+        .cartes()
+        .map(
+          (c) => `
+            <button class="memory-carte" type="button" data-id="${c.id}" aria-label="Carte a retourner">
+              <span class="memory-carte-dos" aria-hidden="true">?</span>
+              <span class="memory-carte-face">${c.texte}</span>
+            </button>`,
+        )
+        .join("");
+
+      zone.innerHTML = `
+        <div class="memory">
+          <div class="memory-header">
+            <div class="memory-consigne">Associe chaque calcul a son resultat</div>
+            <div class="memory-compteur" id="memory-compteur">0/${jeu.nbPaires()} paires</div>
+          </div>
+          <div class="memory-grille" id="memory-grille">${cartesMarkup}</div>
+          <div class="memory-fin hidden" id="memory-fin"></div>
+        </div>
+      `;
+
+      const grille = zone.querySelector("#memory-grille");
+      const compteur = zone.querySelector("#memory-compteur");
+      const finBox = zone.querySelector("#memory-fin");
+
+      let attenteTimer = null;
+      let finTimer = null;
+      let fini = false;
+
+      function syncCarte(id) {
+        const c = jeu.carte(id);
+        const btn = grille.querySelector(`.memory-carte[data-id="${id}"]`);
+        if (!c || !btn) {
+          return;
+        }
+        btn.classList.toggle("retournee", c.retournee && !c.trouvee);
+        btn.classList.toggle("trouvee", c.trouvee);
+        btn.disabled = c.trouvee;
+      }
+
+      function majCompteur() {
+        compteur.textContent = `${jeu.pairesTrouvees()}/${jeu.nbPaires()} paires`;
+      }
+
+      function onClick(event) {
+        const btn = event.target.closest(".memory-carte");
+        if (!btn || attenteTimer) {
+          return; /* on ignore les clics pendant qu'une mauvaise paire se recache */
+        }
+        const id = Number(btn.dataset.id);
+        const res = jeu.retourner(id);
+        if (res.etat === "ignore") {
+          return;
+        }
+        syncCarte(id);
+        if (res.etat === "paire") {
+          res.cartes.forEach(syncCarte);
+          majCompteur();
+          window.ParcoursAudio?.playCorrect?.();
+          if (jeu.estTermine()) {
+            finir();
+          }
+        } else if (res.etat === "rate") {
+          attenteTimer = window.setTimeout(() => {
+            jeu.resoudre().forEach(syncCarte);
+            attenteTimer = null;
+          }, MEMORY.DELAI_RESOLUTION_MS);
+        }
+      }
+      grille.addEventListener("click", onClick);
+
+      function finir() {
+        if (fini) {
+          return;
+        }
+        fini = true;
+        grille.removeEventListener("click", onClick);
+        const bonus = jeu.bonus();
+        finBox.innerHTML = `
+          <div class="memory-fin-carte">
+            <div class="memory-fin-emoji" aria-hidden="true">&#127882;</div>
+            <h2 class="memory-fin-titre">Bravo, tout retrouve !</h2>
+            <p class="memory-fin-detail">Tu as reforme les ${jeu.nbPaires()} paires.</p>
+            <p class="memory-fin-bonus">+${bonus} etoiles &#10024;</p>
+            <button id="memory-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
+          </div>
+        `;
+        finBox.classList.remove("hidden");
+        const btn = finBox.querySelector("#memory-fin-btn");
+        btn.addEventListener("click", () => terminer(bonus));
+        btn.focus();
+        finTimer = window.setTimeout(() => terminer(bonus), 3200);
+      }
+
+      return () => {
+        if (attenteTimer) {
+          window.clearTimeout(attenteTimer);
+          attenteTimer = null;
+        }
+        if (finTimer) {
+          window.clearTimeout(finTimer);
+          finTimer = null;
+        }
+        grille.removeEventListener("click", onClick);
+        zone.innerHTML = "";
+      };
+    },
+  };
+
+  /* ============================================================
      COUCHE NAVIGATEUR : adapter reel (DOM + carte via ParcoursApp)
      ============================================================ */
   function el(id) {
@@ -624,6 +891,7 @@
      nombres est le premier vrai mini-jeu. */
   const registreReel = creerRegistre();
   registreReel.enregistrer(MINIGAME_CHASSE);
+  registreReel.enregistrer(MINIGAME_MEMORY);
   const orchestrateurReel = creerOrchestrateur({
     declencheur: creerDeclencheur(),
     registre: registreReel,
@@ -651,6 +919,10 @@
     genererConfig,
     creerChasseNombres,
     CHASSE,
+    MINIGAME_MEMORY,
+    genererPaires,
+    creerMemory,
+    MEMORY,
     PROBABILITE_DEFAUT,
     ESPACEMENT_MIN_CONCEPTS,
   };

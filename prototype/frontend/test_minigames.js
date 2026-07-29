@@ -506,6 +506,144 @@ function randomSeq(valeurs) {
   );
 }
 
+/* ============================================================
+   8. MINI-JEU : LE MEMORY DES TABLES (logique pure)
+   ============================================================ */
+
+/* --- 8a. Generation des paires : calculs corrects, resultats distincts --- */
+{
+  const cfg = minigames.genererPaires(Math.random);
+  check(cfg.cartes.length === cfg.nbPaires * 2, "chaque paire donne exactement 2 cartes");
+  check(
+    cfg.nbPaires >= minigames.MEMORY.PAIRES_MIN && cfg.nbPaires <= minigames.MEMORY.PAIRES_MAX,
+    "nombre de paires dans la fourchette 6-8",
+  );
+
+  /* Chaque paire : une carte calcul + une carte resultat, meme valeur. */
+  const parPaire = {};
+  for (const c of cfg.cartes) {
+    (parPaire[c.paireId] = parPaire[c.paireId] || []).push(c);
+  }
+  const pairesBienFormees = Object.values(parPaire).every((cs) => {
+    if (cs.length !== 2) return false;
+    const calc = cs.find((c) => c.face === "calcul");
+    const res = cs.find((c) => c.face === "resultat");
+    if (!calc || !res) return false;
+    /* Le texte du calcul "a × b" doit valoir la valeur commune. */
+    const m = calc.texte.match(/(\d+)\s*[x×]\s*(\d+)/);
+    return m && Number(m[1]) * Number(m[2]) === calc.valeur && res.valeur === calc.valeur;
+  });
+  check(pairesBienFormees, "chaque paire = 1 calcul + son resultat, valeurs coherentes (calcul_direct)");
+
+  const resultats = cfg.cartes.filter((c) => c.face === "resultat").map((c) => c.valeur);
+  check(new Set(resultats).size === resultats.length, "tous les resultats sont distincts (pas d'ambiguite)");
+
+  const ids = cfg.cartes.map((c) => c.id);
+  check(new Set(ids).size === ids.length, "identifiants de cartes uniques");
+
+  /* Reproductible a hasard egal. */
+  const seed = () => randomSeq([0.15, 0.35, 0.55, 0.75, 0.25, 0.45, 0.65, 0.85, 0.05, 0.95]);
+  const a = minigames.genererPaires(seed());
+  const b = minigames.genererPaires(seed());
+  check(JSON.stringify(a) === JSON.stringify(b), "genererPaires est deterministe a hasard egal");
+}
+
+/* Petite fabrique de partie memory a cartes fixes pour les tests. */
+function memoryFixe() {
+  return minigames.creerMemory({
+    nbPaires: 2,
+    cartes: [
+      { id: 0, paireId: 0, face: "calcul", texte: "2 × 3", valeur: 6 },
+      { id: 1, paireId: 0, face: "resultat", texte: "6", valeur: 6 },
+      { id: 2, paireId: 1, face: "calcul", texte: "4 × 5", valeur: 20 },
+      { id: 3, paireId: 1, face: "resultat", texte: "20", valeur: 20 },
+    ],
+  });
+}
+
+/* --- 8b. Bonne paire : les cartes restent visibles et trouvees --- */
+{
+  const jeu = memoryFixe();
+  check(jeu.pairesTrouvees() === 0 && !jeu.estTermine(), "depart : 0 paire, partie en cours");
+
+  const r1 = jeu.retourner(0);
+  check(r1.etat === "premiere" && jeu.carte(0).retournee, "1re carte retournee");
+
+  const r2 = jeu.retourner(1);
+  check(r2.etat === "paire", "calcul + bon resultat : paire detectee");
+  check(jeu.carte(0).trouvee && jeu.carte(1).trouvee, "les deux cartes de la paire sont trouvees");
+  check(jeu.pairesTrouvees() === 1, "compteur de paires +1");
+  check(jeu.selection().length === 0, "la selection est videe apres une paire");
+}
+
+/* --- 8c. Mauvaise paire : aucune penalite, recachees via resoudre() --- */
+{
+  const jeu = memoryFixe();
+  jeu.retourner(0); /* "2 × 3" */
+  const r = jeu.retourner(3); /* "20" -> ne correspond pas */
+  check(r.etat === "rate", "calcul + mauvais resultat : rate");
+  check(jeu.carte(0).retournee && jeu.carte(3).retournee, "les deux restent visibles avant resolution");
+  check(jeu.pairesTrouvees() === 0, "mauvaise paire : AUCUNE paire gagnee");
+  check(!jeu.estTermine(), "mauvaise paire : la partie continue (pas d'echec)");
+  check(jeu.enAttenteResolution(), "on est en attente de resolution");
+
+  /* Un 3e clic est ignore tant que la mauvaise paire n'est pas resolue. */
+  const bloque = jeu.retourner(2);
+  check(bloque.etat === "ignore", "clic ignore tant que la mauvaise paire n'est pas recachee");
+
+  const recachees = jeu.resoudre();
+  check(recachees.length === 2, "resoudre() recache les deux cartes");
+  check(!jeu.carte(0).retournee && !jeu.carte(3).retournee, "apres resolution : de nouveau cachees");
+  check(!jeu.enAttenteResolution(), "plus d'attente apres resolution");
+
+  /* On peut rejouer normalement ensuite. */
+  const rejoue = jeu.retourner(2);
+  check(rejoue.etat === "premiere", "on peut rejouer apres avoir recache");
+}
+
+/* --- 8d. Fin de partie : toutes les paires trouvees --- */
+{
+  const jeu = memoryFixe();
+  jeu.retourner(0);
+  jeu.retourner(1); /* paire 0 */
+  check(!jeu.estTermine(), "une paire sur deux : pas encore fini");
+  jeu.retourner(2);
+  jeu.retourner(3); /* paire 1 */
+  check(jeu.estTermine(), "toutes les paires trouvees : partie terminee");
+  check(jeu.pairesTrouvees() === jeu.nbPaires(), "compteur = nombre total de paires");
+
+  /* Apres la fin, plus aucun clic n'a d'effet. */
+  const apres = jeu.retourner(0);
+  check(apres.etat === "ignore", "apres la fin : clics ignores");
+}
+
+/* --- 8e. Robustesse : cartes deja vues, id inexistant --- */
+{
+  const jeu = memoryFixe();
+  jeu.retourner(0);
+  check(jeu.retourner(0).etat === "ignore", "recliquer la meme carte retournee : ignore");
+  check(jeu.retourner(999).etat === "ignore", "id inexistant : ignore proprement");
+}
+
+/* --- 8f. Bonus cosmetique et interface --- */
+{
+  const jeu = memoryFixe();
+  const base = minigames.MEMORY.BONUS_BASE;
+  check(jeu.bonus() === base, "bonus initial = bonus de base");
+  jeu.retourner(0);
+  jeu.retourner(1);
+  check(jeu.bonus() === base + minigames.MEMORY.BONUS_PAR_PAIRE, "bonus croit d'un cran par paire trouvee");
+
+  const noms = minigames.liste().map((j) => j.id);
+  check(noms.includes("memory-tables"), "le memory des tables est enregistre dans le registre reel");
+  check(noms.includes("chasse-nombres"), "la chasse aux nombres reste enregistree (deux vrais mini-jeux)");
+  const jeuDef = minigames.MINIGAME_MEMORY;
+  check(
+    Boolean(jeuDef.id && jeuDef.nom && typeof jeuDef.monter === "function"),
+    "MINIGAME_MEMORY respecte l'interface commune {id, nom, monter}",
+  );
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);
