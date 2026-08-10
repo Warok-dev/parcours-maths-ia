@@ -11,6 +11,10 @@ const {
   formatHeure,
   creerPlacementOrdre,
   melangerOrdre,
+  genererSectionsRoue,
+  sectionSousRepere,
+  rotationDepuisForce,
+  creerRoue,
 } = require("./mechanics.js");
 
 let failures = 0;
@@ -245,6 +249,119 @@ function placementSuite(ordreAttendu) {
   }
   /* Cas degenere (une seule valeur) : rien a melanger. */
   check(melangerOrdre([7], 3).join(",") === "7", "une seule valeur : inchangee");
+}
+
+/* --- 16. Routage : un QCM numerique va aussi a la roue, pas un symbolique --- */
+function qcmExercise(options, valeur) {
+  return {
+    id: "N2-identifier_multiple_de_10-000042",
+    pattern: { pattern_name: "identifier_multiple_de_10", pattern_family: "exercice_a_trous_serie" },
+    variables: { options },
+    reponse_attendue: { valeur, format: "choix_multiple" },
+  };
+}
+{
+  const num = qcmExercise([45, 40, 54], 40);
+  check(compatibleMechanics(num).includes("roue"), "un QCM numerique peut aller a la roue");
+  check(compatibleMechanics(num).includes("planches"), "la roue s'ajoute sans retirer les planches");
+
+  const symbole = qcmExercise(["<", ">", "="], "<");
+  check(!compatibleMechanics(symbole).includes("roue"), "un QCM symbolique (< > =) reste aux planches");
+  check(compatibleMechanics(symbole).includes("planches"), "le QCM symbolique garde les planches");
+
+  const sansOptions = { ...qcmExercise(undefined, 40) };
+  check(!compatibleMechanics(sansOptions).includes("roue"), "sans options exploitables : pas de roue (fallback intact)");
+}
+
+/* --- 17. Sections : la bonne reponse est toujours presente, 4-6 sections --- */
+{
+  const sections = genererSectionsRoue({ options: [45, 40, 54], bonneReponse: 40, seed: 7 });
+  check(sections.length >= 4 && sections.length <= 6, `4 a 6 sections (obtenu ${sections.length})`);
+  check(sections.filter((s) => s.correcte).length === 1, "exactement une section correcte");
+  check(sections.find((s) => s.correcte).valeur === "40", "la section correcte porte la bonne reponse");
+  check(sections.some((s) => s.valeur === "45") && sections.some((s) => s.valeur === "54"), "les vrais distracteurs du QCM sont conserves");
+  const valeurs = sections.map((s) => s.valeur);
+  check(new Set(valeurs).size === valeurs.length, "aucune section en double");
+}
+
+/* --- 18. Sans options : distracteurs credibles PROCHES de la bonne reponse --- */
+{
+  const sections = genererSectionsRoue({ options: undefined, bonneReponse: 40, seed: 3 });
+  check(sections.length >= 4, "des distracteurs sont fabriques quand aucune option n'est fournie");
+  check(sections.some((s) => s.valeur === "40"), "la bonne reponse figure parmi les sections generees");
+  check(
+    sections.every((s) => Math.abs(Number(s.valeur) - 40) <= 30 && Number(s.valeur) >= 0),
+    "les distracteurs restent proches (<= 30) et jamais negatifs",
+  );
+}
+
+/* --- 19. Generation deterministe par graine --- */
+{
+  const a = genererSectionsRoue({ options: [45, 40, 54], bonneReponse: 40, seed: 11 }).map((s) => s.valeur).join(",");
+  const b = genererSectionsRoue({ options: [45, 40, 54], bonneReponse: 40, seed: 11 }).map((s) => s.valeur).join(",");
+  check(a === b, "meme graine -> memes sections (reproductible)");
+}
+
+/* --- 20. Geometrie du repere : quelle section sous le repere fixe --- */
+{
+  /* 4 sections (secteur = 90 deg). Au repos (rotation 0) : section 0 en haut. */
+  check(sectionSousRepere(0, 4) === 0, "rotation 0 : section 0 sous le repere");
+  /* Rotation horaire de 90 deg : la section 0 descend a droite, la section 3
+     (centree a 270 = -90) remonte sous le repere. */
+  check(sectionSousRepere(90, 4) === 3, "90 deg horaire : section 3 sous le repere");
+  check(sectionSousRepere(180, 4) === 2, "180 deg : section opposee (2) sous le repere");
+  check(sectionSousRepere(-90, 4) === 1, "-90 deg : section 1 sous le repere");
+  /* Robustesse : angles hors bornes et arrondi au centre le plus proche. */
+  check(sectionSousRepere(360 + 90, 4) === 3, "les tours complets n'changent rien (450 = 90)");
+  check(sectionSousRepere(88, 4) === 3, "un angle presque cale tombe sur le bon centre");
+  check(sectionSousRepere(0, 0) === 0, "aucune section : indice 0 par defaut, sans planter");
+}
+
+/* --- 21. La roue vise : force -> rotation -> section sous le repere --- */
+{
+  const sections = genererSectionsRoue({ options: [45, 40, 54], bonneReponse: 40, seed: 5 });
+  const roue = creerRoue({ sections, seed: 5 });
+  const n = roue.nbSections;
+  /* La rotation cible d'une force doit tomber pile sur le centre annonce. */
+  for (const force of [0, 0.25, 0.5, 0.75, 1]) {
+    const rot = rotationDepuisForce(force, n, 5);
+    check(roue.viser(force) === rot, `viser(${force}) suit rotationDepuisForce (deterministe)`);
+  }
+  /* En dosant la force sur toute la plage, on doit pouvoir viser presque
+     toutes les sections : c'est un controle, pas un hasard (la force balaie la
+     roue une fois, donc 0 et 1 se rejoignent : au moins n-1 sections vues). */
+  const viseesParForce = new Set();
+  for (let f = 0; f <= 1.0001; f += 0.02) {
+    viseesParForce.add(sectionSousRepere(rotationDepuisForce(f, n, 5), n));
+  }
+  check(viseesParForce.size >= n - 1, `doser la force couvre les sections (${viseesParForce.size}/${n} atteintes)`);
+}
+
+/* --- 22. Arret, valeur soumise et evaluation (correcte / incorrecte) --- */
+{
+  const sections = genererSectionsRoue({ options: [45, 40, 54], bonneReponse: 40, seed: 9 });
+  const roue = creerRoue({ sections, seed: 9 });
+  const n = roue.nbSections;
+
+  check(roue.valeur() === "", "avant tout lancer : aucune valeur soumise");
+  check(roue.section() === null && roue.estCorrecte() === false, "avant tout lancer : rien sous le repere ne compte");
+
+  /* Vise intentionnellement la section correcte : on cherche la rotation qui
+     la place sous le repere, puis on arrete la roue dessus. */
+  const idxCorrect = sections.findIndex((s) => s.correcte);
+  const secteur = 360 / n;
+  const rotCorrecte = -idxCorrect * secteur; /* place le centre de idxCorrect en haut */
+  check(sectionSousRepere(rotCorrecte, n) === idxCorrect, "rotation calculee : la bonne section est bien sous le repere");
+  roue.arreter(rotCorrecte);
+  check(roue.aLance() === true, "la roue est marquee comme lancee apres l'arret");
+  check(roue.valeur() === "40", "arret sur la bonne section : valeur soumise = bonne reponse");
+  check(roue.estCorrecte() === true, "arret sur la bonne section : evalue correct");
+
+  /* Vise une section fausse : la valeur suit et l'evaluation devient fausse. */
+  const idxFaux = sections.findIndex((s) => !s.correcte);
+  roue.arreter(-idxFaux * secteur);
+  check(roue.valeur() === sections[idxFaux].valeur, "arret sur une section fausse : valeur = ce choix (faux)");
+  check(roue.estCorrecte() === false, "arret sur une section fausse : evalue incorrect");
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);

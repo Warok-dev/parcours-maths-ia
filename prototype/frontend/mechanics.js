@@ -86,7 +86,16 @@
       return Array.isArray(info.raw) && info.raw.length >= 2 ? ["ligne", "ordre"] : ["clavier"];
     }
     if (info.format === "choix_multiple") {
-      return ["planches"];
+      /* Les QCM numeriques (identifier_multiple_de_10, etc.) peuvent aussi se
+         jouer a la roue : sections colorees + repere fixe, on VISE la bonne.
+         Les QCM symboliques (< > =) restent aux planches : on ne fabrique pas
+         de faux symboles pour atteindre les 4 sections de la roue. */
+      const options = exercise.variables?.options;
+      const numerique =
+        Array.isArray(options) &&
+        options.length > 0 &&
+        options.every((o) => o !== "" && o !== null && Number.isFinite(Number(o)));
+      return numerique ? ["planches", "roue"] : ["planches"];
     }
     if (!info.isInteger) {
       return ["clavier"];
@@ -828,6 +837,323 @@
     poolNode.querySelector(".order-piece")?.focus();
   }
 
+  /* ----- Roue a tourner ----------------------------------------
+     L'eleve fait tourner une roue divisee en 4-6 sections colorees (une bonne
+     reponse, les autres plausibles). Un repere FIXE en haut pointe une
+     section. Ce n'est PAS un tirage au sort : la rotation finale est une
+     fonction DETERMINISTE de la force de lancer que l'eleve regle (mini-jeu
+     de precision). Il vise, la roue ralentit, s'arrete pile sur un centre de
+     section ; il valide ensuite lui-meme (pas de validation automatique).
+
+     Le COEUR (sections/distracteurs, geometrie du repere, valeur soumise) est
+     pur et sans DOM, donc testable en Node. */
+
+  const ROUE_MIN_SECTIONS = 4;
+  const ROUE_MAX_SECTIONS = 6;
+
+  /* Genere les sections de la roue. `options` (facultatif) fournit les choix
+     du QCM ; sinon on fabrique des distracteurs credibles PROCHES de la bonne
+     reponse (meme principe "chiffres proches" que le catalogue). La bonne
+     reponse est toujours presente. Melange deterministe par graine pour que
+     la bonne ne soit pas toujours a la meme place. Fonction pure. */
+  function genererSectionsRoue({ options, bonneReponse, seed = 1 }) {
+    const bonne = String(bonneReponse);
+    const vues = new Set();
+    const valeurs = [];
+    const ajoute = (v) => {
+      const s = String(v);
+      if (s === "" || s === "null" || s === "undefined" || vues.has(s)) return;
+      vues.add(s);
+      valeurs.push(s);
+    };
+
+    ajoute(bonne); /* la bonne reponse d'abord : jamais perdue au decoupage */
+    (Array.isArray(options) ? options : []).forEach(ajoute);
+
+    const numerique = valeurs.every((v) => Number.isFinite(Number(v)));
+    /* Taille cible deterministe dans [4,6]. */
+    let cible = ROUE_MIN_SECTIONS + (Math.abs(seed) % (ROUE_MAX_SECTIONS - ROUE_MIN_SECTIONS + 1));
+
+    if (numerique) {
+      const base = Number(bonne);
+      /* Distracteurs proches : voisins directs puis dizaines et permutations
+         d'unites, jamais negatifs, jamais egaux a une valeur deja vue. */
+      const deltas = [10, -10, 1, -1, 20, -20, 2, -2, 11, -11, 9, -9, 3, -3, 30, -30];
+      for (let i = 0; i < deltas.length && valeurs.length < cible; i += 1) {
+        const cand = base + deltas[i];
+        if (cand >= 0) ajoute(cand);
+      }
+    } else {
+      /* Non numerique : on garde les seules vraies options (pas de faux
+         symboles). La roue tournera avec ce nombre de sections. */
+      cible = valeurs.length;
+    }
+
+    const retenus = valeurs.slice(0, Math.min(Math.max(cible, 1), ROUE_MAX_SECTIONS));
+    const ordonnees = seededShuffle(retenus, (seed >>> 0) || 1);
+    return ordonnees.map((valeur) => ({ valeur, correcte: valeur === bonne }));
+  }
+
+  /* Geometrie du repere fixe. Les sections sont disposees dans le sens horaire
+     depuis le haut : le centre de la section i est a l'angle i*(360/n) horaire
+     depuis le repere (12h). Quand la roue tourne de `rotation` degres (horaire),
+     le repere du haut (0 degre) pointe la section dont le centre revient a 0.
+     Fonction pure : source unique de "quelle section sous le repere". */
+  function sectionSousRepere(rotation, nbSections) {
+    if (!nbSections || nbSections < 1) return 0;
+    const secteur = 360 / nbSections;
+    let idx = Math.round(-rotation / secteur) % nbSections;
+    return ((idx % nbSections) + nbSections) % nbSections;
+  }
+
+  /* Rotation finale (deterministe) pour une force de lancer donnee. `force`
+     dans [0,1] balaie toutes les sections une fois : l'eleve regle "un peu
+     plus / un peu moins fort" pour viser. Un dephasage propre a l'exercice
+     evite de memoriser une force universelle. Le resultat est cale (snap) sur
+     un centre de section, donc sectionSousRepere() rend un indice net. */
+  function rotationDepuisForce(force, nbSections, seed = 1) {
+    const n = Math.max(1, nbSections);
+    const secteur = 360 / n;
+    const f = Math.min(1, Math.max(0, Number(force) || 0));
+    const dephasage = Math.abs(seed) % n; /* section de depart propre a l'exercice */
+    const toursBase = 4; /* tours visuels avant l'arret */
+    const positionSection = dephasage + f * n;
+    const rotationBrute = -(toursBase * 360 + positionSection * secteur);
+    return Math.round(rotationBrute / secteur) * secteur; /* snap au centre */
+  }
+
+  /* Controleur pur de la roue (sans DOM). `sections` : [{valeur, correcte}].
+     `viser(force)` rend la rotation cible pour l'animation ; `arreter(rot)`
+     enregistre l'arret (snap) et rend l'indice sous le repere. La valeur n'est
+     soumise qu'apres un premier lancer (sinon rien sous le repere ne compte). */
+  function creerRoue({ sections, seed = 1 }) {
+    const n = sections.length;
+    const secteur = n ? 360 / n : 360;
+    let rotation = 0;
+    let lance = false;
+
+    function sectionCourante() {
+      return sectionSousRepere(rotation, n);
+    }
+    return {
+      sections: () => sections.slice(),
+      nbSections: n,
+      rotation: () => rotation,
+      aLance: () => lance,
+      /* rotation cible pour une force (pour piloter l'animation). */
+      viser: (force) => rotationDepuisForce(force, n, seed),
+      /* enregistre l'arret sur une rotation quelconque (fin d'animation ou
+         relachement d'un glissement) : on cale sur le centre le plus proche. */
+      arreter(rotationFinale) {
+        rotation = Math.round(Number(rotationFinale) / secteur) * secteur;
+        lance = true;
+        return sectionCourante();
+      },
+      sectionCourante,
+      section: () => (lance ? sections[sectionCourante()] : null),
+      valeur: () => (lance ? sections[sectionCourante()].valeur : ""),
+      estCorrecte: () => lance && sections[sectionCourante()].correcte === true,
+    };
+  }
+
+  /* Couleurs des secteurs : palette du design, rotation stable. */
+  const ROUE_COULEURS = [
+    { fill: "var(--grass)", stroke: "var(--grass-dark)" },
+    { fill: "var(--water)", stroke: "var(--water-dark)" },
+    { fill: "var(--gold)", stroke: "var(--gold-dark)" },
+    { fill: "var(--road)", stroke: "var(--road-dark)" },
+    { fill: "var(--wood-light)", stroke: "var(--wood-dark)" },
+    { fill: "var(--water-light)", stroke: "var(--water-dark)" },
+  ];
+
+  /* Point du cercle a l'angle `deg` HORAIRE depuis le haut (0 = 12h). */
+  function pointRoue(deg, rayon) {
+    const rad = (deg * Math.PI) / 180;
+    return [rayon * Math.sin(rad), -rayon * Math.cos(rad)];
+  }
+
+  function secteurPath(i, nbSections, rayon) {
+    const secteur = 360 / nbSections;
+    const debut = i * secteur - secteur / 2;
+    const fin = i * secteur + secteur / 2;
+    const [x1, y1] = pointRoue(debut, rayon);
+    const [x2, y2] = pointRoue(fin, rayon);
+    const grandArc = secteur > 180 ? 1 : 0;
+    return `M 0 0 L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${rayon} ${rayon} 0 ${grandArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+  }
+
+  function mountWheel(container, exercise, api) {
+    const info = answerInfo(exercise);
+    const seed = hashString(exercise.id);
+    const sections = genererSectionsRoue({
+      options: exercise.variables?.options,
+      bonneReponse: info.raw,
+      seed,
+    });
+    const roue = creerRoue({ sections, seed });
+    const n = sections.length;
+    const rayon = 100;
+
+    const secteursMarkup = sections
+      .map((section, i) => {
+        const couleur = ROUE_COULEURS[i % ROUE_COULEURS.length];
+        const [lx, ly] = pointRoue(i * (360 / n), rayon * 0.62);
+        return `
+          <path class="roue-secteur" data-section="${i}" d="${secteurPath(i, n, rayon)}"
+                fill="${couleur.fill}" stroke="${couleur.stroke}" stroke-width="2"></path>
+          <text class="roue-label" data-section="${i}" x="${lx.toFixed(2)}" y="${ly.toFixed(2)}"
+                text-anchor="middle" dominant-baseline="central">${section.valeur}</text>`;
+      })
+      .join("");
+
+    container.innerHTML = `
+      <p class="mech-hint">Regle la force, lance la roue pour viser la bonne section, puis valide.</p>
+      <div class="mech-wheel">
+        <div class="roue-cadre">
+          <div class="roue-repere" aria-hidden="true"></div>
+          <svg class="roue-svg" viewBox="-110 -110 220 220" role="img" aria-label="Roue a tourner">
+            <g class="roue-plateau" data-plateau>
+              <circle cx="0" cy="0" r="${rayon + 4}" fill="var(--cream)" stroke="var(--wood-dark)" stroke-width="4"></circle>
+              ${secteursMarkup}
+              <circle cx="0" cy="0" r="14" fill="var(--wood)" stroke="var(--wood-dark)" stroke-width="3"></circle>
+            </g>
+          </svg>
+        </div>
+        <div class="roue-controls">
+          <label class="roue-force-label" for="roue-force">Force du lancer</label>
+          <input id="roue-force" class="roue-force" type="range" min="0" max="100" value="50" step="1" />
+          <button type="button" class="roue-spin btn-primary">Tourner</button>
+        </div>
+        <p class="roue-statut" aria-live="polite">Regle la force puis lance la roue.</p>
+      </div>
+    `;
+
+    const plateau = container.querySelector("[data-plateau]");
+    const forceInput = container.querySelector(".roue-force");
+    const spinBtn = container.querySelector(".roue-spin");
+    const statut = container.querySelector(".roue-statut");
+    const secteurNodes = [...container.querySelectorAll(".roue-secteur")];
+    const labelNodes = [...container.querySelectorAll(".roue-label")];
+    /* Centre (ancre) de chaque etiquette : sert de pivot a la contre-rotation. */
+    const labelCentres = sections.map((_, i) => pointRoue(i * (360 / n), rayon * 0.62));
+
+    const secteur = 360 / n;
+    let rotationVisuelle = 0; /* angle applique, cumulatif (pas de saut) */
+    let enRotation = false;
+    let animId = null;
+
+    /* La rotation est posee en ATTRIBUT SVG (rotate(angle) autour de 0,0 = le
+       centre du viewBox), et animee en JS image par image. On evite ainsi une
+       transition CSS qui promeut le plateau sur une couche GPU (rendu instable
+       a la capture, et inutile ici).
+
+       Seule la SECTION coloree doit tourner : chaque etiquette recoit une
+       contre-rotation de -rot autour de sa propre ancre, ce qui annule le tilt
+       herite du plateau (texte toujours a l'endroit) sans changer sa position
+       (le pivot est un point fixe de sa propre rotation). */
+    function appliquer(rot) {
+      plateau.setAttribute("transform", `rotate(${rot})`);
+      labelNodes.forEach((node, i) => {
+        const [lx, ly] = labelCentres[i];
+        node.setAttribute("transform", `rotate(${-rot} ${lx.toFixed(2)} ${ly.toFixed(2)})`);
+      });
+    }
+    appliquer(0);
+
+    function marquerSection(idx) {
+      secteurNodes.forEach((node, i) => node.classList.toggle("visee", i === idx));
+    }
+
+    function annoncerArret() {
+      const idx = roue.sectionCourante();
+      marquerSection(idx);
+      api.setValue(roue.valeur());
+      statut.textContent = `La roue pointe sur ${sections[idx].valeur}. Valide si c'est ton choix, ou relance.`;
+    }
+
+    /* Tween decelerant (ease-out cubique) vers `cible`, sur `duree` ms. */
+    function animerVers(cible, duree, apres) {
+      const depart = rotationVisuelle;
+      const delta = cible - depart;
+      const t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+      enRotation = true;
+      if (animId) cancelAnimationFrame(animId);
+      function frame(now) {
+        const t = duree <= 0 ? 1 : Math.min(1, (now - t0) / duree);
+        const eased = 1 - Math.pow(1 - t, 3); /* ralentissement progressif */
+        rotationVisuelle = depart + delta * eased;
+        appliquer(rotationVisuelle);
+        if (t < 1) {
+          animId = requestAnimationFrame(frame);
+        } else {
+          rotationVisuelle = cible;
+          appliquer(cible);
+          enRotation = false;
+          animId = null;
+          if (apres) apres();
+        }
+      }
+      animId = requestAnimationFrame(frame);
+    }
+
+    /* Lance la roue vers la cible visee, en avancant toujours (l'angle ne recule
+       jamais d'un coup) et en ajoutant 4 tours pour l'effet de rotation. */
+    function lancer(rotationCible) {
+      if (enRotation) return;
+      let cible = rotationCible;
+      while (cible > rotationVisuelle) cible -= 360;
+      while (cible <= rotationVisuelle - 360) cible += 360;
+      cible -= 360 * 4;
+      spinBtn.disabled = true;
+      statut.textContent = "La roue tourne...";
+      secteurNodes.forEach((node) => node.classList.remove("visee"));
+      animerVers(cible, 2400, () => {
+        spinBtn.disabled = false;
+        roue.arreter(rotationVisuelle);
+        annoncerArret();
+      });
+    }
+
+    spinBtn.addEventListener("click", () => {
+      const force = Number(forceInput.value) / 100;
+      lancer(roue.viser(force));
+    });
+
+    /* Glissement : l'eleve saisit la roue et la fait tourner directement, puis
+       relache ; on cale sur le centre le plus proche (meme repere fixe). */
+    let drag = null;
+    function angleSouris(event) {
+      const rect = plateau.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      return (Math.atan2(event.clientY - cy, event.clientX - cx) * 180) / Math.PI;
+    }
+    plateau.addEventListener("pointerdown", (event) => {
+      if (enRotation) return;
+      drag = { depart: angleSouris(event), base: rotationVisuelle };
+      plateau.setPointerCapture?.(event.pointerId);
+    });
+    plateau.addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      rotationVisuelle = drag.base + (angleSouris(event) - drag.depart);
+      appliquer(rotationVisuelle);
+    });
+    function finDrag() {
+      if (!drag) return;
+      drag = null;
+      const cale = Math.round(rotationVisuelle / secteur) * secteur;
+      animerVers(cale, 450, () => {
+        roue.arreter(cale);
+        annoncerArret();
+      });
+    }
+    plateau.addEventListener("pointerup", finDrag);
+    plateau.addEventListener("pointercancel", finDrag);
+
+    api.setValue(""); /* rien tant que la roue n'a pas ete lancee */
+    forceInput.focus();
+  }
+
   /* ----- Panier a remplir : denombrer en cliquant -------------- */
   function mountBasket(container, exercise, api) {
     const info = answerInfo(exercise);
@@ -890,6 +1216,7 @@
     panier: mountBasket,
     horloge: mountClock,
     ordre: mountOrder,
+    roue: mountWheel,
   };
 
   const api = {
@@ -911,6 +1238,10 @@
     shuffleMissingValues,
     creerPlacementOrdre,
     melangerOrdre,
+    genererSectionsRoue,
+    sectionSousRepere,
+    rotationDepuisForce,
+    creerRoue,
   };
 
   if (typeof window !== "undefined") {
