@@ -1786,6 +1786,132 @@ input {
   touch-action: none; /* le glissement pilote la rotation, pas le scroll */
 }
 
+/* ----- Balance a equilibrer ----- */
+.mech-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.balance-svg {
+  width: min(320px, 82vw);
+  max-width: 320px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(61, 44, 30, 0.2));
+}
+
+.balance-beam {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.balance-pivot {
+  fill: var(--wood-dark);
+}
+
+.balance-socle {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.balance-string {
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.balance-bowl {
+  fill: var(--water-light);
+  stroke: var(--water-dark);
+  stroke-width: 3;
+}
+
+.balance-plate-val {
+  font-family: var(--font-round);
+  font-size: 22px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+
+.balance-plate-cap {
+  font-family: var(--font-round);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.balance-chip-disc {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.balance-chip-val {
+  font-family: var(--font-round);
+  font-size: 12px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+
+.balance-chip {
+  cursor: pointer;
+}
+
+.balance-chip:hover .balance-chip-disc {
+  filter: brightness(1.08);
+}
+
+.balance-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.balance-poids {
+  min-width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  font-family: var(--font-round);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  border: 3px solid var(--gold-dark);
+  box-shadow: var(--shadow-chip);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.balance-poids:hover {
+  transform: translateY(-2px);
+}
+
+.balance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+
+.balance-statut {
+  font-family: var(--font-round);
+  font-weight: 700;
+  color: var(--ink-soft);
+  min-height: 1.4em;
+  text-align: center;
+}
+
+.balance-statut.equilibre {
+  color: var(--success);
+}
+
 /* ----- Ligne numerique ----- */
 .mech-line {
   padding: 12px 8px 8px;

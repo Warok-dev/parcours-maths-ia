@@ -15,6 +15,9 @@ const {
   sectionSousRepere,
   rotationDepuisForce,
   creerRoue,
+  creerBalance,
+  angleBascule,
+  poidsDisponibles,
 } = require("./mechanics.js");
 
 let failures = 0;
@@ -362,6 +365,89 @@ function qcmExercise(options, valeur) {
   roue.arreter(-idxFaux * secteur);
   check(roue.valeur() === sections[idxFaux].valeur, "arret sur une section fausse : valeur = ce choix (faux)");
   check(roue.estCorrecte() === false, "arret sur une section fausse : evalue incorrect");
+}
+
+/* --- 23. Routage : les patterns de decomposition additive vont a la balance --- */
+function additionExercise(pattern_name, family, valeur, id = "X-000001") {
+  return {
+    id: `${pattern_name}-${id}`,
+    pattern: { pattern_name, pattern_family: family },
+    variables: {},
+    reponse_attendue: { valeur, format: "nombre_entier" },
+  };
+}
+{
+  const add2 = additionExercise("addition_2chiffres_sans_retenue", "calcul_direct", 57);
+  check(compatibleMechanics(add2).includes("balance"), "une addition 2 chiffres peut aller a la balance");
+  check(compatibleMechanics(add2).includes("planches"), "la balance s'ajoute sans retirer les planches");
+
+  const partieTout = additionExercise("partie_tout_addition_non_narratif", "exercice_a_trous_serie", 10);
+  check(compatibleMechanics(partieTout).includes("balance"), "un partie-tout additif peut aller a la balance");
+
+  /* Une multiplication (calcul_direct mais PAS additive) n'y va pas. */
+  const mult = additionExercise("multiplication_par_10", "calcul_direct", 70);
+  check(!compatibleMechanics(mult).includes("balance"), "une multiplication n'utilise pas la balance (pas une decomposition additive)");
+
+  /* Cible hors plage (trop grande a batir) : pas de balance. */
+  const enorme = additionExercise("addition_2chiffres_sans_retenue", "calcul_direct", 240);
+  check(!compatibleMechanics(enorme).includes("balance"), "une cible > 100 n'est pas proposee a la balance");
+
+  /* Cible non entiere / <= 0 : pas de balance. */
+  const zero = additionExercise("addition_pas_a_pas_sans_retenue", "calcul_direct", 0);
+  check(!compatibleMechanics(zero).includes("balance"), "une cible nulle n'est pas proposee a la balance");
+}
+
+/* --- 24. Palette de poids : de quoi batir la cible, deterministe --- */
+{
+  check(poidsDisponibles(9).join(",") === "1,2,5,10", "petite cible : poids de base");
+  check(poidsDisponibles(30).includes(20), "cible >= 20 : le poids 20 apparait");
+  check(poidsDisponibles(80).includes(50), "cible >= 50 : le poids 50 apparait");
+  check(poidsDisponibles(9).join(",") === poidsDisponibles(9).join(","), "palette deterministe");
+}
+
+/* --- 25. Somme des poids, ecart et detection de l'equilibre --- */
+{
+  const b = creerBalance({ cible: 12, poids: [1, 2, 5, 10] });
+  check(b.somme() === 0 && b.valeur() === "", "depart : plateau vide, aucune valeur soumise");
+  check(!b.estEquilibre(), "depart : pas equilibre (0 != 12)");
+
+  b.placer(10);
+  b.placer(1);
+  check(b.somme() === 11, "somme des poids poses (10 + 1 = 11)");
+  check(b.ecart() === -1, "ecart negatif : plateau trop leger");
+  check(!b.estEquilibre() && b.valeur() === "11", "trop leger : pas equilibre, valeur = somme partielle");
+
+  const idDeux = b.placer(2);
+  check(b.somme() === 13 && b.ecart() === 1, "un poids de trop : ecart positif (13 - 12)");
+  check(!b.estEquilibre(), "trop lourd : pas equilibre");
+
+  check(b.retirer(idDeux) === true, "on retire le poids en trop");
+  b.placer(1);
+  check(b.somme() === 12 && b.estEquilibre(), "somme = cible : equilibre atteint");
+  check(b.valeur() === "12", "a l'equilibre, la valeur soumise egale la cible");
+}
+
+/* --- 26. Poser plusieurs fois la meme valeur, retrait cible --- */
+{
+  const b = creerBalance({ cible: 3, poids: [1, 2, 5] });
+  const a = b.placer(1);
+  const c = b.placer(1);
+  b.placer(1);
+  check(b.somme() === 3 && b.estEquilibre(), "trois poids de 1 equilibrent une cible de 3");
+  check(b.places().length === 3, "les instances identiques coexistent");
+  check(b.retirer(c) === true && b.somme() === 2, "on retire une instance precise par son id");
+  check(b.retirer(999) === false, "retirer un id inexistant ne change rien");
+  check(b.places().some((p) => p.id === a), "les autres instances restent");
+}
+
+/* --- 27. Basculement : sens et saturation de l'angle (fonction pure) --- */
+{
+  check(angleBascule(0) === 0, "ecart nul : fleau horizontal (0 degre)");
+  check(angleBascule(5) > 0, "plateau eleve plus lourd : bascule positive");
+  check(angleBascule(-5) < 0, "plateau eleve plus leger : bascule negative");
+  check(Math.abs(angleBascule(5) + angleBascule(-5)) < 1e-9, "bascule symetrique autour de 0");
+  check(Math.abs(angleBascule(1000)) <= 16 + 1e-9, "angle sature (jamais au-dela du maximum)");
+  check(angleBascule(50) > angleBascule(5), "plus l'ecart grandit, plus ca penche (monotone)");
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);

@@ -10,6 +10,7 @@
   const BASKET_MAX_COUNT = 12;
   const LINE_MAX_VALUE = 40;
   const LOCK_MAX_DIGITS = 3;
+  const BALANCE_MAX_CIBLE = 100;
 
   function hashString(text) {
     let hash = 0;
@@ -65,7 +66,7 @@
      Fallback clavier pour les formats non couverts (expressions).
      Deterministe par exercice (hash id + concept) mais varie d'un
      exercice et d'un concept a l'autre. */
-  function compatibleMechanics(exercise) {
+  function baseMechanics(exercise) {
     const family = exercise.pattern?.pattern_family;
     const info = answerInfo(exercise);
 
@@ -119,6 +120,38 @@
       return digits <= LOCK_MAX_DIGITS ? ["cadenas"] : ["clavier"];
     }
     return ["clavier"];
+  }
+
+  /* Patterns de DECOMPOSITION ADDITIVE du catalogue : une cible est atteinte
+     par une somme d'elements. Ils se pretent a la balance a equilibrer.
+     - addition_2chiffres_sans_retenue, addition_pas_a_pas_sans_retenue
+       (famille calcul_direct) : la reponse est la somme a construire ;
+     - partie_tout_addition_non_narratif (famille exercice_a_trous_serie) :
+       le "tout" est la reponse, decompose en poids sur le plateau. */
+  const ADDITIF_DECOMPOSITION = new Set([
+    "addition_2chiffres_sans_retenue",
+    "addition_pas_a_pas_sans_retenue",
+    "partie_tout_addition_non_narratif",
+  ]);
+
+  /* La balance ne convient que si la cible est un entier positif RAISONNABLE
+     a batir avec des poids (sinon empiler 90 jetons serait fastidieux). */
+  function peutEquilibrer(exercise) {
+    const info = answerInfo(exercise);
+    if (!info.isInteger || info.numeric <= 0 || info.numeric > BALANCE_MAX_CIBLE) {
+      return false;
+    }
+    return ADDITIF_DECOMPOSITION.has(exercise.pattern?.pattern_name || "");
+  }
+
+  /* La balance s'AJOUTE aux mecaniques compatibles (rotation par exercice),
+     sans jamais retirer celles deja proposees par la regle d'assignation. */
+  function compatibleMechanics(exercise) {
+    const options = baseMechanics(exercise);
+    if (peutEquilibrer(exercise) && !options.includes("balance")) {
+      options.push("balance");
+    }
+    return options;
   }
 
   function choose(exercise, conceptIndex) {
@@ -1154,6 +1187,250 @@
     forceInput.focus();
   }
 
+  /* ----- Balance a equilibrer ----------------------------------
+     Un plateau FIXE porte la valeur cible (la reponse attendue). L'eleve pose
+     des poids un a un sur le plateau VIDE jusqu'a ce que leur somme egale la
+     cible : la balance penche du cote le plus lourd et revient a l'horizontale
+     a l'equilibre. Aucune validation automatique : l'eleve valide lui-meme.
+
+     Le COEUR (somme des poids, ecart, equilibre, valeur soumise) et la
+     geometrie du basculement sont purs et sans DOM, donc testables en Node. */
+
+  /* Palette de poids adaptee a la cible : de quoi batir n'importe quel entier
+     jusqu'a la cible sans empilement fastidieux. Deterministe. */
+  function poidsDisponibles(cible) {
+    const base = [1, 2, 5, 10];
+    if (cible >= 20) base.push(20);
+    if (cible >= 50) base.push(50);
+    return base;
+  }
+
+  /* Angle de basculement (degres) en fonction de l'ecart = somme - cible.
+     >0 : le plateau de l'eleve est plus lourd (il descend). Sature en douceur
+     pour rester lisible meme tres desequilibre. Fonction pure. */
+  const BALANCE_ANGLE_MAX = 16;
+  function angleBascule(ecart) {
+    return BALANCE_ANGLE_MAX * Math.tanh(Number(ecart) / 8);
+  }
+
+  /* Etat de la balance (sans DOM). Chaque poids pose est une instance (on peut
+     poser plusieurs fois la meme valeur) reperee par un id stable. */
+  function creerBalance({ cible, poids }) {
+    const places = []; /* [{id, valeur}] sur le plateau de l'eleve */
+    let compteur = 0;
+
+    const somme = () => places.reduce((total, p) => total + p.valeur, 0);
+    return {
+      cible,
+      poids: () => poids.slice(),
+      placer(valeur) {
+        const id = compteur;
+        compteur += 1;
+        places.push({ id, valeur: Number(valeur) });
+        return id;
+      },
+      retirer(id) {
+        const i = places.findIndex((p) => p.id === id);
+        if (i === -1) return false;
+        places.splice(i, 1);
+        return true;
+      },
+      places: () => places.map((p) => ({ ...p })),
+      somme,
+      ecart: () => somme() - cible, /* >0 : plateau eleve plus lourd */
+      estEquilibre: () => somme() === cible,
+      /* Valeur soumise = la somme batie (vide tant que rien n'est pose, pour ne
+         pas soumettre "0" par inadvertance). */
+      valeur: () => (places.length ? String(somme()) : ""),
+    };
+  }
+
+  function mountBalance(container, exercise, api) {
+    const info = answerInfo(exercise);
+    const cible = info.numeric;
+    const poids = poidsDisponibles(cible);
+    const balance = creerBalance({ cible, poids });
+
+    /* Geometrie (unites du viewBox). Origine = pivot du fleau. */
+    const L = 96; /* demi-longueur du fleau */
+    const DROP = 30; /* longueur des suspentes (fleau -> plateau) */
+
+    container.innerHTML = `
+      <p class="mech-hint">Pose des poids sur le plateau vide jusqu'a egaler ${cible}, puis valide.</p>
+      <div class="mech-balance">
+        <svg class="balance-svg" viewBox="-140 -96 280 210" role="img" aria-label="Balance a equilibrer">
+          <line data-string="left" class="balance-string" x1="0" y1="0" x2="0" y2="0"></line>
+          <line data-string="right" class="balance-string" x1="0" y1="0" x2="0" y2="0"></line>
+          <g data-fleau class="balance-fleau">
+            <rect x="${-L}" y="-4" width="${2 * L}" height="8" rx="4" class="balance-beam"></rect>
+          </g>
+          <polygon points="0,2 -22,74 22,74" class="balance-pivot"></polygon>
+          <rect x="-40" y="72" width="80" height="10" rx="5" class="balance-socle"></rect>
+          <g data-plate="left" class="balance-plate">
+            <ellipse cx="0" cy="0" rx="46" ry="9" class="balance-bowl"></ellipse>
+            <text class="balance-plate-val" x="0" y="-16" text-anchor="middle">${cible}</text>
+            <text class="balance-plate-cap" x="0" y="22" text-anchor="middle">cible</text>
+          </g>
+          <g data-plate="right" class="balance-plate">
+            <ellipse cx="0" cy="0" rx="46" ry="9" class="balance-bowl"></ellipse>
+            <g data-chips></g>
+            <text class="balance-plate-val" data-somme x="0" y="22" text-anchor="middle">0</text>
+          </g>
+        </svg>
+        <div class="balance-pool" role="group" aria-label="Poids disponibles">
+          ${poids
+            .map(
+              (valeur) =>
+                `<button type="button" class="balance-poids" data-poids="${valeur}" aria-label="Ajouter un poids de ${valeur}">${valeur}</button>`,
+            )
+            .join("")}
+        </div>
+        <div class="balance-actions">
+          <button type="button" class="balance-remove btn-help">Retirer le dernier</button>
+          <span class="balance-statut" aria-live="polite"></span>
+        </div>
+      </div>
+    `;
+
+    const fleau = container.querySelector("[data-fleau]");
+    const plateLeft = container.querySelector('[data-plate="left"]');
+    const plateRight = container.querySelector('[data-plate="right"]');
+    const stringLeft = container.querySelector('[data-string="left"]');
+    const stringRight = container.querySelector('[data-string="right"]');
+    const chipsGroup = container.querySelector("[data-chips]");
+    const sommeNode = container.querySelector("[data-somme]");
+    const statut = container.querySelector(".balance-statut");
+    const removeBtn = container.querySelector(".balance-remove");
+    const poolNodes = [...container.querySelectorAll(".balance-poids")];
+
+    /* Positionne fleau, suspentes et plateaux pour un angle donne. Rotation en
+       ATTRIBUT SVG (pivot 0,0) + positions calculees en JS : aucune transition
+       CSS (rendu stable a la capture, comme la roue). Les plateaux restent
+       horizontaux (ils "pendent"), seul le fleau s'incline. */
+    function appliquer(angleDeg) {
+      fleau.setAttribute("transform", `rotate(${angleDeg})`);
+      const rad = (angleDeg * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const bouts = {
+        left: { x: -L * cos, y: -L * sin },
+        right: { x: L * cos, y: L * sin },
+      };
+      [
+        [stringLeft, plateLeft, bouts.left],
+        [stringRight, plateRight, bouts.right],
+      ].forEach(([corde, plate, bout]) => {
+        corde.setAttribute("x1", bout.x.toFixed(2));
+        corde.setAttribute("y1", bout.y.toFixed(2));
+        corde.setAttribute("x2", bout.x.toFixed(2));
+        corde.setAttribute("y2", (bout.y + DROP).toFixed(2));
+        plate.setAttribute("transform", `translate(${bout.x.toFixed(2)} ${(bout.y + DROP).toFixed(2)})`);
+      });
+    }
+
+    /* Animation en temps reel : l'angle affiche glisse vers l'angle cible a
+       chaque frame (requestAnimationFrame), tant que l'ecart n'est pas resorbe. */
+    let angleAffiche = 0;
+    let angleCible = 0;
+    let raf = null;
+    function boucle() {
+      const diff = angleCible - angleAffiche;
+      if (Math.abs(diff) < 0.05) {
+        angleAffiche = angleCible;
+        appliquer(angleAffiche);
+        raf = null;
+        return;
+      }
+      angleAffiche += diff * 0.18;
+      appliquer(angleAffiche);
+      raf = requestAnimationFrame(boucle);
+    }
+    function viserAngle(a) {
+      angleCible = a;
+      if (raf === null) raf = requestAnimationFrame(boucle);
+    }
+
+    /* Rendu des jetons poses sur le plateau de l'eleve (une puce par poids). */
+    function renderChips() {
+      const items = balance.places();
+      const parLigne = 4;
+      const pas = 22;
+      chipsGroup.innerHTML = items
+        .map((p, i) => {
+          const col = i % parLigne;
+          const ligne = Math.floor(i / parLigne);
+          const nb = Math.min(parLigne, items.length - ligne * parLigne);
+          const x = (col - (nb - 1) / 2) * pas;
+          const y = -10 - ligne * pas;
+          return `<g class="balance-chip" data-id="${p.id}" transform="translate(${x} ${y})" role="button" tabindex="0" aria-label="Retirer le poids ${p.valeur}">
+            <circle r="11" class="balance-chip-disc"></circle>
+            <text class="balance-chip-val" text-anchor="middle" dominant-baseline="central">${p.valeur}</text>
+          </g>`;
+        })
+        .join("");
+      chipsGroup.querySelectorAll(".balance-chip").forEach((node) => {
+        const id = Number(node.dataset.id);
+        node.addEventListener("click", () => {
+          balance.retirer(id);
+          onChange();
+        });
+        node.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            balance.retirer(id);
+            onChange();
+          }
+        });
+      });
+    }
+
+    function majStatut() {
+      const somme = balance.somme();
+      sommeNode.textContent = String(somme);
+      if (balance.places().length === 0) {
+        statut.textContent = `Plateau vide. Cible : ${cible}.`;
+      } else if (balance.estEquilibre()) {
+        statut.textContent = `Equilibre ! ${somme} = ${cible}. Tu peux valider.`;
+      } else if (somme < cible) {
+        statut.textContent = `Plateau : ${somme}. Trop leger, il manque ${cible - somme}.`;
+      } else {
+        statut.textContent = `Plateau : ${somme}. Trop lourd de ${somme - cible}.`;
+      }
+      statut.classList.toggle("equilibre", balance.estEquilibre());
+      removeBtn.disabled = balance.places().length === 0;
+    }
+
+    function onChange() {
+      renderChips();
+      majStatut();
+      api.setValue(balance.valeur());
+      viserAngle(angleBascule(balance.ecart()));
+    }
+
+    poolNodes.forEach((node) => {
+      node.addEventListener("click", () => {
+        balance.placer(Number(node.dataset.poids));
+        onChange();
+      });
+    });
+    removeBtn.addEventListener("click", () => {
+      const items = balance.places();
+      if (items.length) {
+        balance.retirer(items[items.length - 1].id);
+        onChange();
+      }
+    });
+
+    /* Depart : plateau eleve vide (somme 0) => tres plus leger, penche du cote
+       fixe (cible), donc angle negatif. On l'affiche directement. */
+    appliquer(0);
+    onChange();
+    /* Positionne d'emblee a l'inclinaison de depart, sans partir de 0. */
+    angleAffiche = angleBascule(balance.ecart());
+    appliquer(angleAffiche);
+    poolNodes[0]?.focus();
+  }
+
   /* ----- Panier a remplir : denombrer en cliquant -------------- */
   function mountBasket(container, exercise, api) {
     const info = answerInfo(exercise);
@@ -1217,6 +1494,7 @@
     horloge: mountClock,
     ordre: mountOrder,
     roue: mountWheel,
+    balance: mountBalance,
   };
 
   const api = {
@@ -1242,6 +1520,9 @@
     sectionSousRepere,
     rotationDepuisForce,
     creerRoue,
+    creerBalance,
+    angleBascule,
+    poidsDisponibles,
   };
 
   if (typeof window !== "undefined") {
