@@ -1390,7 +1390,47 @@ function updateMinimapPlayer() {
   }
 }
 
+/* ============================================================
+   VARIANTE VISUELLE PAR NIVEAU (apparence uniquement)
+   Les grands (CE5/CE6) recoivent une declinaison un peu plus sobre du meme
+   univers : palette moins saturee et angles moins arrondis. C'est un simple
+   selecteur applique au montage de la scene, exactement comme la teinte
+   jour/heure -- aucune incidence sur la mecanique ni la logique de jeu.
+   CE1 a CE4 gardent leur apparence d'origine, inchangee.
+   ============================================================ */
+const MATURE_LEVELS = new Set(["CE5", "CE6"]);
+const MATURE_RADIUS_FACTOR = 0.5; /* angles deux fois moins arrondis */
+
+function varianteMature() {
+  return MATURE_LEVELS.has(levelLabel());
+}
+
+/* Pose (ou retire) l'attribut qui declenche la palette sobre en CSS. Porte par
+   <body> pour que la declinaison couvre aussi les popups (exercices, menus),
+   qui heritent des memes variables. */
+function applyVisualVariant() {
+  if (varianteMature()) {
+    document.body.setAttribute("data-visual", "mature");
+  } else {
+    document.body.removeAttribute("data-visual");
+  }
+}
+
+/* Reduit les rayons de courbure des seuls <rect> (coins arrondis), sans
+   toucher aux <ellipse>/<circle> qui, eux, utilisent rx/ry comme rayons de
+   forme (ombres, cailloux, tetes...). Ajustement des formes existantes, pas un
+   nouveau design. Fonction pure. */
+function durcirAnglesRects(markup) {
+  return markup.replace(/<rect\b[^>]*>/g, (tag) =>
+    tag.replace(/\b(rx|ry)="([\d.]+)"/g, (_match, cle, valeur) => {
+      const reduit = parseFloat(valeur) * MATURE_RADIUS_FACTOR;
+      return `${cle}="${Number.isInteger(reduit) ? reduit : reduit.toFixed(1)}"`;
+    }),
+  );
+}
+
 function renderScene() {
+  applyVisualVariant();
   if (!state.session) {
     mapElement.innerHTML = "";
     renderMinimap();
@@ -1407,7 +1447,8 @@ function renderScene() {
     state.sceneTint = window.ParcoursAmbiance.tinteMaintenant();
   }
   refreshCollectibles();
-  mapElement.innerHTML = sceneMarkup(state.scene);
+  const markup = sceneMarkup(state.scene);
+  mapElement.innerHTML = varianteMature() ? durcirAnglesRects(markup) : markup;
   invalidateDynamicsCache();
   renderMinimap();
   updateSceneDynamics();

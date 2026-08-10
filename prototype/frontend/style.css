@@ -51,6 +51,47 @@
   --shadow-chip: 0 4px 14px rgba(61, 44, 30, 0.18);
 }
 
+/* ============================================================
+   VARIANTE VISUELLE "MATURE" (CE5/CE6)
+   Meme univers, teintes identiques en famille mais MOINS saturees et un peu
+   plus sobres, pour des eleves de 10-11 ans. On ne redefinit QUE les variables
+   de palette : tout le reste (scene, personnage, mecaniques) suit par cascade.
+   Portee par <body data-visual="mature">, pose au montage selon le niveau.
+   CE1-CE4 n'ont pas cet attribut et gardent la palette d'origine.
+   Les signaux fonctionnels (--success, --danger, --ink) restent inchanges
+   pour ne pas affaiblir la lisibilite des retours.
+   ============================================================ */
+body[data-visual="mature"] {
+  --grass: #86a874;
+  --road: #cc7e5a;
+  --water: #8fb6cc;
+  --cream: #f2ece1;
+  --gold: #e0bd7a;
+  --wood: #8a6b52;
+
+  --grass-light: #9dbb8d;
+  --grass-dark: #64874f;
+  --road-light: #d99b7d;
+  --road-dark: #9e5b3c;
+  --water-light: #b9d1dd;
+  --water-dark: #5f93af;
+  --cream-dark: #e6dcca;
+  --gold-dark: #b6974e;
+  --wood-light: #a08268;
+  --wood-dark: #5c4636;
+
+  --stone: #b3b9c0;
+  --stone-dark: #868f98;
+  --stone-deep: #5b6770;
+
+  --player-bleu: #5c7ba8;
+  --player-bleu-dark: #435f82;
+  --skin: #eecdb1;
+  --hair: #6b4f39;
+  --npc-body: #9f6b77;
+  --npc-body-dark: #7b5560;
+}
+
 * {
   box-sizing: border-box;
 }
