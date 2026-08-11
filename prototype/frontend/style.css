@@ -3765,7 +3765,8 @@ input {
 .chasse-cible-label {
   font-size: 1rem;
   font-weight: 600;
-  color: rgba(251, 243, 231, 0.85);
+  color: var(--cream);
+  opacity: 0.85;
 }
 
 .chasse-cible-valeur {
@@ -3806,7 +3807,7 @@ input {
   transform-origin: left center;
   transform: scaleX(1);
   border-radius: 999px;
-  background: linear-gradient(90deg, #7fd18b, #f0b84b 70%, #ef8f4a);
+  background: linear-gradient(90deg, var(--grass-light), var(--gold) 70%, var(--road));
 }
 
 .chasse-aire {
@@ -3829,8 +3830,8 @@ input {
 }
 
 .chasse-nombre-bulle {
-  fill: #fbf3e7;
-  stroke: #8b5834;
+  fill: var(--cream);
+  stroke: var(--wood);
   stroke-width: 3;
   transition: fill 0.12s ease;
 }
@@ -3843,7 +3844,7 @@ input {
   font-family: "Fredoka", "Segoe UI", sans-serif;
   font-size: 1.9rem;
   font-weight: 700;
-  fill: #3d2c1e;
+  fill: var(--ink);
   pointer-events: none;
   user-select: none;
 }

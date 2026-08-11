@@ -842,6 +842,107 @@ function memoryFixe() {
   );
 }
 
+/* --- 11. Eligibilite par niveau : choisir() ne tire que parmi les jeux
+       eligibles pour le niveau (P1) --- */
+{
+  const reg = minigames.creerRegistre();
+  /* petit : tous niveaux. grand : reserve aux CE3+ (rang >= 3). */
+  const petit = { id: "petit", nom: "Petit", monter() {} };
+  const grand = { id: "grand", nom: "Grand", monter() {}, estEligible: (n) => minigames.niveauRang(n) >= 3 };
+  reg.enregistrer(petit);
+  reg.enregistrer(grand);
+
+  check(reg.eligibles("CE1").length === 1, "CE1 : un seul jeu eligible (le reserve est ecarte)");
+  check(reg.eligibles("CE1")[0].id === "petit", "CE1 : c'est bien le jeu tous-niveaux");
+  check(reg.eligibles("CE6").length === 2, "CE6 : les deux jeux sont eligibles");
+
+  /* Au CE1, meme un tirage haut (0.99) ne peut pas donner le jeu reserve :
+     le pool ne contient que les eligibles. */
+  let vuGrandEnCE1 = false;
+  for (const t of [0, 0.25, 0.5, 0.75, 0.99]) {
+    if (reg.choisir(() => t, "CE1").id === "grand") vuGrandEnCE1 = true;
+  }
+  check(!vuGrandEnCE1, "CE1 : le jeu reserve aux grands ne sort jamais");
+  check(reg.choisir(() => 0.99, "CE6").id === "grand", "CE6 : le jeu reserve peut sortir");
+
+  /* Un jeu SANS estEligible passe toujours (compatibilite), y compris niveau
+     inconnu ; un jeu AVEC estEligible tranche lui-meme (ici grand: rang>=3, donc
+     ecarte pour undefined). C'est cette regle qui garde les 4 vrais mini-jeux
+     (sans estEligible) proposables partout. */
+  check(reg.eligibles(undefined).some((j) => j.id === "petit"), "niveau inconnu : le jeu sans estEligible passe toujours");
+  check(!reg.eligibles(undefined).some((j) => j.id === "grand"), "niveau inconnu : le jeu a estEligible suit son propre verdict");
+}
+
+/* --- 12. Les 4 vrais mini-jeux restent eligibles a TOUS les niveaux : aucun
+       n'est retire (le memory s'adapte au lieu d'etre exclu) --- */
+{
+  for (const niveau of ["CE1", "CE2", "CE3", "CE6"]) {
+    check(
+      minigames.liste().length === 4 && minigames.liste().every((j) => typeof j.estEligible !== "function" || j.estEligible(niveau)),
+      `${niveau} : les 4 mini-jeux restent proposables`,
+    );
+  }
+}
+
+/* --- 13. Memory : contenu ADDITION pour CE1/CE2, MULTIPLICATION pour CE3+ --- */
+{
+  const seed = () => {
+    let x = 42;
+    return () => ((x = (x * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  };
+
+  const ce1 = minigames.genererPaires(seed(), minigames.reglagesMemory("CE1"));
+  const calculsCE1 = ce1.cartes.filter((c) => c.face === "calcul").map((c) => c.texte);
+  check(calculsCE1.every((t) => t.includes("+")), "CE1 : le memory n'utilise QUE des additions");
+  check(calculsCE1.every((t) => !t.includes("×")), "CE1 : aucune multiplication au memory");
+  /* CE1 sans retenue : toutes les sommes <= 10. */
+  check(
+    ce1.cartes.filter((c) => c.face === "resultat").every((c) => c.valeur <= 10),
+    "CE1 : sommes bornees a 10 (sans retenue)",
+  );
+
+  const ce2 = minigames.genererPaires(seed(), minigames.reglagesMemory("CE2"));
+  check(
+    ce2.cartes.filter((c) => c.face === "calcul").every((t) => t.texte.includes("+")),
+    "CE2 : le memory utilise des additions",
+  );
+  check(
+    ce2.cartes.filter((c) => c.face === "resultat").every((c) => c.valeur <= 18),
+    "CE2 : sommes bornees a 18",
+  );
+
+  const ce3 = minigames.genererPaires(seed(), minigames.reglagesMemory("CE3"));
+  check(
+    ce3.cartes.filter((c) => c.face === "calcul").every((t) => t.texte.includes("×")),
+    "CE3 : le memory revient aux multiplications (tables au programme)",
+  );
+
+  /* Sans niveau : comportement d'origine (multiplication). */
+  const defaut = minigames.genererPaires(seed());
+  check(
+    defaut.cartes.filter((c) => c.face === "calcul").every((t) => t.texte.includes("×")),
+    "sans niveau : multiplication par defaut (compatibilite)",
+  );
+}
+
+/* --- 14. Chasse : moins d'elements et plus de temps pour les petits (P4),
+       plage de nombres coherente avec l'age (P1) --- */
+{
+  const ce1 = minigames.reglagesChasse("CE1");
+  const ce2 = minigames.reglagesChasse("CE2");
+  check(ce1.NB_NOMBRES < minigames.CHASSE.NB_NOMBRES, "CE1 : moins de nombres a surveiller que par defaut");
+  check(ce1.DUREE_MS > minigames.CHASSE.DUREE_MS, "CE1 : plus de temps que par defaut");
+  check(ce1.VALEUR_MAX <= 10, "CE1 : plage de nombres courte (<= 10)");
+  check(ce2.VALEUR_MAX <= 20 && ce2.NB_NOMBRES < minigames.CHASSE.NB_NOMBRES, "CE2 : plage et nombre intermediaires");
+  check(Object.keys(minigames.reglagesChasse("CE5")).length === 0, "CE5 : reglages d'origine (aucune surcharge)");
+
+  /* La config reellement generee respecte la plage bornee au CE1. */
+  const config = minigames.genererConfig(Math.random, minigames.reglagesChasse("CE1"));
+  check(config.nombres.length === ce1.NB_NOMBRES, "CE1 : la config genere bien 6 nombres");
+  check(config.nombres.every((n) => n.valeur >= 1 && n.valeur <= 10), "CE1 : toutes les valeurs generees sont dans 1..10");
+  check(config.dureeMs === ce1.DUREE_MS, "CE1 : la duree suit le reglage (22 s)");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);

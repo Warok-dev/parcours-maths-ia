@@ -40,6 +40,20 @@
     return typeof random === "function" ? random() : Math.random();
   }
 
+  /* Rang numerique du niveau scolaire (CE1 -> 1 ... CE6 -> 6). 0 si inconnu :
+     dans ce cas on garde le comportement par defaut (aucune restriction, plage
+     et contenu d'origine), pour ne pas casser les appels sans niveau. */
+  function niveauRang(niveau) {
+    const m = String(niveau || "").match(/(\d+)/);
+    return m ? Number(m[1]) : 0;
+  }
+
+  /* Les plus jeunes (CE1/CE2) recoivent des consignes plus courtes. */
+  function estPetitNiveau(niveau) {
+    const rang = niveauRang(niveau);
+    return rang === 1 || rang === 2;
+  }
+
   /* ---------- Declencheur : la regle de decision (testable) ---------- */
   function creerDeclencheur({ probabilite = PROBABILITE_DEFAUT, espacementMin = ESPACEMENT_MIN_CONCEPTS } = {}) {
     const state = {
@@ -81,13 +95,22 @@
       },
       liste: () => jeux.slice(),
       estVide: () => jeux.length === 0,
-      /* Tire un mini-jeu au hasard parmi les disponibles. */
-      choisir(random) {
-        if (!jeux.length) {
+      /* Mini-jeux ELIGIBLES pour un niveau : un jeu sans `estEligible` l'est
+         toujours (compatibilite) ; sinon on respecte son verdict. Un niveau
+         inconnu (undefined) laisse tout passer. */
+      eligibles(niveau) {
+        return jeux.filter((jeu) => typeof jeu.estEligible !== "function" || jeu.estEligible(niveau));
+      },
+      /* Tire un mini-jeu au hasard PARMI LES ELIGIBLES pour ce niveau (et non
+         plus uniformement sur les 4) : un CE1 ne peut pas tomber sur un jeu
+         reserve aux plus grands. Renvoie null si aucun n'est eligible. */
+      choisir(random, niveau) {
+        const pool = this.eligibles(niveau);
+        if (!pool.length) {
           return null;
         }
-        const index = Math.min(jeux.length - 1, Math.floor(tirage(random) * jeux.length));
-        return jeux[index];
+        const index = Math.min(pool.length - 1, Math.floor(tirage(random) * pool.length));
+        return pool[index];
       },
     };
   }
@@ -100,6 +123,7 @@
   function creerOrchestrateur({ declencheur, registre, adapter, random } = {}) {
     let phase = "repos"; /* repos | proposition | enJeu */
     let demonterActif = null;
+    let niveauActif = ""; /* niveau scolaire de la session, transmis au mini-jeu */
 
     function auRepos() {
       phase = "repos";
@@ -139,21 +163,23 @@
       phase = "enJeu";
       adapter.cacherProposition();
       /* La carte est deja en pause depuis l'affichage de la proposition ;
-         on bascule simplement vers l'ecran du mini-jeu. */
-      demonterActif = adapter.monterMinigame(minigame, { terminer }) || null;
+         on bascule simplement vers l'ecran du mini-jeu. Le niveau scolaire est
+         transmis pour que le jeu adapte contenu et consignes a l'age. */
+      demonterActif = adapter.monterMinigame(minigame, { terminer, niveau: niveauActif }) || null;
     }
 
     return {
-      /* Appele par la carte apres un concept debloque. Retourne true si une
-         proposition a ete affichee. */
-      conceptDebloque() {
+      /* Appele par la carte apres un concept debloque, avec le niveau scolaire
+         de la session. Retourne true si une proposition a ete affichee. */
+      conceptDebloque(niveau) {
         if (phase !== "repos" || registre.estVide()) {
           return false;
         }
         if (!declencheur.conceptDebloque(random)) {
           return false;
         }
-        const minigame = registre.choisir(random);
+        niveauActif = niveau || "";
+        const minigame = registre.choisir(random, niveauActif);
         if (!minigame) {
           return false;
         }
@@ -238,6 +264,22 @@
     BONUS_BASE: 10, /* petit bonus de participation... */
     BONUS_PAR_TROUVE: 10, /* ...plus un bonus par nombre attrape */
   };
+
+  /* Reglages de la chasse selon l'age (P1 + P4). Les petits (CE1/CE2) ont
+     MOINS de nombres a surveiller, PLUS de temps, et une plage de valeurs plus
+     courte (coherente avec ce qu'ils manipulent). Les niveaux superieurs (ou un
+     niveau inconnu) gardent le reglage d'origine de CHASSE. Renvoie seulement
+     les cles a surcharger (genererConfig et la duree lisent le reste de CHASSE). */
+  function reglagesChasse(niveau) {
+    const rang = niveauRang(niveau);
+    if (rang === 1) {
+      return { NB_NOMBRES: 6, DUREE_MS: 22000, VALEUR_MIN: 1, VALEUR_MAX: 10 };
+    }
+    if (rang === 2) {
+      return { NB_NOMBRES: 7, DUREE_MS: 20000, VALEUR_MIN: 1, VALEUR_MAX: 20 };
+    }
+    return {};
+  }
 
   /* Construit une partie initiale (nombres + cible) sans aucun DOM.
      La cible est TOUJOURS presente parmi les nombres affiches, en au moins
@@ -381,8 +423,8 @@
   const MINIGAME_CHASSE = {
     id: "chasse-nombres",
     nom: "la chasse aux nombres",
-    monter(zone, { terminer }) {
-      const config = genererConfig(Math.random);
+    monter(zone, { terminer, niveau }) {
+      const config = genererConfig(Math.random, reglagesChasse(niveau));
       const partie = creerChasseNombres(config);
       const W = config.largeur;
       const H = config.hauteur;
@@ -568,6 +610,20 @@
     BONUS_PAR_PAIRE: 8,
   };
 
+  /* Contenu du memory selon l'age (P1). La multiplication memorisee (tables)
+     n'est au programme qu'a partir du CE3 (niveau N3 du catalogue) : avant, un
+     CE1/CE2 verrait des symboles "6 × 7" qu'il n'a jamais rencontres. On lui
+     propose donc un memory ADDITION (paires "5 + 3" <-> "8"), sans retenue au
+     CE1 (somme <= 10), jusqu'a 18 au CE2. Un niveau inconnu garde la
+     multiplication (comportement d'origine). */
+  function reglagesMemory(niveau) {
+    const rang = niveauRang(niveau);
+    if (rang === 1 || rang === 2) {
+      return { operation: "addition", min: 1, max: 9, sommeMax: rang === 1 ? 10 : 18 };
+    }
+    return { operation: "multiplication", min: MEMORY.FACTEUR_MIN, max: MEMORY.FACTEUR_MAX };
+  }
+
   /* Construit la liste des cartes (calcul + resultat, melangees) sans DOM.
      Les resultats sont TOUS distincts : une carte resultat ne correspond
      qu'a un seul calcul, pas d'ambiguite. Hasard injecte -> reproductible. */
@@ -576,20 +632,30 @@
     const rnd = typeof random === "function" ? random : Math.random;
     const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
     const nbPairesVoulu = options.nbPaires || ri(cfg.PAIRES_MIN, cfg.PAIRES_MAX);
+    /* Multiplication par defaut (compatibilite) ; addition pour les plus jeunes. */
+    const operation = options.operation === "addition" ? "addition" : "multiplication";
+    const min = options.min !== undefined ? options.min : cfg.FACTEUR_MIN;
+    const max = options.max !== undefined ? options.max : cfg.FACTEUR_MAX;
+    const sommeMax = options.sommeMax;
 
     const resultatsUtilises = new Set();
     const paires = [];
     let garde = 0;
     while (paires.length < nbPairesVoulu && garde < 1000) {
       garde += 1;
-      const a = ri(cfg.FACTEUR_MIN, cfg.FACTEUR_MAX);
-      const b = ri(cfg.FACTEUR_MIN, cfg.FACTEUR_MAX);
-      const valeur = a * b;
+      const a = ri(min, max);
+      const b = ri(min, max);
+      const valeur = operation === "addition" ? a + b : a * b;
+      /* Addition : on borne la somme pour rester au niveau (sans retenue au CE1). */
+      if (operation === "addition" && sommeMax !== undefined && valeur > sommeMax) {
+        continue;
+      }
       if (resultatsUtilises.has(valeur)) {
         continue; /* resultat deja pris : on retente pour garder l'unicite */
       }
       resultatsUtilises.add(valeur);
-      paires.push({ paireId: paires.length, calcul: `${a} × ${b}`, valeur });
+      const calcul = operation === "addition" ? `${a} + ${b}` : `${a} × ${b}`;
+      paires.push({ paireId: paires.length, calcul, valeur });
     }
 
     const cartes = [];
@@ -695,10 +761,13 @@
 
   const MINIGAME_MEMORY = {
     id: "memory-tables",
-    nom: "le memory des tables",
-    monter(zone, { terminer }) {
-      const config = genererPaires(Math.random);
+    nom: "le memory des paires",
+    monter(zone, { terminer, niveau }) {
+      const config = genererPaires(Math.random, reglagesMemory(niveau));
       const jeu = creerMemory(config);
+      const consigne = estPetitNiveau(niveau)
+        ? "Trouve les 2 cartes qui vont ensemble."
+        : "Associe chaque calcul a son resultat.";
 
       const cartesMarkup = jeu
         .cartes()
@@ -714,7 +783,7 @@
       zone.innerHTML = `
         <div class="memory">
           <div class="memory-header">
-            <div class="memory-consigne">Associe chaque calcul a son resultat</div>
+            <div class="memory-consigne">${consigne}</div>
             <div class="memory-compteur" id="memory-compteur">0/${jeu.nbPaires()} paires</div>
           </div>
           <div class="memory-grille" id="memory-grille">${cartesMarkup}</div>
@@ -960,7 +1029,7 @@
   const MINIGAME_PUZZLE = {
     id: "puzzle-carte",
     nom: "le puzzle de la carte",
-    monter(zone, { terminer }) {
+    monter(zone, { terminer, niveau }) {
       /* Reprise de la progression ; si le puzzle precedent etait complet, on
          repart sur un puzzle vierge. Puis on debloque UNE piece. */
       let progression = chargerProgressionPuzzle();
@@ -1014,7 +1083,7 @@
       zone.innerHTML = `
         <div class="puzzle">
           <div class="puzzle-header">
-            <div class="puzzle-consigne">Reforme la carte du monde, piece par piece</div>
+            <div class="puzzle-consigne">${estPetitNiveau(niveau) ? "Place les pieces pour finir l'image." : "Reforme la carte du monde, piece par piece"}</div>
             <div class="puzzle-compteur" id="puzzle-compteur">${jeu.placees().length}/${total} pieces</div>
           </div>
           <div class="puzzle-plateau">
@@ -1163,47 +1232,52 @@
 
   /* Dessins vus du dessus, centres sur (0,0), palette du jeu. Rendu seul :
      la logique pure n'en depend pas. */
+  /* Couleurs tirees de la palette du jeu (var(--...)) pour que la variante
+     mature CE5/CE6 (body[data-visual="mature"]) les desature automatiquement,
+     comme la scene. Seuls restent litteraux : les ombres tres transparentes et
+     les petits accents floraux (rose/violet/jaune) qui n'ont pas d'equivalent
+     dans la palette. */
   const DECO_SVG = {
     fleurs: `
-      <ellipse cx="0" cy="5" rx="25" ry="16" fill="#8a6d4b" opacity="0.35"></ellipse>
+      <ellipse cx="0" cy="5" rx="25" ry="16" fill="var(--wood-light)" opacity="0.35"></ellipse>
       <g><circle cx="-9" cy="-2" r="5.5" fill="#ff9db0"></circle><circle cx="-9" cy="-2" r="2.2" fill="#ffd66b"></circle></g>
-      <g><circle cx="8" cy="-6" r="5.5" fill="#ffd66b"></circle><circle cx="8" cy="-6" r="2.2" fill="#e8703a"></circle></g>
+      <g><circle cx="8" cy="-6" r="5.5" fill="#ffd66b"></circle><circle cx="8" cy="-6" r="2.2" fill="var(--road)"></circle></g>
       <g><circle cx="4" cy="8" r="5.5" fill="#b98bd6"></circle><circle cx="4" cy="8" r="2.2" fill="#fffdf6"></circle></g>
       <g><circle cx="-10" cy="10" r="4.5" fill="#ff9db0"></circle><circle cx="-10" cy="10" r="1.8" fill="#ffd66b"></circle></g>
     `,
     buisson: `
-      <ellipse cx="2" cy="8" rx="20" ry="10" fill="#3f7a2e" opacity="0.3"></ellipse>
-      <circle cx="-9" cy="0" r="12" fill="#55a53d"></circle>
-      <circle cx="8" cy="-3" r="13" fill="#6fbe53"></circle>
-      <circle cx="2" cy="6" r="10" fill="#85d066"></circle>
+      <ellipse cx="2" cy="8" rx="20" ry="10" fill="var(--grass-dark)" opacity="0.3"></ellipse>
+      <circle cx="-9" cy="0" r="12" fill="var(--grass-dark)"></circle>
+      <circle cx="8" cy="-3" r="13" fill="var(--grass)"></circle>
+      <circle cx="2" cy="6" r="10" fill="var(--grass-light)"></circle>
     `,
     arbre: `
-      <ellipse cx="4" cy="9" rx="22" ry="11" fill="#3f7a2e" opacity="0.3"></ellipse>
-      <circle cx="0" cy="0" r="22" fill="#55a53d"></circle>
-      <circle cx="-7" cy="-5" r="12" fill="#6fbe53"></circle>
-      <circle cx="8" cy="3" r="10" fill="#6fbe53"></circle>
-      <circle cx="-8" cy="-7" r="6" fill="#85d066"></circle>
+      <ellipse cx="4" cy="9" rx="22" ry="11" fill="var(--grass-dark)" opacity="0.3"></ellipse>
+      <circle cx="0" cy="0" r="22" fill="var(--grass-dark)"></circle>
+      <circle cx="-7" cy="-5" r="12" fill="var(--grass)"></circle>
+      <circle cx="8" cy="3" r="10" fill="var(--grass)"></circle>
+      <circle cx="-8" cy="-7" r="6" fill="var(--grass-light)"></circle>
     `,
     banc: `
       <ellipse cx="0" cy="10" rx="24" ry="7" fill="#3f2c1a" opacity="0.25"></ellipse>
-      <rect x="-22" y="-9" width="44" height="18" rx="4" fill="#8b5834"></rect>
-      <line x1="-22" y1="-3" x2="22" y2="-3" stroke="#6e4a2e" stroke-width="1.8"></line>
-      <line x1="-22" y1="3" x2="22" y2="3" stroke="#6e4a2e" stroke-width="1.8"></line>
-      <rect x="-20" y="-11" width="5" height="22" rx="2" fill="#6e4a2e"></rect>
-      <rect x="15" y="-11" width="5" height="22" rx="2" fill="#6e4a2e"></rect>
+      <rect x="-22" y="-9" width="44" height="18" rx="4" fill="var(--wood)"></rect>
+      <line x1="-22" y1="-3" x2="22" y2="-3" stroke="var(--wood-dark)" stroke-width="1.8"></line>
+      <line x1="-22" y1="3" x2="22" y2="3" stroke="var(--wood-dark)" stroke-width="1.8"></line>
+      <rect x="-20" y="-11" width="5" height="22" rx="2" fill="var(--wood-dark)"></rect>
+      <rect x="15" y="-11" width="5" height="22" rx="2" fill="var(--wood-dark)"></rect>
     `,
     fontaine: `
       <ellipse cx="0" cy="10" rx="24" ry="8" fill="#333" opacity="0.2"></ellipse>
-      <circle cx="0" cy="0" r="23" fill="#9aa0a6"></circle>
-      <circle cx="0" cy="0" r="18" fill="#8fc4de"></circle>
-      <circle cx="0" cy="0" r="10" fill="#bfe6f5"></circle>
+      <circle cx="0" cy="0" r="23" fill="var(--stone-dark)"></circle>
+      <circle cx="0" cy="0" r="18" fill="var(--water)"></circle>
+      <circle cx="0" cy="0" r="10" fill="var(--water-light)"></circle>
       <circle cx="0" cy="0" r="4.5" fill="#eaf6fb"></circle>
     `,
     lanterne: `
       <ellipse cx="0" cy="9" rx="14" ry="6" fill="#333" opacity="0.2"></ellipse>
       <circle cx="0" cy="0" r="13" fill="#ffe08a" opacity="0.55"></circle>
-      <circle cx="0" cy="0" r="8" fill="#ffc23e"></circle>
-      <rect x="-4" y="-4" width="8" height="8" rx="2" fill="#8b5834"></rect>
+      <circle cx="0" cy="0" r="8" fill="var(--gold)"></circle>
+      <rect x="-4" y="-4" width="8" height="8" rx="2" fill="var(--wood)"></rect>
       <circle cx="0" cy="0" r="2.4" fill="#fff3c4"></circle>
     `,
   };
@@ -1459,7 +1533,7 @@
         }
         window.ParcoursApp?.refreshScenePaused?.();
       },
-      monterMinigame(minigame, { terminer }) {
+      monterMinigame(minigame, { terminer, niveau }) {
         const overlay = el("minigame-overlay");
         const stage = el("minigame-stage");
         if (!overlay || !stage) {
@@ -1469,7 +1543,12 @@
         }
         overlay.classList.remove("hidden");
         window.ParcoursApp?.refreshScenePaused?.();
-        return minigame.monter(stage, { terminer });
+        const demonter = minigame.monter(stage, { terminer, niveau });
+        /* Variante visuelle mature (CE5/CE6) : la palette suit deja par cascade
+           (body[data-visual]) ; on durcit en plus les angles des <rect> du
+           mini-jeu, comme la scene de carte. */
+        window.ParcoursApp?.appliquerVarianteMinijeu?.(stage);
+        return demonter;
       },
       cacherMinigame() {
         const overlay = el("minigame-overlay");
@@ -1502,9 +1581,10 @@
   });
 
   const api = {
-    /* Appele par map.js apres un correct_concept_debloque. */
-    conceptDebloque() {
-      return orchestrateurReel.conceptDebloque();
+    /* Appele par map.js apres un correct_concept_debloque, avec le niveau
+       scolaire de la session (pour l'eligibilite et l'adaptation par age). */
+    conceptDebloque(niveau) {
+      return orchestrateurReel.conceptDebloque(niveau);
     },
     /* Permet a d'autres modules (vrais mini-jeux) de s'enregistrer. */
     enregistrer(minigame) {
@@ -1526,6 +1606,10 @@
     genererPaires,
     creerMemory,
     MEMORY,
+    reglagesChasse,
+    reglagesMemory,
+    niveauRang,
+    estPetitNiveau,
     MINIGAME_PUZZLE,
     progressionVierge,
     debloquerPiece,
