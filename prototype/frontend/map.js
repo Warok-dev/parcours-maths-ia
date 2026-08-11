@@ -1429,6 +1429,28 @@ function durcirAnglesRects(markup) {
   );
 }
 
+/* Equivalent DOM de durcirAnglesRects, pour un sous-arbre deja monte (scene
+   d'un mini-jeu, ou popup d'exercice avec sa mecanique injectee apres coup).
+   Ne fait rien hors variante mature. La palette, elle, suit deja par cascade
+   (variables CSS sur <body>). */
+function durcirAnglesRectsDom(element) {
+  if (!element || typeof element.querySelectorAll !== "function" || !varianteMature()) {
+    return;
+  }
+  element.querySelectorAll("rect").forEach((rect) => {
+    for (const cle of ["rx", "ry"]) {
+      const brut = rect.getAttribute(cle);
+      if (brut === null || brut === "") {
+        continue;
+      }
+      const reduit = parseFloat(brut) * MATURE_RADIUS_FACTOR;
+      if (!Number.isNaN(reduit)) {
+        rect.setAttribute(cle, Number.isInteger(reduit) ? String(reduit) : reduit.toFixed(1));
+      }
+    }
+  });
+}
+
 function renderScene() {
   applyVisualVariant();
   if (!state.session) {
@@ -1900,6 +1922,11 @@ function renderExerciseModal() {
       submit: () => form.requestSubmit(),
     });
   }
+  /* Variante mature (CE5/CE6) : la popup d'exercice est l'ecran le plus vu ;
+     ses <rect> (figures cotees, horloge, mecaniques SVG) suivent le meme
+     durcissement d'angles que la carte et les mini-jeux. La palette suit deja
+     par cascade. Fait apres le montage de la mecanique pour couvrir son SVG. */
+  durcirAnglesRectsDom(exerciseModal);
 }
 
 /* ============================================================
@@ -2312,7 +2339,7 @@ function applyEvaluationResult(payload, context) {
      decide seul de la frequence et de l'espacement, et gere sa propre
      bascule/retour ; la progression sur la carte n'est jamais touchee. */
   if (unlocked) {
-    window.ParcoursMinigames?.conceptDebloque?.();
+    window.ParcoursMinigames?.conceptDebloque?.(levelLabel());
   }
 
   if (state.panelOpen) {
@@ -2808,6 +2835,9 @@ window.ParcoursApp = {
   /* Fresque du monde (chateau, route, decor) pour le mini-jeu puzzle :
      composee des memes briques SVG que la carte. */
   fresqueMondeMarkup: () => worldFresqueMarkup(),
+  /* Variante mature (CE5/CE6) appliquee au sous-arbre d'un mini-jeu monte. */
+  appliquerVarianteMinijeu: (element) => durcirAnglesRectsDom(element),
+  varianteMature: () => varianteMature(),
 };
 
 if (!animationFrameId) {
