@@ -12,6 +12,20 @@
   const LOCK_MAX_DIGITS = 3;
   const BALANCE_MAX_CIBLE = 100;
 
+  /* Rang numerique du niveau scolaire (CE1 -> 1 ... CE6 -> 6). 0 si inconnu :
+     dans ce cas AUCUNE restriction par age ne s'applique (comportement
+     permissif, comme avant l'ajout de ces bornes). */
+  function niveauRang(niveau) {
+    const m = String(niveau || "").match(/(\d+)/);
+    return m ? Number(m[1]) : 0;
+  }
+
+  /* Les plus jeunes (CE1/CE2) recoivent des consignes plus courtes. */
+  function estPetitNiveau(niveau) {
+    const rang = niveauRang(niveau);
+    return rang === 1 || rang === 2;
+  }
+
   function hashString(text) {
     let hash = 0;
     for (const char of String(text)) {
@@ -83,8 +97,19 @@
          - "ordre" : remettre toute la suite, donnee melangee en blocs, dans
            le bon ordre (competence "ranger dans l'ordre").
          Elles ne se remplacent pas : la rotation par exercice alterne les
-         deux, la ligne garde son role. */
-      return Array.isArray(info.raw) && info.raw.length >= 2 ? ["ligne", "ordre"] : ["clavier"];
+         deux, la ligne garde son role.
+         L'ordre glisser-deposer est manipulatoirement lourd : au CE1 on le
+         reserve aux suites courtes (<= 4 elements), sinon on ne propose que la
+         ligne. Les niveaux superieurs gardent l'ordre quelle que soit la
+         longueur. */
+      if (!(Array.isArray(info.raw) && info.raw.length >= 2)) {
+        return ["clavier"];
+      }
+      const options = ["ligne"];
+      if (info.raw.length <= maxElementsOrdre(exercise.niveau_scolaire)) {
+        options.push("ordre");
+      }
+      return options;
     }
     if (info.format === "choix_multiple") {
       /* Les QCM numeriques (identifier_multiple_de_10, etc.) peuvent aussi se
@@ -134,14 +159,57 @@
     "partie_tout_addition_non_narratif",
   ]);
 
+  /* Nombre d'elements que l'eleve accepte de RANGER a la main sur la mecanique
+     d'ordre. Au CE1, glisser 6 blocs dans le bon ordre est trop lourd : on
+     plafonne a 4. Les niveaux superieurs (ou un niveau inconnu) ne sont pas
+     bornes. */
+  function maxElementsOrdre(niveau) {
+    return niveauRang(niveau) === 1 ? 4 : Infinity;
+  }
+
+  /* Bornes de la balance selon l'age. Au CE1, on evite les grandes cibles et
+     les empilements de poids (motricite fine encore fragile) : cible <= 20 et
+     au plus 3 poids a poser. Les niveaux superieurs (ou inconnu) gardent la
+     tolerance d'origine. */
+  function bornesBalance(niveau) {
+    if (niveauRang(niveau) === 1) {
+      return { cibleMax: 20, poidsMax: 3 };
+    }
+    return { cibleMax: BALANCE_MAX_CIBLE, poidsMax: Infinity };
+  }
+
+  /* Nombre minimal de poids pour batir `cible` avec `palette` (glouton : la
+     palette 1,2,5,10,20,50 est canonique, le glouton y donne l'optimum).
+     Infinity si `cible` n'est pas atteignable (ne devrait pas arriver, la
+     palette contient toujours 1). Fonction pure, exportee pour les tests. */
+  function poidsMinimum(cible, palette) {
+    let reste = Number(cible);
+    let nb = 0;
+    for (const p of [...palette].sort((a, b) => b - a)) {
+      while (reste >= p) {
+        reste -= p;
+        nb += 1;
+      }
+    }
+    return reste === 0 ? nb : Infinity;
+  }
+
   /* La balance ne convient que si la cible est un entier positif RAISONNABLE
-     a batir avec des poids (sinon empiler 90 jetons serait fastidieux). */
+     a batir avec des poids (sinon empiler 90 jetons serait fastidieux), et si
+     sa complexite manipulatoire reste dans les bornes de l'age (P3). */
   function peutEquilibrer(exercise) {
     const info = answerInfo(exercise);
-    if (!info.isInteger || info.numeric <= 0 || info.numeric > BALANCE_MAX_CIBLE) {
+    if (!info.isInteger || info.numeric <= 0) {
       return false;
     }
-    return ADDITIF_DECOMPOSITION.has(exercise.pattern?.pattern_name || "");
+    if (!ADDITIF_DECOMPOSITION.has(exercise.pattern?.pattern_name || "")) {
+      return false;
+    }
+    const bornes = bornesBalance(exercise.niveau_scolaire);
+    if (info.numeric > bornes.cibleMax) {
+      return false;
+    }
+    return poidsMinimum(info.numeric, poidsDisponibles(info.numeric)) <= bornes.poidsMax;
   }
 
   /* La balance s'AJOUTE aux mecaniques compatibles (rotation par exercice),
@@ -783,8 +851,11 @@
     const elements = melange.map((valeur, i) => ({ id: i, valeur }));
     const placement = creerPlacementOrdre({ elements, ordreAttendu });
 
+    const hint = estPetitNiveau(exercise.niveau_scolaire)
+      ? "Range les etiquettes du plus petit au plus grand."
+      : "Glisse (ou clique l'etiquette puis l'emplacement) pour remettre la suite dans l'ordre.";
     container.innerHTML = `
-      <p class="mech-hint">Glisse (ou clique l'etiquette puis l'emplacement) pour remettre la suite dans l'ordre.</p>
+      <p class="mech-hint">${hint}</p>
       <div class="order-slots" role="group" aria-label="Emplacements ordonnes">
         ${ordreAttendu
           .map((_, i) => `<button type="button" class="order-slot" data-slot="${i}" aria-label="Emplacement ${i + 1}"><span class="order-slot-rang">${i + 1}</span></button>`)
@@ -1039,8 +1110,11 @@
       })
       .join("");
 
+    const hint = estPetitNiveau(exercise.niveau_scolaire)
+      ? "Lance la roue sur la bonne reponse, puis valide."
+      : "Regle la force, lance la roue pour viser la bonne section, puis valide.";
     container.innerHTML = `
-      <p class="mech-hint">Regle la force, lance la roue pour viser la bonne section, puis valide.</p>
+      <p class="mech-hint">${hint}</p>
       <div class="mech-wheel">
         <div class="roue-cadre">
           <div class="roue-repere" aria-hidden="true"></div>
@@ -1255,8 +1329,11 @@
     const L = 96; /* demi-longueur du fleau */
     const DROP = 30; /* longueur des suspentes (fleau -> plateau) */
 
+    const hint = estPetitNiveau(exercise.niveau_scolaire)
+      ? `Ajoute des poids pour arriver a ${cible}.`
+      : `Pose des poids sur le plateau vide jusqu'a egaler ${cible}, puis valide.`;
     container.innerHTML = `
-      <p class="mech-hint">Pose des poids sur le plateau vide jusqu'a egaler ${cible}, puis valide.</p>
+      <p class="mech-hint">${hint}</p>
       <div class="mech-balance">
         <svg class="balance-svg" viewBox="-140 -96 280 210" role="img" aria-label="Balance a equilibrer">
           <line data-string="left" class="balance-string" x1="0" y1="0" x2="0" y2="0"></line>
@@ -1523,6 +1600,12 @@
     creerBalance,
     angleBascule,
     poidsDisponibles,
+    /* Bornes par age (P3), exposees pour les tests. */
+    niveauRang,
+    maxElementsOrdre,
+    bornesBalance,
+    poidsMinimum,
+    peutEquilibrer,
   };
 
   if (typeof window !== "undefined") {

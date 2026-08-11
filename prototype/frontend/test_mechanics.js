@@ -450,5 +450,75 @@ function additionExercise(pattern_name, family, valeur, id = "X-000001") {
   check(angleBascule(50) > angleBascule(5), "plus l'ecart grandit, plus ca penche (monotone)");
 }
 
+/* --- 28. Bornes par age : rang du niveau et helpers purs (P3) --- */
+const {
+  niveauRang,
+  maxElementsOrdre,
+  bornesBalance,
+  poidsMinimum,
+} = require("./mechanics.js");
+{
+  check(niveauRang("CE1") === 1 && niveauRang("CE6") === 6, "niveauRang lit le chiffre du niveau");
+  check(niveauRang(undefined) === 0 && niveauRang("") === 0, "niveau inconnu : rang 0 (permissif)");
+
+  check(maxElementsOrdre("CE1") === 4, "CE1 : au plus 4 elements a ranger sur la mecanique d'ordre");
+  check(maxElementsOrdre("CE2") === Infinity, "CE2+ : pas de plafond sur l'ordre");
+  check(maxElementsOrdre(undefined) === Infinity, "niveau inconnu : pas de plafond sur l'ordre");
+
+  check(bornesBalance("CE1").cibleMax === 20 && bornesBalance("CE1").poidsMax === 3, "CE1 : balance cible <= 20 et 3 poids max");
+  check(bornesBalance("CE3").poidsMax === Infinity, "CE3+ : balance sans plafond de poids");
+
+  check(poidsMinimum(20, poidsDisponibles(20)) === 1, "poidsMinimum(20) = 1 (un poids de 20)");
+  check(poidsMinimum(8, poidsDisponibles(8)) === 3, "poidsMinimum(8) = 3 (5+2+1)");
+  check(poidsMinimum(18, poidsDisponibles(18)) === 4, "poidsMinimum(18) = 4 (10+5+2+1)");
+}
+
+/* --- 29. Ordre borne au CE1, intact au-dessus (P3) --- */
+function suiteNiveau(valeurs, niveau) {
+  return {
+    id: `${niveau}-suite-000001`,
+    niveau_scolaire: niveau,
+    pattern: { pattern_name: "completer_ligne_graduee", pattern_family: "exercice_a_trous_serie" },
+    variables: {},
+    reponse_attendue: { valeur: valeurs, format: "liste_ordonnee" },
+  };
+}
+{
+  const longue = [55, 60, 65, 70, 75, 80]; /* 6 elements, typique ligne graduee CE1 */
+  const courte = [10, 20, 30]; /* 3 elements */
+
+  const ce1Long = compatibleMechanics(suiteNiveau(longue, "CE1"));
+  check(ce1Long.includes("ligne"), "CE1, suite longue : la ligne reste disponible");
+  check(!ce1Long.includes("ordre"), "CE1, suite de 6 : PAS d'ordre (trop lourd a ranger)");
+
+  const ce1Court = compatibleMechanics(suiteNiveau(courte, "CE1"));
+  check(ce1Court.includes("ordre"), "CE1, suite de 3 : l'ordre reste possible (court)");
+
+  const ce2Long = compatibleMechanics(suiteNiveau(longue, "CE2"));
+  check(ce2Long.includes("ordre"), "CE2, suite de 6 : l'ordre reste propose (plus permissif)");
+}
+
+/* --- 30. Balance bornee au CE1, intacte au-dessus (P3) --- */
+function additionNiveau(valeur, niveau) {
+  return {
+    id: `${niveau}-add-000001`,
+    niveau_scolaire: niveau,
+    pattern: { pattern_name: "addition_pas_a_pas_sans_retenue", pattern_family: "calcul_direct" },
+    reponse_attendue: { valeur, format: "nombre_entier" },
+  };
+}
+{
+  /* CE1 : une petite cible facile (10 = un seul poids) passe. */
+  check(compatibleMechanics(additionNiveau(10, "CE1")).includes("balance"), "CE1 : cible 10 (1 poids) va a la balance");
+  /* CE1 : cible 37 (34+3) exclue -- au-dela de 20. */
+  check(!compatibleMechanics(additionNiveau(37, "CE1")).includes("balance"), "CE1 : cible 37 > 20 exclue de la balance");
+  /* CE1 : cible 18 <= 20 mais 4 poids (10+5+2+1) -> exclue (max 3 poids). */
+  check(!compatibleMechanics(additionNiveau(18, "CE1")).includes("balance"), "CE1 : cible 18 (4 poids) exclue (motricite)");
+  /* CE1 : cible 15 = 10+5 (2 poids) -> acceptee. */
+  check(compatibleMechanics(additionNiveau(15, "CE1")).includes("balance"), "CE1 : cible 15 (2 poids) acceptee");
+  /* CE2+ : la meme cible 37 reste proposee a la balance (borne d'origine). */
+  check(compatibleMechanics(additionNiveau(37, "CE2")).includes("balance"), "CE2 : cible 37 reste jouable a la balance");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 process.exit(failures === 0 ? 0 : 1);
