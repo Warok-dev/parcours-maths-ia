@@ -18,6 +18,9 @@ const {
   creerBalance,
   angleBascule,
   poidsDisponibles,
+  basketFieldCount,
+  BASKET_MAX_COUNT,
+  plankCandidates,
 } = require("./mechanics.js");
 
 let failures = 0;
@@ -518,6 +521,91 @@ function additionNiveau(valeur, niveau) {
   check(compatibleMechanics(additionNiveau(15, "CE1")).includes("balance"), "CE1 : cible 15 (2 poids) acceptee");
   /* CE2+ : la meme cible 37 reste proposee a la balance (borne d'origine). */
   check(compatibleMechanics(additionNiveau(37, "CE2")).includes("balance"), "CE2 : cible 37 reste jouable a la balance");
+}
+
+/* --- Panier a remplir : toujours jouable (BUG 2) --------------------- */
+function narratifExercise(valeur, id = "CE1-narratif-000001") {
+  return {
+    id,
+    niveau_scolaire: "CE1",
+    pattern: { pattern_name: "probleme_ajout_simple", pattern_family: "probleme_narratif_simple" },
+    reponse_attendue: { valeur, format: "nombre_entier" },
+  };
+}
+{
+  /* Le routage ne propose le panier que pour une cible <= BASKET_MAX_COUNT. */
+  check(
+    compatibleMechanics(narratifExercise(BASKET_MAX_COUNT)).includes("panier"),
+    `panier propose pour une cible <= ${BASKET_MAX_COUNT}`,
+  );
+  check(
+    !compatibleMechanics(narratifExercise(BASKET_MAX_COUNT + 1)).includes("panier"),
+    `panier exclu au-dela de ${BASKET_MAX_COUNT} (sinon plateau ingerable)`,
+  );
+  check(
+    !compatibleMechanics(narratifExercise(79)).includes("panier"),
+    "panier jamais propose pour la grande cible 79 (cas du bug)",
+  );
+  /* Le plateau affiche TOUJOURS au moins la cible : jamais insoluble. */
+  for (const cible of [1, 5, 12, 20, 79]) {
+    const fc = basketFieldCount(narratifExercise(cible, `CE1-narratif-${cible}`));
+    check(fc >= cible, `panier cible ${cible} : au moins ${cible} objets affiches (soluble), obtenu ${fc}`);
+    check(fc > cible, `panier cible ${cible} : au moins un distracteur (pas "tout ramasser")`);
+  }
+  /* Dans la plage reellement routee (<= BASKET_MAX_COUNT), le plateau reste
+     petit : pas plus de la cible + 5 distracteurs. */
+  const fcMax = basketFieldCount(narratifExercise(BASKET_MAX_COUNT));
+  check(fcMax <= BASKET_MAX_COUNT + 5, "panier : plateau borne (cible + 5 distracteurs max)");
+}
+
+/* --- Planches : unicite de la reserve de distracteurs (BUG 4) --------- */
+function calculExercise(valeur, id) {
+  return {
+    id,
+    niveau_scolaire: "CE2",
+    pattern: { pattern_name: "addition_simple", pattern_family: "calcul_direct" },
+    reponse_attendue: { valeur, format: "nombre_entier" },
+  };
+}
+function occurrences(arr) {
+  const m = new Map();
+  for (const v of arr) m.set(v, (m.get(v) || 0) + 1);
+  return m;
+}
+{
+  /* Balaye de nombreux seeds (ids) pour attraper les collisions distracteur
+     vs chiffre de la reponse. Reponses a 1, 2 et 3 chiffres. */
+  let uneSeuleFois = true;
+  let jamaisSurReponse = true;
+  for (const valeur of [8, 3, 45, 70, 123, 909]) {
+    const attendus = occurrences(String(valeur).split(""));
+    for (let n = 0; n < 60; n += 1) {
+      const { candidates } = plankCandidates(calculExercise(valeur, `CE2-add-${valeur}-${n}`));
+      const counts = occurrences(candidates);
+      for (const [chiffre, nb] of counts) {
+        const attendu = attendus.get(chiffre) || 0;
+        if (attendu > 0) {
+          /* Un chiffre de la reponse ne doit pas etre gonfle par un distracteur. */
+          if (nb !== attendu) jamaisSurReponse = false;
+        } else {
+          /* Un distracteur ne doit apparaitre qu'une seule fois. */
+          if (nb !== 1) uneSeuleFois = false;
+        }
+      }
+    }
+  }
+  check(uneSeuleFois, "planches : aucun distracteur n'est duplique dans la reserve");
+  check(jamaisSurReponse, "planches : aucun distracteur ne coincide avec un chiffre de la reponse");
+  /* Un QCM garde ses options telles quelles (unicite a la charge de la donnee). */
+  const qcm = {
+    id: "CE2-qcm-1",
+    pattern: { pattern_name: "identifier_multiple_de_10", pattern_family: "choix_multiple" },
+    variables: { options: ["30", "40", "50", "60"] },
+    reponse_attendue: { valeur: 40, format: "choix_multiple" },
+  };
+  const { candidates: qcmCandidates, slotCount } = plankCandidates(qcm);
+  check(slotCount === 1, "planches QCM : un seul emplacement a remplir");
+  check(qcmCandidates.length === 4 && new Set(qcmCandidates).size === 4, "planches QCM : les 4 options restent distinctes");
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);

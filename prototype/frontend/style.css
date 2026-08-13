@@ -2348,7 +2348,9 @@ input {
 .figure-figure {
   display: flex;
   justify-content: center;
-  margin: 4px 0 16px;
+  /* Marge haute franche : la cote du haut ("3 cm") ne doit jamais toucher
+     l'enonce au-dessus (le viewBox du SVG reserve deja du vide en haut). */
+  margin: 12px 0 16px;
 }
 
 .figure-figure svg {
@@ -3967,9 +3969,16 @@ input {
 
 .memory-grille {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Colonnes plafonnees (jamais > 128px) et compressibles (min 0) : la grille
+     tient toujours dans la zone de jeu, meme pour la variante la plus large
+     (8 paires = 16 cartes), sans jamais deborder a droite ni couper une
+     colonne. `minmax(0, ...)` autorise la compression sous la taille du
+     contenu ; le plafond evite des cartes geantes sur un conteneur large. */
+  grid-template-columns: repeat(4, minmax(0, 128px));
   gap: 12px;
   justify-content: center;
+  width: 100%;
+  max-width: 100%;
 }
 
 .memory-carte {

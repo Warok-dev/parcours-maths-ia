@@ -1114,9 +1114,20 @@ const PLATE_OFFSETS = {
   crossroads: -290,
 };
 
+/* Demi-largeur de la plaque (rect de 184 -> 92) : sert a garder l'etiquette
+   entierement dans la fenetre camera. */
+const PLATE_HALF_WIDTH = 92;
+/* Deport lateral maximal autorise pour la plaque : au-dela, son bord sortirait
+   de la fenetre camera (demi-largeur CAMERA_WIDTH/2) quand celle-ci est centree
+   sur l'obstacle, et le nom serait tronque au bord de l'ecran. On garde une
+   petite marge. Les PLATE_OFFSETS d'origine (jusqu'a -290) depassaient cette
+   borne : ils sont desormais ramenes dedans, quelle que soit la longueur du nom. */
+const PLATE_MAX_OFFSET = CAMERA_WIDTH / 2 - PLATE_HALF_WIDTH - 20;
+
 function obstaclePlateMarkup(obstacle, status, theme) {
   const plateY = obstacle.barrierY - 108;
-  const plateX = obstacle.x + (PLATE_OFFSETS[obstacle.type] || -260);
+  const offset = clamp(PLATE_OFFSETS[obstacle.type] || -260, -PLATE_MAX_OFFSET, PLATE_MAX_OFFSET);
+  const plateX = obstacle.x + offset;
   const done = status === "done";
   return `
     <g class="obstacle-plate-group" transform="translate(${plateX}, ${plateY})">
@@ -1842,7 +1853,7 @@ function renderExerciseModal() {
       ${
         isFigure
           ? `<div class="figure-figure">
-               <svg viewBox="-64 -58 128 116" role="img" aria-label="Figure géométrique cotée">${figureCoteeSvg(exercise)}</svg>
+               <svg viewBox="-64 -72 128 130" role="img" aria-label="Figure géométrique cotée">${figureCoteeSvg(exercise)}</svg>
              </div>`
           : ""
       }

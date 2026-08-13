@@ -228,32 +228,44 @@
     return options[rotation];
   }
 
+  /* Reserve de planches proposees pour un exercice : les chiffres de la reponse
+     a assembler (slotCount = leur nombre) plus quelques distracteurs. Chaque
+     distracteur genere doit etre UNIQUE dans la reserve : ni un autre
+     distracteur deja retenu, ni un chiffre present dans la bonne reponse
+     (sinon deux planches identiques apparaissent, ex. deux "8" pour une reponse
+     a un chiffre). S'il coincide, on le regenere. Les chiffres de la reponse,
+     eux, peuvent legitimement se repeter (ex. "88" a besoin de deux planches
+     "8"). Pour un QCM, la reserve est la liste d'options fournie (unicite a la
+     charge de la donnee). Fonction pure, exportee pour les tests. */
+  function plankCandidates(exercise) {
+    const info = answerInfo(exercise);
+    const seed = hashString(exercise.id);
+    if (info.format === "choix_multiple") {
+      const options = exercise.variables?.options || [info.raw];
+      return { candidates: seededShuffle(options.map(String), seed), slotCount: 1 };
+    }
+    const digits = String(info.raw).split("");
+    const answerDigits = new Set(digits);
+    const decoys = [];
+    const target = Math.min(6, digits.length + 3);
+    let cursor = seed;
+    let safety = 0;
+    while (digits.length + decoys.length < target && safety < 100) {
+      cursor = (cursor * 1103515245 + 12345) & 0x7fffffff;
+      const decoy = String(cursor % 10);
+      if (!answerDigits.has(decoy) && !decoys.includes(decoy)) {
+        decoys.push(decoy);
+      }
+      safety += 1;
+    }
+    return { candidates: seededShuffle([...digits, ...decoys], seed), slotCount: digits.length };
+  }
+
   /* ----- Planches du pont : assembler la reponse --------------- */
   function mountPlanks(container, exercise, api) {
     const info = answerInfo(exercise);
-    const seed = hashString(exercise.id);
     const isChoice = info.format === "choix_multiple";
-
-    let candidates;
-    let slotCount;
-    if (isChoice) {
-      const options = exercise.variables?.options || [info.raw];
-      candidates = seededShuffle(options.map(String), seed);
-      slotCount = 1;
-    } else {
-      const digits = String(info.raw).split("");
-      const decoys = [];
-      let cursor = seed;
-      while (digits.length + decoys.length < Math.min(6, digits.length + 3)) {
-        cursor = (cursor * 1103515245 + 12345) & 0x7fffffff;
-        const decoy = String(cursor % 10);
-        if (decoys.filter((d) => d === decoy).length < 1) {
-          decoys.push(decoy);
-        }
-      }
-      candidates = seededShuffle([...digits, ...decoys], seed);
-      slotCount = digits.length;
-    }
+    const { candidates, slotCount } = plankCandidates(exercise);
 
     const slots = new Array(slotCount).fill(null); /* index de planche posee */
     container.innerHTML = `
@@ -1508,11 +1520,23 @@
     poolNodes[0]?.focus();
   }
 
+  /* Nombre d'objets a afficher dans le panier : la CIBLE plus 3 a 5 distracteurs,
+     pour que "tout ramasser" ne soit jamais la solution. On ne plafonne JAMAIS
+     sous la cible (un plafond fixe rendait le compte demande impossible a
+     atteindre, ex. cible 79 avec 15 objets) : la jouabilite prime. Le routage
+     (BASKET_MAX_COUNT) garde deja la cible <= 12 en jeu normal, donc le plateau
+     reste petit. Fonction pure, exportee pour les tests. */
+  function basketFieldCount(exercise) {
+    const info = answerInfo(exercise);
+    const distractors = 3 + (hashString(exercise.id) % 3); /* 3 a 5 leurres */
+    return info.numeric + distractors;
+  }
+
   /* ----- Panier a remplir : denombrer en cliquant -------------- */
   function mountBasket(container, exercise, api) {
     const info = answerInfo(exercise);
     const objectName = exercise.contexte_narratif?.objet || "objets";
-    const fieldCount = Math.min(15, info.numeric + 3 + (hashString(exercise.id) % 3));
+    const fieldCount = basketFieldCount(exercise);
     const inBasket = new Set();
 
     container.innerHTML = `
@@ -1606,6 +1630,9 @@
     bornesBalance,
     poidsMinimum,
     peutEquilibrer,
+    basketFieldCount,
+    BASKET_MAX_COUNT,
+    plankCandidates,
   };
 
   if (typeof window !== "undefined") {

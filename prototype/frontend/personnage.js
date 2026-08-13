@@ -263,9 +263,24 @@
   /* ---------- Etat vivant ---------- */
   let etat = typeof localStorage === "undefined" ? etatNormalise(null) : charger();
 
+  /* localStorage (personnage_v1) est la SOURCE DE VERITE unique du total
+     d'etoiles et de la tenue. Le cache `etat` peut se perimer si un autre
+     chemin ecrit la cle (seed, autre module, autre onglet). On resynchronise
+     donc le cache depuis le stockage avant toute lecture d'affichage et avant
+     toute ecriture : sans ca, l'ecran du personnage et le mini-jeu deco (qui
+     lit via getEtat) peuvent afficher des totaux differents, et une ecriture
+     sur un cache perime ferait REGRESSER le total persiste. */
+  function synchroniser() {
+    if (typeof localStorage !== "undefined") {
+      etat = charger();
+    }
+    return etat;
+  }
+
   /* Appelee par le score du jeu : les etoiles gagnees s'accumulent d'une
      session a l'autre, contrairement au compteur affiche dans le HUD. */
   function ajouterEtoiles(points) {
+    synchroniser();
     const avant = etat.etoiles_totales;
     etat = sauver(ajouterEtoilesA(etat, points));
     const nouveaux = nouveauxDeblocages(avant, etat.etoiles_totales);
@@ -276,6 +291,7 @@
   }
 
   function selectionner(type, id) {
+    synchroniser();
     etat = sauver(appliquerSelection(etat, type, id));
     appliquerApparence(etat);
     if (isOpen) {
@@ -372,6 +388,7 @@
 
   function open() {
     isOpen = true;
+    synchroniser(); /* affiche le total persiste, pas un cache eventuellement perime */
     render();
     overlay.classList.remove("hidden");
     window.ParcoursApp?.refreshScenePaused?.();
@@ -427,7 +444,9 @@
     selectionner,
     markupAccessoire,
     appliquerApparence,
-    getEtat: () => ({ ...etat }),
+    /* Renvoie l'etat frais depuis la source de verite (localStorage), pas le
+       cache : garantit que la deco et l'ecran personnage lisent le meme total. */
+    getEtat: () => ({ ...synchroniser() }),
     /* Exposes pour les tests */
     STORAGE_KEY,
     COULEURS,

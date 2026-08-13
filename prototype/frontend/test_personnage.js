@@ -246,6 +246,28 @@ const ACC_420 = "badge";
   );
 }
 
+/* --- 10. Source de verite unique : getEtat suit localStorage (BUG 3) --- */
+{
+  /* Une ecriture EXTERNE sur personnage_v1 (seed, autre onglet, mini-jeu)
+     doit etre refletee immediatement par getEtat, sans quoi l'ecran
+     personnage et la deco affichent des totaux differents. */
+  localStorage.clear();
+  perso.ajouterEtoiles(0); /* initialise le stockage a 0 */
+  check(perso.getEtat().etoiles_totales === 0, "depart : 0 etoile");
+
+  localStorage.setItem(perso.STORAGE_KEY, JSON.stringify({ etoiles_totales: 120, couleur: "bleu", accessoire: "aucun" }));
+  check(
+    perso.getEtat().etoiles_totales === 120,
+    "getEtat relit la source de verite : 120 vu apres une ecriture externe (plus de divergence personnage/deco)",
+  );
+
+  /* Gagner des etoiles ne doit JAMAIS faire regresser un total persiste plus
+     eleve que le cache : on accumule sur la source de verite, pas sur le cache. */
+  const nouveaux = perso.ajouterEtoiles(30);
+  check(perso.getEtat().etoiles_totales === 150, "accumulation sur la source de verite : 120 + 30 = 150 (aucune regression)");
+  check(Array.isArray(nouveaux), "ajouterEtoiles renvoie la liste des deblocages");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);
