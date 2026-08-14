@@ -13,29 +13,29 @@
 
   /* Libelles courts des patterns d'exercices pour l'affichage. */
   const CONCEPT_LABELS = {
-    addition_pas_a_pas_sans_retenue: "Addition pas a pas",
+    addition_pas_a_pas_sans_retenue: "Addition pas à pas",
     partie_tout_addition_non_narratif: "Partie et tout : addition",
-    addition_2chiffres_sans_retenue: "Addition a 2 chiffres",
-    probleme_total_partie_tout: "Probleme : trouver le total",
+    addition_2chiffres_sans_retenue: "Addition à 2 chiffres",
+    probleme_total_partie_tout: "Problème : trouver le total",
     partie_tout_soustraction_non_narratif: "Partie et tout : soustraction",
-    probleme_reste_partie_tout: "Probleme : trouver le reste",
-    probleme_comparaison_difference: "Probleme : comparer",
-    multiplication_par_10: "Multiplier par 10",
+    probleme_reste_partie_tout: "Problème : trouver le reste",
+    probleme_comparaison_difference: "Problème : comparer",
+    multiplication_par_10: "Multiplication par 10",
     multiplication_chiffre_x_multiple_de_10: "Chiffre x multiple de 10",
-    identifier_multiple_de_10: "Reconnaitre les multiples de 10",
-    multiplication_decomposee_chiffre_x_2chiffres: "Multiplication decomposee",
-    addition_repetee_vers_multiplication: "De l'addition a la multiplication",
+    identifier_multiple_de_10: "Reconnaître les multiples de 10",
+    multiplication_decomposee_chiffre_x_2chiffres: "Multiplication décomposée",
+    addition_repetee_vers_multiplication: "De l'addition à la multiplication",
     facteur_manquant_table_de_2: "Facteur manquant (table de 2)",
-    probleme_groupes_egaux_total: "Groupes egaux : le total",
-    probleme_groupes_egaux_quotient: "Groupes egaux : le partage",
-    moitie_via_2xn: "Trouver la moitie",
+    probleme_groupes_egaux_total: "Groupes égaux : le total",
+    probleme_groupes_egaux_quotient: "Groupes égaux : le partage",
+    moitie_via_2xn: "Trouver la moitié",
     double_via_2xn: "Trouver le double",
-    suite_multiples_de_10_a_completer: "Suites de 10 a completer",
+    suite_multiples_de_10_a_completer: "Suites de 10 à compléter",
     conversion_cm_mm_vers_mm: "Convertir cm et mm",
   };
 
   /* Badges du bilan de session, generes par regles (aucun appel IA). */
-  const MASTERY_BADGES = { 1: "A retravailler", 2: "En bonne voie", 3: "Acquis" };
+  const MASTERY_BADGES = { 1: "À retravailler", 2: "En bonne voie", 3: "Acquis" };
 
   const overlay = document.getElementById("carnet-overlay");
   const book = document.getElementById("carnet-book");
@@ -182,7 +182,7 @@
     const stars = [1, 2, 3]
       .map((step) => `<span class="star ${step <= level ? "filled" : ""}">★</span>`)
       .join("");
-    return `<span class="stars" role="img" aria-label="Maitrise ${level} sur 3">${stars}</span>`;
+    return `<span class="stars" role="img" aria-label="Maîtrise ${level} sur 3">${stars}</span>`;
   }
 
   function emptyMarkup() {
@@ -191,7 +191,7 @@
       <div class="carnet-empty">
         <span class="carnet-empty-icon" aria-hidden="true">&#129517;</span>
         <p>Ton carnet est vide...</p>
-        <p class="carnet-empty-hint">Pars a l'aventure et termine une lecon pour remplir ta premiere page !</p>
+        <p class="carnet-empty-hint">Pars à l'aventure et termine une leçon pour remplir ta première page !</p>
       </div>
     `;
   }
@@ -213,10 +213,10 @@
         <span class="carnet-lesson-icon">${lessonIcon(entry.lecon_id)}</span>
         <div>
           <h2 class="carnet-lesson-name">${entry.lecon_nom} <span class="hud-level">${entry.niveau_scolaire}</span></h2>
-          <p class="carnet-date">Terminee le ${formatDate(entry.date)}</p>
+          <p class="carnet-date">Terminée le ${formatDate(entry.date)}</p>
         </div>
       </div>
-      <div class="carnet-stars-total">★ ${entry.etoiles} / ${entry.etoiles_max} etoiles</div>
+      <div class="carnet-stars-total">★ ${entry.etoiles} / ${entry.etoiles_max} étoiles</div>
       <ul class="carnet-concepts">${conceptRows}</ul>
       <div class="carnet-nav">
         <button id="carnet-prev" class="ghost-button carnet-nav-button" type="button" ${index === 0 ? "disabled" : ""}>&#8592; Page</button>
@@ -243,12 +243,12 @@
     const weak = concepts.filter((item) => item.maitrise <= 1);
     if (weak.length) {
       const names = weak.map((item) => conceptLabel(item.concept)).join(", ");
-      return `<p class="bilan-synthese attention">Concepts a retravailler : ${names}</p>`;
+      return `<p class="bilan-synthese attention">Concepts à retravailler : ${names}</p>`;
     }
     if (concepts.every((item) => item.maitrise === 3)) {
       return `<p class="bilan-synthese positive">Tous les concepts sont acquis, bravo !</p>`;
     }
-    return `<p class="bilan-synthese encore">Beau parcours ! Encore un peu d'entrainement et tout sera acquis.</p>`;
+    return `<p class="bilan-synthese encore">Beau parcours ! Encore un peu d'entraînement et tout sera acquis.</p>`;
   }
 
   function showBilan(snapshot) {

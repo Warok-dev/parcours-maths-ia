@@ -30,7 +30,7 @@
     },
     {
       "lecon_id": "multiplication_decomposee",
-      "nom": "Multiplication decomposee",
+      "nom": "Multiplication décomposée",
       "patterns": [
         "multiplication_decomposee_chiffre_x_2chiffres",
         "addition_repetee_vers_multiplication",
@@ -41,7 +41,7 @@
     },
     {
       "lecon_id": "moitie_double",
-      "nom": "Moitie et double",
+      "nom": "Moitié et double",
       "patterns": [
         "moitie_via_2xn",
         "double_via_2xn"
@@ -67,7 +67,7 @@
     },
     {
       "lecon_id": "mesures_masse_duree",
-      "nom": "Masses et durees",
+      "nom": "Masses et durées",
       "patterns": [
         "conversion_kg_g",
         "addition_durees_min"
@@ -82,28 +82,28 @@
     },
     {
       "lecon_id": "proportionnalite",
-      "nom": "Proportionnalite",
+      "nom": "Proportionnalité",
       "patterns": [
         "completer_tableau_proportionnalite"
       ]
     },
     {
       "lecon_id": "geometrie_figures",
-      "nom": "Perimetre et aire",
+      "nom": "Périmètre et aire",
       "patterns": [
         "figure_cotee_simple"
       ]
     },
     {
       "lecon_id": "echelle",
-      "nom": "Echelle et plan",
+      "nom": "Échelle et plan",
       "patterns": [
         "echelle_plan"
       ]
     },
     {
       "lecon_id": "nombres_decimaux",
-      "nom": "Les nombres decimaux",
+      "nom": "Les nombres décimaux",
       "patterns": [
         "comparaison_decimaux",
         "addition_decimaux",
@@ -112,7 +112,7 @@
     },
     {
       "lecon_id": "durees",
-      "nom": "Les durees",
+      "nom": "Les durées",
       "patterns": [
         "conversion_duree_min",
         "duree_entre_horaires"

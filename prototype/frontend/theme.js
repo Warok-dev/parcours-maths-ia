@@ -22,7 +22,7 @@
     { id: "princesses", nom: "Princesses et chevaliers", icone: "\u{1F451}", couleur: "var(--gold)" },
     { id: "espace", nom: "Espace", icone: "\u{1F680}", couleur: "var(--water-dark)" },
     { id: "animaux", nom: "Animaux", icone: "\u{1F98A}", couleur: "var(--road)" },
-    { id: THEME_NEUTRE, nom: "Pas de preference", icone: "✨", couleur: "var(--stone)" },
+    { id: THEME_NEUTRE, nom: "Pas de préférence", icone: "✨", couleur: "var(--stone)" },
   ];
 
   /* ---------- Coeur (testable sans navigateur) ---------- */

@@ -45,7 +45,7 @@ function check(cond, label) {
 /* --- 2. Libelles d'erreur --- */
 {
   check(
-    enseignant.libelleErreur(409) === "Cet identifiant est deja pris.",
+    enseignant.libelleErreur(409) === "Cet identifiant est déjà pris.",
     "409 -> identifiant deja pris",
   );
   check(

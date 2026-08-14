@@ -20,7 +20,7 @@
   };
   const BUBBLE_MESSAGE = "On dirait que tu bloques, je peux t'aider ?";
   const GREETING_MESSAGE =
-    "J'ai vu que ce n'etait pas facile, je suis la pour t'aider ! Dis-moi ce qui te bloque.";
+    "J'ai vu que ce n'était pas facile, je suis là pour t'aider ! Dis-moi ce qui te bloque.";
 
   function seuilsPourNiveau(niveau) {
     return niveau >= 3 ? THRESHOLDS.autonome : THRESHOLDS.standard;

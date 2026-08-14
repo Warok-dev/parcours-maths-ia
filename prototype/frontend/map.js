@@ -249,38 +249,38 @@ function obstacleTheme(type) {
   switch (type) {
     case "castle_gate":
       return {
-        name: "Le chateau",
+        name: "Le château",
         modalClass: "theme-castle",
-        title: "La porte du chateau est fermee !",
-        intro: "Le gardien attend ton aide. Resous ce probleme pour ouvrir la grande porte.",
+        title: "La porte du château est fermée !",
+        intro: "Le gardien attend ton aide. Résous ce problème pour ouvrir la grande porte.",
       };
     case "blocked_road":
       return {
         name: "La cabane",
         modalClass: "theme-cabin",
-        title: "La route est bloquee !",
-        intro: "Aide ce villageois a degager le passage en resolvant cet exercice.",
+        title: "La route est bloquée !",
+        intro: "Aide ce villageois à dégager le passage en résolvant cet exercice.",
       };
     case "broken_bridge":
       return {
         name: "Le pont",
         modalClass: "theme-bridge",
-        title: "Le pont est casse !",
-        intro: "Aide a reparer le pont en trouvant la bonne reponse.",
+        title: "Le pont est cassé !",
+        intro: "Aide à réparer le pont en trouvant la bonne réponse.",
       };
     case "crossroads":
       return {
         name: "Le carrefour",
         modalClass: "theme-crossroads",
-        title: "Le chemin est cache !",
-        intro: "Le guide connait la bonne direction. Aide-le pour reveler le passage.",
+        title: "Le chemin est caché !",
+        intro: "Le guide connaît la bonne direction. Aide-le pour révéler le passage.",
       };
     default:
       return {
         name: "L'obstacle",
         modalClass: "theme-castle",
         title: "Un obstacle t'attend !",
-        intro: "Resous l'exercice pour continuer ton chemin.",
+        intro: "Résous l'exercice pour continuer ton chemin.",
       };
   }
 }
@@ -327,10 +327,10 @@ function confidenceOwlSvg() {
 /* Theme des points d'arret d'entrainement le long des routes. */
 function stopTheme() {
   return {
-    name: "L'entrainement",
+    name: "L'entraînement",
     modalClass: "theme-camp",
-    title: "Halte d'entrainement !",
-    intro: "Un exercice pour bien ancrer la methode, puis reprends la route.",
+    title: "Halte d'entraînement !",
+    intro: "Un exercice pour bien ancrer la méthode, puis reprends la route.",
   };
 }
 
@@ -1046,7 +1046,7 @@ function collectTreasure() {
   addScore(window.ParcoursTresor.BONUS);
   spawnTreasureFx(x, y, window.ParcoursTresor.BONUS);
   window.ParcoursAudio?.playUnlock();
-  setFeedback(`Tresor du raccourci ! +${window.ParcoursTresor.BONUS} etoiles`, "success");
+  setFeedback(`Trésor du raccourci ! +${window.ParcoursTresor.BONUS} étoiles`, "success");
 }
 
 /* Scintillement + "+50" qui monte et s'efface. Le calque d'effets est
@@ -1299,7 +1299,7 @@ function sceneMarkup(scene) {
     <g id="interaction-hint" class="interaction-hint">
       <rect x="-118" y="-30" width="236" height="46" rx="20" class="hint-bubble"></rect>
       <rect x="-104" y="-21" width="64" height="28" rx="8" class="hint-key"></rect>
-      <text x="-72" y="0" text-anchor="middle" class="hint-text">Entree</text>
+      <text x="-72" y="0" text-anchor="middle" class="hint-text">Entrée</text>
       <text x="30" y="0" text-anchor="middle" class="hint-text" id="hint-action-text">pour aider !</text>
     </g>
     <g id="fx-layer"></g>
@@ -1591,7 +1591,7 @@ function updateSceneDynamics() {
       hintNode.setAttribute("transform", hintTransform);
     }
     const actionText = document.getElementById("hint-action-text");
-    const hintText = target.kind === "stop" ? "s'entrainer !" : "pour aider !";
+    const hintText = target.kind === "stop" ? "s'entraîner !" : "pour aider !";
     if (actionText && hintText !== dynamicsCache.hintText) {
       dynamicsCache.hintText = hintText;
       actionText.textContent = hintText;
@@ -1812,8 +1812,8 @@ function renderExerciseModal() {
   const level = state.session.niveau_resolution_courant || 1;
   const phaseChip =
     state.session.phase === "renforcement"
-      ? `Entrainement : encore ${state.session.exercices_renforcement_restants}`
-      : "A toi de jouer !";
+      ? `Entraînement : encore ${state.session.exercices_renforcement_restants}`
+      : "À toi de jouer !";
 
   exerciseModal.className = `exercise-modal ${theme.modalClass}`;
   exerciseModal.innerHTML = `
@@ -1840,7 +1840,7 @@ function renderExerciseModal() {
       }
       <div class="statement-row">
         <p class="exercise-statement">${exercise.enonce}</p>
-        ${listenButtonMarkup("listen-enonce", "Ecouter l'enonce")}
+        ${listenButtonMarkup("listen-enonce", "Écouter l'énoncé")}
       </div>
       ${
         isClock
@@ -1861,8 +1861,8 @@ function renderExerciseModal() {
         steps && details.aide_affichee
           ? `<div class="method-block">
               <p class="method-title">
-                <span>La methode :</span>
-                ${listenButtonMarkup("listen-methode", "Ecouter la methode")}
+                <span>La méthode :</span>
+                ${listenButtonMarkup("listen-methode", "Écouter la méthode")}
               </p>
               <ol>${steps}</ol>
             </div>`
@@ -1871,10 +1871,10 @@ function renderExerciseModal() {
       <form id="exercise-form" class="exercise-form" data-mechanic="${mechanic}">
         ${
           mechanic === "clavier"
-            ? `<label for="answer-input">Ta reponse</label>
+            ? `<label for="answer-input">Ta réponse</label>
                <div class="answer-row">
                  <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="numeric" />
-                 <button id="mic-button" class="mic-button" type="button" aria-label="Repondre a la voix" title="Reponds a la voix">
+                 <button id="mic-button" class="mic-button" type="button" aria-label="Répondre à la voix" title="Réponds à la voix">
                    <svg viewBox="0 0 32 32" aria-hidden="true">
                      <rect x="12" y="4" width="8" height="15" rx="4" fill="currentColor"></rect>
                      <path d="M8 15 a 8 8 0 0 0 16 0" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path>
@@ -1912,7 +1912,7 @@ function renderExerciseModal() {
   });
   const listenMethode = document.getElementById("listen-methode");
   if (listenMethode) {
-    const methodeTexte = ["La methode.", ...(details.etapes_methode || [])].join(" ");
+    const methodeTexte = ["La méthode.", ...(details.etapes_methode || [])].join(" ");
     listenMethode.addEventListener("click", () => {
       window.ParcoursSpeech?.speak(methodeTexte, { force: true, source: "enonce" });
     });
@@ -1952,7 +1952,7 @@ function applySessionSnapshot(snapshot, exercise = null) {
     : state.selectedLesson;
 
   sessionTitle.textContent = snapshot.terminee
-    ? "Parcours termine !"
+    ? "Parcours terminé !"
     : snapshot.lecon_nom || `Aventure ${snapshot.niveau_scolaire}`;
   currentLevelBadge.textContent = snapshot.niveau_scolaire;
 
@@ -2011,8 +2011,8 @@ async function syncSession() {
 
 function renderLessonChoices() {
   lessonTitle.textContent = state.selectedLevel
-    ? `Choisis une lecon de ${state.selectedLevel}`
-    : "Choisis ta lecon";
+    ? `Choisis une leçon de ${state.selectedLevel}`
+    : "Choisis ta leçon";
 
   /* Un eleve reste sur le niveau de sa classe : "Changer de niveau" n'a pas de
      sens pour lui (il ne verra jamais l'ecran de choix CE1-CE6). En essai libre
@@ -2028,7 +2028,7 @@ function renderLessonChoices() {
           <span class="lesson-card-icon">${LESSON_ICONS[lesson.lecon_id] || "★"}</span>
           <span>
             <span class="lesson-card-title">${lesson.nom}</span><br />
-            <span class="lesson-card-copy">${lesson.pattern_count} defi(s) a relever</span>
+            <span class="lesson-card-copy">${lesson.pattern_count} défi${lesson.pattern_count > 1 ? "s" : ""} à relever</span>
           </span>
         </button>
       `,
@@ -2040,7 +2040,7 @@ function renderLessonChoices() {
       try {
         await startSession(state.selectedLevel, button.dataset.lessonId);
       } catch (error) {
-        lessonStatus.textContent = `Impossible de demarrer la session : ${error.message}`;
+        lessonStatus.textContent = `Impossible de démarrer la session : ${error.message}`;
       }
     });
   });
@@ -2064,7 +2064,7 @@ function renderRevisionChoice() {
       <span class="revision-card-icon" aria-hidden="true">&#127919;</span>
       <span>
         <span class="lesson-card-title">Revoir mes points faibles</span><br />
-        <span class="lesson-card-copy">${nombre} concept${nombre > 1 ? "s" : ""} a retravailler</span>
+        <span class="lesson-card-copy">${nombre} concept${nombre > 1 ? "s" : ""} à retravailler</span>
       </span>
     </button>
   `;
@@ -2073,7 +2073,7 @@ function renderRevisionChoice() {
     try {
       await startRevisionSession(state.selectedLevel, patterns);
     } catch (error) {
-      lessonStatus.textContent = `Impossible de demarrer la revision : ${error.message}`;
+      lessonStatus.textContent = `Impossible de démarrer la révision : ${error.message}`;
     }
   });
 }
@@ -2096,24 +2096,24 @@ function renderAssignationBanner() {
     window.ParcoursCarnet?.conceptLabel?.(p) || String(p || "").replace(/_/g, " ");
   const label =
     a.type === "revision"
-      ? `Revision : ${(a.patterns || []).map(conceptLabel).join(", ")}`
+      ? `Révision : ${(a.patterns || []).map(conceptLabel).join(", ")}`
       : (state.availableLessons.find((l) => l.lecon_id === a.lecon_id) || {}).nom ||
         a.lecon_id ||
         "un exercice";
   const autres =
     assignations.length > 1
-      ? `<span class="assignation-plus">+${assignations.length - 1} autre(s) a suivre</span>`
+      ? `<span class="assignation-plus">+${assignations.length - 1} autre(s) à suivre</span>`
       : "";
 
   assignationZone.innerHTML = `
     <div class="assignation-banner">
       <span class="assignation-icon" aria-hidden="true">&#127891;</span>
       <div class="assignation-texte">
-        <span class="assignation-titre">Ton enseignant t'a prepare un exercice !</span>
+        <span class="assignation-titre">Ton enseignant t'a préparé un exercice !</span>
         <span class="assignation-travail">${label}</span>
         ${autres}
       </div>
-      <button id="assignation-demarrer" class="btn-primary assignation-btn" type="button">Demarrer</button>
+      <button id="assignation-demarrer" class="btn-primary assignation-btn" type="button">Démarrer</button>
     </div>
   `;
   assignationZone.classList.remove("hidden");
@@ -2125,21 +2125,21 @@ function renderAssignationBanner() {
         await startSession(state.selectedLevel, a.lecon_id);
       }
     } catch (error) {
-      lessonStatus.textContent = `Impossible de demarrer le travail : ${error.message}`;
+      lessonStatus.textContent = `Impossible de démarrer le travail : ${error.message}`;
     }
   });
 }
 
 async function loadLessons(level) {
   state.selectedLevel = level;
-  lessonStatus.textContent = "Chargement des lecons...";
+  lessonStatus.textContent = "Chargement des leçons...";
   const payload = await request(`/lecons/${level}`, { method: "GET" });
   state.availableLessons = payload.lecons || [];
   if (!state.availableLessons.length) {
-    throw new Error("Aucune lecon disponible pour ce niveau.");
+    throw new Error("Aucune leçon disponible pour ce niveau.");
   }
   renderLessonChoices();
-  lessonStatus.textContent = "Choisis une lecon pour commencer.";
+  lessonStatus.textContent = "Choisis une leçon pour commencer.";
   showLessonScreen();
 }
 
@@ -2194,7 +2194,7 @@ async function startSession(level, lessonId) {
 /* Revision ciblee : meme jeu, mais la carte n'est faite que des concepts
    restes sous la maitrise 3. */
 async function startRevisionSession(level, patterns) {
-  lessonStatus.textContent = "Preparation de ta revision...";
+  lessonStatus.textContent = "Préparation de ta révision...";
   const payload = await request("/session/demarrer_revision", {
     method: "POST",
     body: JSON.stringify({
@@ -2213,13 +2213,13 @@ async function startRevisionSession(level, patterns) {
 function openingMessage(obstacleType) {
   switch (obstacleType) {
     case "castle_gate":
-      return "Bravo ! La porte du chateau s'ouvre !";
+      return "Bravo ! La porte du château s'ouvre !";
     case "blocked_road":
-      return "Bravo ! La route est degagee !";
+      return "Bravo ! La route est dégagée !";
     case "broken_bridge":
-      return "Bravo ! Le pont est repare !";
+      return "Bravo ! Le pont est réparé !";
     case "crossroads":
-      return "Bravo ! Le chemin cache apparait !";
+      return "Bravo ! Le chemin caché apparaît !";
     default:
       return "Bravo ! Tu peux continuer !";
   }
@@ -2229,13 +2229,13 @@ function feedbackFromStatus(status, context) {
   switch (status) {
     case "correct_niveau_suivant":
       return {
-        message: "Bravo ! Tu gagnes une etoile, continue !",
+        message: "Bravo ! Tu gagnes une étoile, continue !",
         tone: "success",
       };
     case "correct_nouveau_renforcement":
       if (context.previousPhase === "detection_maitrise") {
         return {
-          message: `${openingMessage(context.previousObstacle?.type)} Suis la route jusqu'au premier fanion d'entrainement.`,
+          message: `${openingMessage(context.previousObstacle?.type)} Suis la route jusqu'au premier fanion d'entraînement.`,
           tone: "success",
         };
       }
@@ -2245,7 +2245,7 @@ function feedbackFromStatus(status, context) {
       };
     case "correct_concept_debloque":
       return {
-        message: "Bravo ! Entrainement termine, un nouveau defi t'attend plus loin !",
+        message: "Bravo ! Entraînement terminé, un nouveau défi t'attend plus loin !",
         tone: "success",
       };
     case "incorrect":
@@ -2262,7 +2262,7 @@ function feedbackFromStatus(status, context) {
       return { message: CONFIANCE_REUSSITE, tone: "success" };
     case "carte_terminee":
       return {
-        message: "Felicitations, tout le parcours est termine !",
+        message: "Félicitations, tout le parcours est terminé !",
         tone: "success",
       };
     default:
@@ -2396,8 +2396,8 @@ function renderCorrectionView(payload, context) {
   const block = document.createElement("div");
   block.className = `correction-block ${payload.correct ? "correct" : "wrong"}`;
   block.innerHTML = `
-    <p class="correction-verdict">${payload.correct ? "C'est juste, bravo !" : "Pas tout a fait..."}</p>
-    <p class="correction-answer">La bonne reponse : <strong>${expectedText}</strong></p>
+    <p class="correction-verdict">${payload.correct ? "C'est juste, bravo !" : "Pas tout à fait..."}</p>
+    <p class="correction-answer">La bonne réponse : <strong>${expectedText}</strong></p>
     ${explanation ? `<p class="correction-explain">${explanation}</p>` : ""}
     <button id="correction-continue" class="btn-primary" type="button">Continuer</button>
   `;
@@ -2419,8 +2419,8 @@ async function handleSubmitAnswer(event) {
     const mechanicName = event.currentTarget.dataset.mechanic;
     setFeedback(
       mechanicName && mechanicName !== "clavier"
-        ? "Choisis ta reponse avant de valider."
-        : "Entre une reponse avant de valider.",
+        ? "Choisis ta réponse avant de valider."
+        : "Entre une réponse avant de valider.",
       "warning",
     );
     return;
@@ -2463,7 +2463,7 @@ async function handleSubmitAnswer(event) {
     /* 503 = generation du prochain exercice indisponible : la session n'a pas
        bouge cote backend, l'eleve peut simplement revalider la meme reponse. */
     if (error.status === 503) {
-      setFeedback("Un instant, je prepare la suite... reessaie dans quelques secondes !", "wait");
+      setFeedback("Un instant, je prépare la suite... réessaie dans quelques secondes !", "wait");
     } else {
       setFeedback(error.message, "warning");
     }
@@ -2512,7 +2512,7 @@ function resetToStart() {
   const niveauEleve = niveauImposeEleve();
   if (niveauEleve) {
     loadLessons(niveauEleve).catch((error) => {
-      lessonStatus.textContent = `Impossible de charger les lecons : ${error.message}`;
+      lessonStatus.textContent = `Impossible de charger les leçons : ${error.message}`;
     });
     return;
   }
@@ -2530,7 +2530,7 @@ async function returnToLessonChoice() {
   /* Rafraichit les travaux assignes : celui qu'on vient de terminer disparait. */
   await rafraichirAssignations();
   renderLessonChoices();
-  lessonStatus.textContent = "Choisis une lecon pour commencer.";
+  lessonStatus.textContent = "Choisis une leçon pour commencer.";
   showLessonScreen();
 }
 
@@ -2932,7 +2932,7 @@ function niveauImposeEleve() {
    ne pas laisser apparaitre, meme une fraction de seconde, le choix de niveau. */
 async function demarrerFluxEleve(niveau) {
   showLessonScreen();
-  lessonStatus.textContent = "Chargement de tes lecons...";
+  lessonStatus.textContent = "Chargement de tes leçons...";
   if (await tryResumeSession()) {
     return;
   }
@@ -2940,7 +2940,7 @@ async function demarrerFluxEleve(niveau) {
   try {
     await loadLessons(niveau);
   } catch (error) {
-    lessonStatus.textContent = `Impossible de charger les lecons : ${error.message}`;
+    lessonStatus.textContent = `Impossible de charger les leçons : ${error.message}`;
   }
 }
 

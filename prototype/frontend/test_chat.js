@@ -37,7 +37,7 @@ check(causeDepuisStatut(500) === CAUSE.INCONNUE, "500 -> cause inconnue (message
     [CAUSE.SESSION]: /recharge/i,
     [CAUSE.IA_INDISPONIBLE]: /attends/i,
     [CAUSE.SANS_EXERCICE]: /carte/i,
-    [CAUSE.INCONNUE]: /reessaie/i,
+    [CAUSE.INCONNUE]: /réessaie/i,
   };
   for (const [cause, motif] of Object.entries(attendus)) {
     check(motif.test(messageErreurTuteur(cause)), `${cause} : le message donne l'action a faire (${motif})`);

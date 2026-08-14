@@ -437,7 +437,7 @@
               <span class="chasse-cible-label">Attrape tous les</span>
               <span class="chasse-cible-valeur">${config.cible}</span>
             </div>
-            <div class="chasse-compteur" id="chasse-compteur">0/${partie.aTrouver()} trouves</div>
+            <div class="chasse-compteur" id="chasse-compteur">0/${partie.aTrouver()} trouvés</div>
           </div>
           <div class="chasse-timer"><div class="chasse-timer-bar" id="chasse-timer-bar"></div></div>
           <svg class="chasse-aire" id="chasse-aire" viewBox="0 0 ${W} ${H}"
@@ -483,7 +483,7 @@
       let fini = false;
 
       function majCompteur() {
-        compteur.textContent = `${partie.trouves()}/${partie.aTrouver()} trouves`;
+        compteur.textContent = `${partie.trouves()}/${partie.aTrouver()} trouvés`;
       }
 
       function onClick(event) {
@@ -554,10 +554,10 @@
         finBox.innerHTML = `
           <div class="chasse-fin-carte">
             <div class="chasse-fin-emoji" aria-hidden="true">&#127881;</div>
-            <h2 class="chasse-fin-titre">Bien joue !</h2>
-            <p class="chasse-fin-detail">Tu as attrape ${trouves} nombre${pluriel} sur ${total}.</p>
-            <p class="chasse-fin-bonus">+${bonus} etoiles &#10024;</p>
-            <button id="chasse-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
+            <h2 class="chasse-fin-titre">Bien joué !</h2>
+            <p class="chasse-fin-detail">Tu as attrapé ${trouves} nombre${pluriel} sur ${total}.</p>
+            <p class="chasse-fin-bonus">+${bonus} étoiles &#10024;</p>
+            <button id="chasse-fin-btn" class="btn-primary" type="button">Revenir à l'aventure</button>
           </div>
         `;
         finBox.classList.remove("hidden");
@@ -767,13 +767,13 @@
       const jeu = creerMemory(config);
       const consigne = estPetitNiveau(niveau)
         ? "Trouve les 2 cartes qui vont ensemble."
-        : "Associe chaque calcul a son resultat.";
+        : "Associe chaque calcul à son résultat.";
 
       const cartesMarkup = jeu
         .cartes()
         .map(
           (c) => `
-            <button class="memory-carte" type="button" data-id="${c.id}" aria-label="Carte a retourner">
+            <button class="memory-carte" type="button" data-id="${c.id}" aria-label="Carte à retourner">
               <span class="memory-carte-dos" aria-hidden="true">?</span>
               <span class="memory-carte-face">${c.texte}</span>
             </button>`,
@@ -851,9 +851,9 @@
         finBox.innerHTML = `
           <div class="memory-fin-carte">
             <div class="memory-fin-emoji" aria-hidden="true">&#127882;</div>
-            <h2 class="memory-fin-titre">Bravo, tout retrouve !</h2>
+            <h2 class="memory-fin-titre">Bravo, tout retrouvé !</h2>
             <p class="memory-fin-detail">Tu as reforme les ${jeu.nbPaires()} paires.</p>
-            <p class="memory-fin-bonus">+${bonus} etoiles &#10024;</p>
+            <p class="memory-fin-bonus">+${bonus} étoiles &#10024;</p>
             <button id="memory-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
           </div>
         `;
@@ -1075,16 +1075,16 @@
       const bacHtml = bac.length
         ? bac
             .map(
-              (id) => `<button class="puzzle-piece${id === nouvellePiece ? " nouvelle" : ""}" type="button" data-id="${id}" aria-label="Piece de puzzle a placer">${pieceImg(id)}</button>`,
+              (id) => `<button class="puzzle-piece${id === nouvellePiece ? " nouvelle" : ""}" type="button" data-id="${id}" aria-label="Pièce de puzzle à placer">${pieceImg(id)}</button>`,
             )
             .join("")
-        : `<p class="puzzle-bac-vide">Tout est place ! Reviens debloquer la piece suivante.</p>`;
+        : `<p class="puzzle-bac-vide">Tout est placé ! Reviens débloquer la pièce suivante.</p>`;
 
       zone.innerHTML = `
         <div class="puzzle">
           <div class="puzzle-header">
-            <div class="puzzle-consigne">${estPetitNiveau(niveau) ? "Place les pieces pour finir l'image." : "Reforme la carte du monde, piece par piece"}</div>
-            <div class="puzzle-compteur" id="puzzle-compteur">${jeu.placees().length}/${total} pieces</div>
+            <div class="puzzle-consigne">${estPetitNiveau(niveau) ? "Place les pièces pour finir l'image." : "Reforme la carte du monde, pièce par pièce"}</div>
+            <div class="puzzle-compteur" id="puzzle-compteur">${jeu.placees().length}/${total} pièces</div>
           </div>
           <div class="puzzle-plateau">
             <div class="puzzle-cadre" id="puzzle-cadre" style="--rows:${rows}; --cols:${cols}; aspect-ratio:${PUZZLE.FRESQUE_W}/${PUZZLE.FRESQUE_H};">${slotsHtml}</div>
@@ -1137,11 +1137,11 @@
           window.setTimeout(() => slot.classList.remove("vient-de-placer"), 500);
           bacNode.querySelector(`.puzzle-piece[data-id="${pieceId}"]`)?.remove();
           deselectionner();
-          compteur.textContent = `${jeu.placees().length}/${total} pieces`;
+          compteur.textContent = `${jeu.placees().length}/${total} pièces`;
           sauvegarderProgressionPuzzle(jeu.progression());
           window.ParcoursAudio?.playCorrect?.();
           if (!bacNode.querySelector(".puzzle-piece")) {
-            bacNode.innerHTML = `<p class="puzzle-bac-vide">Tout est place ! Reviens debloquer la piece suivante.</p>`;
+            bacNode.innerHTML = `<p class="puzzle-bac-vide">Tout est placé ! Reviens débloquer la pièce suivante.</p>`;
           }
           if (res.complet) {
             finir();
@@ -1174,9 +1174,9 @@
             <div class="puzzle-fin-image">
               <svg viewBox="0 0 ${PUZZLE.FRESQUE_W} ${PUZZLE.FRESQUE_H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${fresque}</svg>
             </div>
-            <h2 class="puzzle-fin-titre">Carte du monde reconstituee !</h2>
-            <p class="puzzle-fin-detail">Tu as replace toutes les pieces. Un nouveau puzzle t'attend la prochaine fois.</p>
-            <p class="puzzle-fin-bonus">+${bonus} etoiles &#10024;</p>
+            <h2 class="puzzle-fin-titre">Carte du monde reconstituée !</h2>
+            <p class="puzzle-fin-detail">Tu as replacé toutes les pièces. Un nouveau puzzle t'attend la prochaine fois.</p>
+            <p class="puzzle-fin-bonus">+${bonus} étoiles &#10024;</p>
             <button id="puzzle-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
           </div>
         `;
@@ -1226,7 +1226,7 @@
       { id: "arbre", nom: "Petit arbre", cout: 50 },
       { id: "banc", nom: "Banc en bois", cout: 75 },
       { id: "fontaine", nom: "Fontaine", cout: 100 },
-      { id: "lanterne", nom: "Lanterne doree", cout: 150 },
+      { id: "lanterne", nom: "Lanterne dorée", cout: 150 },
     ],
   };
 
@@ -1399,8 +1399,8 @@
       zone.innerHTML = `
         <div class="deco">
           <div class="deco-header">
-            <div class="deco-consigne">Amenage ton petit jardin</div>
-            <div class="deco-etoiles">&#9733; ${total} etoiles</div>
+            <div class="deco-consigne">Aménage ton petit jardin</div>
+            <div class="deco-etoiles">&#9733; ${total} étoiles</div>
           </div>
           <div class="deco-scene">
             <div class="deco-grille" id="deco-grille">${spotsHtml}</div>
@@ -1453,7 +1453,7 @@
         }
         const spotId = Number(spot.dataset.spot);
         if (outil === null) {
-          hint.textContent = "Choisis d'abord un objet dans la reserve.";
+          hint.textContent = "Choisis d'abord un objet dans la réserve.";
           return;
         }
         if (outil === "retirer") {
@@ -1509,10 +1509,10 @@
           return;
         }
         card.innerHTML = `
-          <p class="minigame-invite-eyebrow">Pause detente !</p>
+          <p class="minigame-invite-eyebrow">Pause détente !</p>
           <div class="minigame-invite-emoji" aria-hidden="true">&#127881;</div>
-          <h2 class="minigame-invite-title">Tu veux jouer a ${minigame.nom} ?</h2>
-          <p class="minigame-invite-text">Juste pour s'amuser -- ta progression est mise de cote, elle t'attend.</p>
+          <h2 class="minigame-invite-title">Tu veux jouer à ${minigame.nom} ?</h2>
+          <p class="minigame-invite-text">Juste pour s'amuser -- ta progression est mise de côté, elle t'attend.</p>
           <div class="minigame-invite-actions">
             <button id="minigame-invite-play" class="btn-primary" type="button">Jouer</button>
             <button id="minigame-invite-skip" class="ghost-button" type="button">Non merci, continuer</button>

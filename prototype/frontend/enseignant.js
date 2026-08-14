@@ -31,10 +31,10 @@
       return "Indique ton nom.";
     }
     if (!identifiant || identifiant.trim().length < 3) {
-      return "L'identifiant doit faire au moins 3 caracteres.";
+      return "L'identifiant doit faire au moins 3 caractères.";
     }
     if (!mot_de_passe || mot_de_passe.length < 6) {
-      return "Le mot de passe doit faire au moins 6 caracteres.";
+      return "Le mot de passe doit faire au moins 6 caractères.";
     }
     return null;
   }
@@ -49,16 +49,16 @@
       case 401:
         return "Identifiant ou mot de passe incorrect.";
       case 409:
-        return "Cet identifiant est deja pris.";
+        return "Cet identifiant est déjà pris.";
       case 400:
         return "Niveau scolaire invalide.";
       default:
-        return "Une erreur est survenue. Reessaie.";
+        return "Une erreur est survenue. Réessaie.";
     }
   }
 
   /* Terminologie identique au bilan de session cote eleve (carnet.js). */
-  const BADGES_MAITRISE = { 1: "A retravailler", 2: "En bonne voie", 3: "Acquis" };
+  const BADGES_MAITRISE = { 1: "À retravailler", 2: "En bonne voie", 3: "Acquis" };
 
   /* Eleves tries du plus en difficulte au moins (plus de concepts en maitrise 1
      d'abord), puis par prenom. Fonction pure -> nouvelle liste. */
@@ -346,7 +346,7 @@
         <input id="ens-mdp" class="login-input teacher-input" type="password" autocomplete="current-password" />
         <div class="login-form-actions">
           <button type="submit" class="btn-primary">Se connecter</button>
-          <button type="button" id="ens-vers-inscription" class="ghost-button">Creer un compte</button>
+          <button type="button" id="ens-vers-inscription" class="ghost-button">Créer un compte</button>
         </div>
       </form>
       <button type="button" id="ens-retour-jeu" class="ghost-button teacher-back">&#8592; Retour au jeu</button>
@@ -380,11 +380,11 @@
         <input id="ens-nom" class="login-input teacher-input" type="text" autocomplete="name" />
         <label class="login-label" for="ens-new-identifiant">Identifiant</label>
         <input id="ens-new-identifiant" class="login-input teacher-input" type="text" autocomplete="username" />
-        <label class="login-label" for="ens-new-mdp">Mot de passe (6 caracteres min.)</label>
+        <label class="login-label" for="ens-new-mdp">Mot de passe (6 caractères min.)</label>
         <input id="ens-new-mdp" class="login-input teacher-input" type="password" autocomplete="new-password" />
         <div class="login-form-actions">
-          <button type="submit" class="btn-primary">Creer mon compte</button>
-          <button type="button" id="ens-vers-connexion" class="ghost-button">J'ai deja un compte</button>
+          <button type="submit" class="btn-primary">Créer mon compte</button>
+          <button type="button" id="ens-vers-connexion" class="ghost-button">J'ai déjà un compte</button>
         </div>
       </form>
       <button type="button" id="ens-retour-jeu" class="ghost-button teacher-back">&#8592; Retour au jeu</button>
@@ -403,7 +403,7 @@
         setStatut(probleme, "erreur");
         return;
       }
-      setStatut("Creation du compte...");
+      setStatut("Création du compte...");
       try {
         await sinscrire(donnees);
         await vueDashboard();
@@ -425,7 +425,7 @@
     const entete = `
       <div class="teacher-topbar">
         <p class="teacher-hello">Bonjour ${echapper(enseignant?.nom || "")}</p>
-        <button type="button" id="ens-deconnexion" class="ghost-button">Se deconnecter</button>
+        <button type="button" id="ens-deconnexion" class="ghost-button">Se déconnecter</button>
       </div>
     `;
     const cartes = classes.length
@@ -438,29 +438,29 @@
             <span class="hud-level">${c.niveau_scolaire}</span>
           </div>
           <div class="teacher-class-meta">
-            <span>${c.nb_eleves} eleve${c.nb_eleves > 1 ? "s" : ""}</span>
+            <span>${c.nb_eleves} élève${c.nb_eleves > 1 ? "s" : ""}</span>
           </div>
           <div class="teacher-code-row">
-            <span class="teacher-code" title="Code a communiquer aux eleves">${c.code_classe}</span>
+            <span class="teacher-code" title="Code à communiquer aux élèves">${c.code_classe}</span>
             <button type="button" class="ghost-button teacher-copy" data-code="${c.code_classe}">Copier</button>
           </div>
         </div>
       `,
           )
           .join("")
-      : `<p class="menu-lead">Aucune classe pour l'instant. Cree ta premiere classe ci-dessous.</p>`;
+      : `<p class="menu-lead">Aucune classe pour l'instant. Crée ta première classe ci-dessous.</p>`;
 
     body.innerHTML = `
       ${entete}
       <div class="teacher-classes">${cartes}</div>
       <form id="ens-creer-classe" class="teacher-create login-form" autocomplete="off">
-        <h2 class="teacher-subtitle">Creer une classe</h2>
+        <h2 class="teacher-subtitle">Créer une classe</h2>
         <div class="teacher-create-row">
           <input id="ens-classe-nom" class="login-input teacher-input" type="text" placeholder="Nom de la classe" />
           <select id="ens-classe-niveau" class="login-input teacher-input">
             ${NIVEAUX.map((n) => `<option value="${n}">${n}</option>`).join("")}
           </select>
-          <button type="submit" class="btn-primary">Creer</button>
+          <button type="submit" class="btn-primary">Créer</button>
         </div>
       </form>
       <button type="button" id="ens-retour-jeu" class="ghost-button teacher-back">&#8592; Retour au jeu</button>
@@ -493,14 +493,14 @@
       const nom = body.querySelector("#ens-classe-nom").value.trim();
       const niveau_scolaire = body.querySelector("#ens-classe-niveau").value;
       if (!nom) {
-        setStatut("Donne un nom a la classe.", "erreur");
+        setStatut("Donne un nom à la classe.", "erreur");
         return;
       }
-      setStatut("Creation de la classe...");
+      setStatut("Création de la classe...");
       try {
         const classe = await creerClasse({ nom, niveau_scolaire });
         await vueDashboard();
-        setStatut(`Classe creee ! Code a partager : ${classe.code_classe}`, "succes");
+        setStatut(`Classe créée ! Code à partager : ${classe.code_classe}`, "succes");
       } catch (error) {
         setStatut(error.message, "erreur");
       }
@@ -510,9 +510,9 @@
   async function copierCode(code) {
     try {
       await navigator.clipboard.writeText(code);
-      setStatut(`Code ${code} copie !`, "succes");
+      setStatut(`Code ${code} copié !`, "succes");
     } catch (_error) {
-      setStatut(`Code a partager : ${code}`, "");
+      setStatut(`Code à partager : ${code}`, "");
     }
   }
 
@@ -521,7 +521,7 @@
      Authorization). On recupere donc le blob par fetch authentifie, puis on
      declenche le telechargement via une URL objet temporaire. */
   async function exporterExcel(classe) {
-    setStatut("Preparation de l'export Excel...");
+    setStatut("Préparation de l'export Excel...");
     let response;
     try {
       response = await fetch(`${API_BASE}/classe/${classe.id}/export_excel`, {
@@ -549,7 +549,7 @@
     lien.click();
     lien.remove();
     URL.revokeObjectURL(url);
-    setStatut(`Export telecharge : ${nomFichier}`, "succes");
+    setStatut(`Export téléchargé : ${nomFichier}`, "succes");
   }
 
   /* Statut des travaux assignes (qui a termine, qui pas encore). noms = table
@@ -561,10 +561,10 @@
     const item = (a) => {
       const label =
         a.type === "revision"
-          ? `Revision : ${(a.patterns || []).map(libelleConcept).join(", ")}`
-          : noms[a.lecon_id] || a.lecon_id || "Lecon";
+          ? `Révision : ${(a.patterns || []).map(libelleConcept).join(", ")}`
+          : noms[a.lecon_id] || a.lecon_id || "Leçon";
       const statut = a.terminee
-        ? `<span class="assign-statut assign-faite">Termine</span>`
+        ? `<span class="assign-statut assign-faite">Terminé</span>`
         : `<span class="assign-statut assign-attente">En attente</span>`;
       return `
         <li class="assign-ligne">
@@ -575,14 +575,14 @@
     };
     return `
       <div class="teacher-assign-statut">
-        <h3 class="teacher-subtitle">Travaux assignes</h3>
+        <h3 class="teacher-subtitle">Travaux assignés</h3>
         <ul class="assign-liste">${assignations.map(item).join("")}</ul>
       </div>`;
   }
 
   /* --- Vue : detail d'une classe (eleves) --- */
   async function vueClasseDetail(classeId) {
-    setStatut("Chargement des eleves...");
+    setStatut("Chargement des élèves...");
     let donnees;
     let assignations = [];
     let noms = {};
@@ -607,9 +607,9 @@
             (e) => `
         <li class="teacher-eleve" data-eleve-id="${e.id}">
           <span class="teacher-eleve-nom">${echapper(e.prenom)}</span>
-          <span class="teacher-eleve-date">Ajoute le ${formaterDate(e.date_creation)}</span>
+          <span class="teacher-eleve-date">Ajouté le ${formaterDate(e.date_creation)}</span>
           <span class="teacher-eleve-actions">
-            <button type="button" class="ghost-button teacher-reset-pin" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Reinitialiser le code</button>
+            <button type="button" class="ghost-button teacher-reset-pin" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Réinitialiser le code</button>
             <button type="button" class="ghost-button teacher-code-parent" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Code parent</button>
             <button type="button" class="ghost-button teacher-remove" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Retirer</button>
           </span>
@@ -617,7 +617,7 @@
       `,
           )
           .join("")
-      : `<li class="teacher-eleve-vide">Aucun eleve pour l'instant.</li>`;
+      : `<li class="teacher-eleve-vide">Aucun élève pour l'instant.</li>`;
 
     body.innerHTML = `
       <div class="teacher-topbar">
@@ -634,7 +634,7 @@
       ${assignationsStatutMarkup(assignations, noms)}
       <form id="ens-ajout-eleve" class="teacher-create login-form" autocomplete="off">
         <div class="teacher-create-row">
-          <input id="ens-eleve-prenom" class="login-input teacher-input" type="text" placeholder="Prenom du nouvel eleve" />
+          <input id="ens-eleve-prenom" class="login-input teacher-input" type="text" placeholder="Prénom du nouvel élève" />
           <button type="submit" class="btn-primary">Ajouter</button>
         </div>
       </form>
@@ -661,7 +661,7 @@
       if (!prenom) {
         return;
       }
-      setStatut("Ajout de l'eleve...");
+      setStatut("Ajout de l'élève...");
       try {
         const cree = await ajouterEleve(classeId, prenom);
         await vueClasseDetail(classeId);
@@ -694,9 +694,9 @@
     if (!eleves.length) {
       body.innerHTML = `
         <div class="teacher-topbar">
-          <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour a la classe</button>
+          <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour à la classe</button>
         </div>
-        <p class="menu-lead">Ajoute d'abord des eleves pour pouvoir leur assigner un travail.</p>`;
+        <p class="menu-lead">Ajoute d'abord des élèves pour pouvoir leur assigner un travail.</p>`;
       body.querySelector("#ens-retour-detail").addEventListener("click", () => vueClasseDetail(classeId));
       setStatut("");
       return;
@@ -726,32 +726,32 @@
               c.pattern_name === suggere ? "checked" : ""
             } />
             <span>${echapper(libelleConcept(c.pattern_name))}
-              <span class="assign-hint">(${c.nb_eleves_en_difficulte} en difficulte)</span></span>
+              <span class="assign-hint">(${c.nb_eleves_en_difficulte} en difficulté)</span></span>
           </label>`,
           )
           .join("")
-      : `<p class="menu-note">Aucun concept en difficulte identifie pour l'instant.</p>`;
+      : `<p class="menu-note">Aucun concept en difficulté identifié pour l'instant.</p>`;
 
     body.innerHTML = `
       <div class="teacher-topbar">
-        <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour a la classe</button>
+        <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour à la classe</button>
       </div>
       <h2 class="teacher-subtitle">Assigner un travail <span class="hud-level">${classe.niveau_scolaire}</span></h2>
       <div class="assign-form">
         <fieldset class="assign-bloc">
-          <legend>A quels eleves ?</legend>
-          <button type="button" id="assign-tout" class="ghost-button assign-tout">Tout (de)selectionner</button>
+          <legend>À quels élèves ?</legend>
+          <button type="button" id="assign-tout" class="ghost-button assign-tout">Tout (dé)sélectionner</button>
           <div class="assign-cases">${casesEleves}</div>
         </fieldset>
         <fieldset class="assign-bloc">
           <legend>Quel travail ?</legend>
-          <label class="assign-radio"><input type="radio" name="assign-type" value="lecon" checked /> Une lecon complete</label>
-          <label class="assign-radio"><input type="radio" name="assign-type" value="revision" /> Revision ciblee</label>
+          <label class="assign-radio"><input type="radio" name="assign-type" value="lecon" checked /> Une leçon complète</label>
+          <label class="assign-radio"><input type="radio" name="assign-type" value="revision" /> Révision ciblée</label>
           <div id="assign-lecon-zone" class="assign-type-zone">
             <select id="assign-lecon" class="login-input teacher-input">${optionsLecons}</select>
           </div>
           <div id="assign-revision-zone" class="assign-type-zone hidden">
-            <p class="assign-hint">Concepts a retravailler (le plus bloquant est pre-coche) :</p>
+            <p class="assign-hint">Concepts à retravailler (le plus bloquant est pré-coché) :</p>
             <div class="assign-cases">${casesConcepts}</div>
           </div>
         </fieldset>
@@ -780,7 +780,7 @@
         Number(c.value),
       );
       if (!eleve_ids.length) {
-        setStatut("Selectionne au moins un eleve.", "erreur");
+        setStatut("Sélectionne au moins un élève.", "erreur");
         return;
       }
       const type = body.querySelector('input[name="assign-type"]:checked').value;
@@ -788,7 +788,7 @@
       if (type === "lecon") {
         payload.lecon_id = body.querySelector("#assign-lecon").value;
         if (!payload.lecon_id) {
-          setStatut("Choisis une lecon.", "erreur");
+          setStatut("Choisis une leçon.", "erreur");
           return;
         }
       } else {
@@ -796,7 +796,7 @@
           (c) => c.value,
         );
         if (!payload.patterns.length) {
-          setStatut("Choisis au moins un concept a retravailler.", "erreur");
+          setStatut("Choisis au moins un concept à retravailler.", "erreur");
           return;
         }
       }
@@ -804,7 +804,7 @@
       try {
         const rep = await assignerTravail(classeId, payload);
         await vueClasseDetail(classeId);
-        setStatut(`Travail assigne a ${rep.assignations.length} eleve(s).`, "succes");
+        setStatut(`Travail assigné à ${rep.assignations.length} élève(s).`, "succes");
       } catch (error) {
         setStatut(error.message, "erreur");
       }
@@ -819,7 +819,7 @@
     pin,
     {
       titre = "Note ce code pour",
-      lead = "Il ne sera plus affiche apres. Communique-le a l'eleve : il en aura besoin pour se connecter.",
+      lead = "Il ne sera plus affiché après. Communique-le à l'élève : il en aura besoin pour se connecter.",
     } = {},
   ) {
     document.getElementById("ens-pin-overlay")?.remove();
@@ -833,7 +833,7 @@
         <div class="pin-modal-code" id="pin-modal-code">${echapper(pin)}</div>
         <div class="pin-modal-actions">
           <button type="button" id="pin-modal-copier" class="btn-primary">Copier le code</button>
-          <button type="button" id="pin-modal-ok" class="ghost-button">J'ai note</button>
+          <button type="button" id="pin-modal-ok" class="ghost-button">J'ai noté</button>
         </div>
       </div>
     `;
@@ -849,7 +849,7 @@
       const bouton = event.currentTarget;
       try {
         await navigator.clipboard.writeText(pin);
-        bouton.textContent = "Code copie !";
+        bouton.textContent = "Code copié !";
       } catch (_error) {
         bouton.textContent = `Code : ${pin}`;
       }
@@ -868,7 +868,7 @@
       <div class="pin-modal rapport-modal" role="dialog" aria-modal="true" aria-labelledby="rapport-titre">
         <h3 id="rapport-titre" class="pin-modal-titre">Rapport de ${echapper(eleve.prenom)}</h3>
         <div id="rapport-contenu" class="rapport-contenu" aria-live="polite">
-          <p class="rapport-chargement"><span class="rapport-spinner" aria-hidden="true"></span> Redaction du rapport en cours...</p>
+          <p class="rapport-chargement"><span class="rapport-spinner" aria-hidden="true"></span> Rédaction du rapport en cours...</p>
         </div>
         <div class="pin-modal-actions">
           <button type="button" id="rapport-fermer" class="ghost-button">Fermer</button>
@@ -890,11 +890,11 @@
       const rapport = reponse.rapport || {};
       const note =
         rapport.source === "regles"
-          ? `<p class="rapport-note">Rapport simplifie (service IA momentanement indisponible).</p>`
+          ? `<p class="rapport-note">Rapport simplifié (service IA momentanément indisponible).</p>`
           : "";
       contenu.innerHTML = `<p class="rapport-texte">${echapper(rapport.texte || "")}</p>${note}`;
     } catch (error) {
-      contenu.innerHTML = `<p class="rapport-erreur">Impossible de generer le rapport : ${echapper(error.message)}</p>`;
+      contenu.innerHTML = `<p class="rapport-erreur">Impossible de générer le rapport : ${echapper(error.message)}</p>`;
     }
   }
 
@@ -918,7 +918,7 @@
       try {
         await retirerEleve(classeId, eleveId);
         await vueClasseDetail(classeId);
-        setStatut(`${prenom} a ete retire de la classe.`, "");
+        setStatut(`${prenom} a été retiré de la classe.`, "");
       } catch (error) {
         setStatut(error.message, "erreur");
       }
@@ -943,7 +943,7 @@
       vueClasseDetail(classeId),
     );
     actions.querySelector(".teacher-confirm-oui").addEventListener("click", async () => {
-      setStatut("Reinitialisation du code...");
+      setStatut("Réinitialisation du code...");
       try {
         const reponse = await reinitialiserPin(classeId, eleveId);
         await vueClasseDetail(classeId);
@@ -963,22 +963,22 @@
     const prenom = bouton.dataset.prenom;
     const actions = bouton.closest(".teacher-eleve-actions");
     actions.innerHTML = `
-      <span class="teacher-confirm-label">Generer un code parent pour ${echapper(prenom)} ? Un ancien code eventuel cessera de marcher.</span>
-      <button type="button" class="btn-primary teacher-confirm-oui">Generer</button>
+      <span class="teacher-confirm-label">Générer un code parent pour ${echapper(prenom)} ? Un ancien code éventuel cessera de marcher.</span>
+      <button type="button" class="btn-primary teacher-confirm-oui">Générer</button>
       <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
     `;
     actions.querySelector(".teacher-confirm-non").addEventListener("click", () =>
       vueClasseDetail(classeId),
     );
     actions.querySelector(".teacher-confirm-oui").addEventListener("click", async () => {
-      setStatut("Generation du code parent...");
+      setStatut("Génération du code parent...");
       try {
         const reponse = await regenererCodeParent(classeId, eleveId);
         await vueClasseDetail(classeId);
         setStatut("");
         afficherPopupPin(prenom, reponse.code_parent, {
-          titre: "Code d'acces parent pour",
-          lead: "Il ne sera plus affiche apres. Communiquez-le au parent : il lui permet de suivre la progression de son enfant (lecture seule).",
+          titre: "Code d'accès parent pour",
+          lead: "Il ne sera plus affiché après. Communiquez-le au parent : il lui permet de suivre la progression de son enfant (lecture seule).",
         });
       } catch (error) {
         setStatut(error.message, "erreur");
@@ -1007,14 +1007,14 @@
     const sectionDifficiles = topDifficiles.length
       ? `
         <div class="teacher-difficiles">
-          <h3 class="teacher-difficiles-titre">&#9888; A retravailler collectivement</h3>
+          <h3 class="teacher-difficiles-titre">&#9888; À retravailler collectivement</h3>
           <ul class="teacher-difficiles-liste">
             ${topDifficiles
               .map(
                 (c) => `
               <li>
                 <span class="teacher-difficile-nom">${echapper(libelleConcept(c.pattern_name))}</span>
-                <span class="teacher-difficile-nb">${c.nb_eleves_en_difficulte} eleve${c.nb_eleves_en_difficulte > 1 ? "s" : ""} en difficulte</span>
+                <span class="teacher-difficile-nb">${c.nb_eleves_en_difficulte} élève${c.nb_eleves_en_difficulte > 1 ? "s" : ""} en difficulté</span>
               </li>
             `,
               )
@@ -1022,7 +1022,7 @@
           </ul>
         </div>
       `
-      : `<p class="teacher-difficiles-aucun">Aucun concept ne bloque plusieurs eleves pour l'instant. &#128077;</p>`;
+      : `<p class="teacher-difficiles-aucun">Aucun concept ne bloque plusieurs élèves pour l'instant. &#128077;</p>`;
 
     const lignesEleves = elevesTries.length
       ? elevesTries
@@ -1030,20 +1030,20 @@
             (e) => `
         <li class="teacher-bord-eleve" data-eleve-id="${e.id}" role="button" tabindex="0">
           <span class="teacher-bord-nom">${echapper(e.prenom)}</span>
-          ${e.nb_total ? badgesMarkup(e) : `<span class="teacher-bord-vide">Pas encore joue</span>`}
+          ${e.nb_total ? badgesMarkup(e) : `<span class="teacher-bord-vide">Pas encore joué</span>`}
         </li>
       `,
           )
           .join("")
-      : `<li class="teacher-eleve-vide teacher-bord-eleve">Aucun eleve dans cette classe.</li>`;
+      : `<li class="teacher-eleve-vide teacher-bord-eleve">Aucun élève dans cette classe.</li>`;
 
     body.innerHTML = `
       <div class="teacher-topbar">
-        <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour a la classe</button>
+        <button type="button" id="ens-retour-detail" class="ghost-button">&#8592; Retour à la classe</button>
       </div>
       <h2 class="teacher-subtitle">Tableau de bord &mdash; ${echapper(classe.nom)} <span class="hud-level">${classe.niveau_scolaire}</span></h2>
       ${sectionDifficiles}
-      <h3 class="teacher-bord-soustitre">Eleves <span class="teacher-bord-hint">(les plus en difficulte d'abord)</span></h3>
+      <h3 class="teacher-bord-soustitre">Élèves <span class="teacher-bord-hint">(les plus en difficulté d'abord)</span></h3>
       <ul class="teacher-bord-eleves">${lignesEleves}</ul>
     `;
     setStatut("");
@@ -1102,12 +1102,12 @@
       `,
           )
           .join("")
-      : `<p class="menu-lead">${echapper(eleve.prenom)} n'a pas encore travaille de concept.</p>`;
+      : `<p class="menu-lead">${echapper(eleve.prenom)} n'a pas encore travaillé de concept.</p>`;
 
     body.innerHTML = `
       <div class="teacher-topbar">
         <button type="button" id="ens-retour-bord" class="ghost-button">&#8592; Tableau de bord</button>
-        <button type="button" id="ens-rapport-ia" class="btn-primary">Generer un rapport</button>
+        <button type="button" id="ens-rapport-ia" class="btn-primary">Générer un rapport</button>
       </div>
       <h2 class="teacher-subtitle">Progression de ${echapper(eleve.prenom)} <span class="hud-level">${classe.niveau_scolaire}</span></h2>
       ${badgesMarkup(eleve)}

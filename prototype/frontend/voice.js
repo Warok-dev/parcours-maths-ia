@@ -165,7 +165,7 @@
       }
       stopListening(button);
       if (nombre === null) {
-        setStatus(statusNode, "Je n'ai pas compris, reessaie ou ecris ta reponse.", "warning");
+        setStatus(statusNode, "Je n'ai pas compris, réessaie ou écris ta réponse.", "warning");
         return;
       }
       /* Remplit le champ SANS valider : l'eleve relit, corrige au besoin,
@@ -182,9 +182,9 @@
            disparait pour le reste de la session. */
         micBlocked = true;
         button.remove();
-        setStatus(statusNode, "Pas de souci ! Ecris ta reponse dans la case.", "warning");
+        setStatus(statusNode, "Pas de souci ! Écris ta réponse dans la case.", "warning");
       } else {
-        setStatus(statusNode, "Je n'ai pas compris, reessaie ou ecris ta reponse.", "warning");
+        setStatus(statusNode, "Je n'ai pas compris, réessaie ou écris ta réponse.", "warning");
       }
     };
 
@@ -194,12 +194,12 @@
 
     listening = true;
     button.classList.add("listening");
-    setStatus(statusNode, "Je t'ecoute... dis ta reponse a voix haute !", "listening");
+    setStatus(statusNode, "Je t'écoute... dis ta réponse à voix haute !", "listening");
     try {
       recognition.start();
     } catch (_error) {
       stopListening(button);
-      setStatus(statusNode, "Je n'ai pas compris, reessaie ou ecris ta reponse.", "warning");
+      setStatus(statusNode, "Je n'ai pas compris, réessaie ou écris ta réponse.", "warning");
     }
   }
 

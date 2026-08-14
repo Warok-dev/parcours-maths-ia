@@ -271,10 +271,10 @@
     container.innerHTML = `
       <p class="mech-hint">${
         isChoice
-          ? "Clique la bonne planche pour reparer le passage."
-          : "Pose les planches dans l'ordre pour construire la reponse."
+          ? "Clique la bonne planche pour réparer le passage."
+          : "Pose les planches dans l'ordre pour construire la réponse."
       }</p>
-      <div class="plank-slots" role="group" aria-label="Reponse en construction">
+      <div class="plank-slots" role="group" aria-label="Réponse en construction">
         ${slots.map((_, i) => `<button type="button" class="plank-slot" data-slot="${i}" aria-label="Emplacement ${i + 1}"><span>?</span></button>`).join("")}
       </div>
       <div class="plank-pool" role="group" aria-label="Planches disponibles">
@@ -395,7 +395,7 @@
       .map((value, i) => {
         const trou = masked.has(i);
         return `<button type="button" class="line-tick" data-index="${i}" tabindex="-1" ${
-          trou ? 'aria-label="Nombre a trouver"' : `data-value="${value}" disabled`
+          trou ? 'aria-label="Nombre à trouver"' : `data-value="${value}" disabled`
         }>
           <span class="line-hop" aria-hidden="true"></span>
           <span class="line-notch" aria-hidden="true"></span>
@@ -418,10 +418,10 @@
     const filled = new Array(holes.length).fill(null);
 
     container.innerHTML = `
-      <p class="mech-hint">Clique les nombres pour completer la suite, de gauche a droite.</p>
-      <div class="mech-line" tabindex="0" data-mode="liste" aria-label="Ligne numerique a completer">
+      <p class="mech-hint">Clique les nombres pour compléter la suite, de gauche à droite.</p>
+      <div class="mech-line" tabindex="0" data-mode="liste" aria-label="Ligne numérique à compléter">
         <div class="line-track">${lineTicksMarkup(values, masked)}</div>
-        <div class="line-pool" role="group" aria-label="Nombres a placer">
+        <div class="line-pool" role="group" aria-label="Nombres à placer">
           ${pool
             .map(
               (valeur, i) =>
@@ -544,8 +544,8 @@
     let position = 0;
 
     container.innerHTML = `
-      <p class="mech-hint">Saute avec les fleches jusqu'au bon nombre, puis valide avec Entree.</p>
-      <div class="mech-line" tabindex="0" data-mode="simple" aria-label="Ligne numerique">
+      <p class="mech-hint">Saute avec les flèches jusqu'au bon nombre, puis valide avec Entrée.</p>
+      <div class="mech-line" tabindex="0" data-mode="simple" aria-label="Ligne numérique">
         <div class="line-track">${lineTicksMarkup(ticks, new Set())}</div>
       </div>
     `;
@@ -603,8 +603,8 @@
     let activeWheel = 0;
 
     container.innerHTML = `
-      <p class="mech-hint">Tourne les molettes (haut/bas ou clic) pour former la reponse.</p>
-      <div class="mech-lock" tabindex="0" aria-label="Cadenas a combinaison">
+      <p class="mech-hint">Tourne les molettes (haut/bas ou clic) pour former la réponse.</p>
+      <div class="mech-lock" tabindex="0" aria-label="Cadenas à combinaison">
         <div class="lock-shackle" aria-hidden="true"></div>
         <div class="lock-body">
           ${wheels
@@ -864,16 +864,16 @@
     const placement = creerPlacementOrdre({ elements, ordreAttendu });
 
     const hint = estPetitNiveau(exercise.niveau_scolaire)
-      ? "Range les etiquettes du plus petit au plus grand."
-      : "Glisse (ou clique l'etiquette puis l'emplacement) pour remettre la suite dans l'ordre.";
+      ? "Range les étiquettes du plus petit au plus grand."
+      : "Glisse (ou clique l'étiquette puis l'emplacement) pour remettre la suite dans l'ordre.";
     container.innerHTML = `
       <p class="mech-hint">${hint}</p>
-      <div class="order-slots" role="group" aria-label="Emplacements ordonnes">
+      <div class="order-slots" role="group" aria-label="Emplacements ordonnés">
         ${ordreAttendu
           .map((_, i) => `<button type="button" class="order-slot" data-slot="${i}" aria-label="Emplacement ${i + 1}"><span class="order-slot-rang">${i + 1}</span></button>`)
           .join("")}
       </div>
-      <div class="order-pool" role="group" aria-label="Etiquettes a ranger">
+      <div class="order-pool" role="group" aria-label="Étiquettes à ranger">
         ${elements
           .map((e) => `<button type="button" class="order-piece" draggable="true" data-id="${e.id}">${e.valeur}</button>`)
           .join("")}
@@ -1123,14 +1123,14 @@
       .join("");
 
     const hint = estPetitNiveau(exercise.niveau_scolaire)
-      ? "Lance la roue sur la bonne reponse, puis valide."
-      : "Regle la force, lance la roue pour viser la bonne section, puis valide.";
+      ? "Lance la roue sur la bonne réponse, puis valide."
+      : "Règle la force, lance la roue pour viser la bonne section, puis valide.";
     container.innerHTML = `
       <p class="mech-hint">${hint}</p>
       <div class="mech-wheel">
         <div class="roue-cadre">
           <div class="roue-repere" aria-hidden="true"></div>
-          <svg class="roue-svg" viewBox="-110 -110 220 220" role="img" aria-label="Roue a tourner">
+          <svg class="roue-svg" viewBox="-110 -110 220 220" role="img" aria-label="Roue à tourner">
             <g class="roue-plateau" data-plateau>
               <circle cx="0" cy="0" r="${rayon + 4}" fill="var(--cream)" stroke="var(--wood-dark)" stroke-width="4"></circle>
               ${secteursMarkup}
@@ -1143,7 +1143,7 @@
           <input id="roue-force" class="roue-force" type="range" min="0" max="100" value="50" step="1" />
           <button type="button" class="roue-spin btn-primary">Tourner</button>
         </div>
-        <p class="roue-statut" aria-live="polite">Regle la force puis lance la roue.</p>
+        <p class="roue-statut" aria-live="polite">Règle la force puis lance la roue.</p>
       </div>
     `;
 
@@ -1342,12 +1342,12 @@
     const DROP = 30; /* longueur des suspentes (fleau -> plateau) */
 
     const hint = estPetitNiveau(exercise.niveau_scolaire)
-      ? `Ajoute des poids pour arriver a ${cible}.`
-      : `Pose des poids sur le plateau vide jusqu'a egaler ${cible}, puis valide.`;
+      ? `Ajoute des poids pour arriver à ${cible}.`
+      : `Pose des poids sur le plateau vide jusqu'à égaler ${cible}, puis valide.`;
     container.innerHTML = `
       <p class="mech-hint">${hint}</p>
       <div class="mech-balance">
-        <svg class="balance-svg" viewBox="-140 -96 280 210" role="img" aria-label="Balance a equilibrer">
+        <svg class="balance-svg" viewBox="-140 -96 280 210" role="img" aria-label="Balance à équilibrer">
           <line data-string="left" class="balance-string" x1="0" y1="0" x2="0" y2="0"></line>
           <line data-string="right" class="balance-string" x1="0" y1="0" x2="0" y2="0"></line>
           <g data-fleau class="balance-fleau">
@@ -1479,9 +1479,9 @@
       if (balance.places().length === 0) {
         statut.textContent = `Plateau vide. Cible : ${cible}.`;
       } else if (balance.estEquilibre()) {
-        statut.textContent = `Equilibre ! ${somme} = ${cible}. Tu peux valider.`;
+        statut.textContent = `Équilibre ! ${somme} = ${cible}. Tu peux valider.`;
       } else if (somme < cible) {
-        statut.textContent = `Plateau : ${somme}. Trop leger, il manque ${cible - somme}.`;
+        statut.textContent = `Plateau : ${somme}. Trop léger, il manque ${cible - somme}.`;
       } else {
         statut.textContent = `Plateau : ${somme}. Trop lourd de ${somme - cible}.`;
       }
@@ -1541,7 +1541,7 @@
 
     container.innerHTML = `
       <p class="mech-hint">Clique les ${objectName} pour remplir le panier avec le bon compte.</p>
-      <div class="basket-field" role="group" aria-label="Objets a ramasser">
+      <div class="basket-field" role="group" aria-label="Objets à ramasser">
         ${Array.from({ length: fieldCount })
           .map(
             (_, i) => `

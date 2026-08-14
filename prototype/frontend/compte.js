@@ -227,7 +227,7 @@
       } catch (error) {
         setStatut(
           error.status === 404
-            ? "Aucune classe avec ce code. Verifie aupres de ton enseignant."
+            ? "Aucune classe avec ce code. Vérifie auprès de ton enseignant."
             : `Impossible de trouver la classe : ${error.message}`,
         );
       }
@@ -238,7 +238,7 @@
     setStatut(`Classe ${classe.nom} (${classe.niveau_scolaire})`);
     if (!eleves.length) {
       loginBody.innerHTML = `
-        <p class="menu-lead">Cette classe n'a pas encore d'eleves. Demande a ton enseignant de t'ajouter.</p>
+        <p class="menu-lead">Cette classe n'a pas encore d'élèves. Demande à ton enseignant de t'ajouter.</p>
         <button type="button" id="login-retour" class="ghost-button">&#8592; Retour</button>
       `;
       loginBody.querySelector("#login-retour").addEventListener("click", rendreSaisieCode);
@@ -255,7 +255,7 @@
       )
       .join("");
     loginBody.innerHTML = `
-      <p class="menu-lead">Choisis ton prenom :</p>
+      <p class="menu-lead">Choisis ton prénom :</p>
       <div class="lesson-actions login-eleves">${boutons}</div>
       <button type="button" id="login-retour" class="ghost-button">&#8592; Changer de code</button>
     `;
@@ -284,8 +284,8 @@
       `<button type="button" class="pin-key ${extra}" data-pin="${val}">${val}</button>`;
 
     loginBody.innerHTML = `
-      <p class="menu-lead">Tape ton code secret a 4 chiffres, ${escapeHtml(eleve.prenom)} :</p>
-      <div class="pin-dots" id="pin-dots" aria-label="Code a 4 chiffres">
+      <p class="menu-lead">Tape ton code secret à 4 chiffres, ${escapeHtml(eleve.prenom)} :</p>
+      <div class="pin-dots" id="pin-dots" aria-label="Code à 4 chiffres">
         <span class="pin-dot"></span><span class="pin-dot"></span>
         <span class="pin-dot"></span><span class="pin-dot"></span>
       </div>
@@ -297,7 +297,7 @@
         ${touche(0)}
         <button type="button" class="pin-key pin-key-valider" data-pin="valider">OK</button>
       </div>
-      <button type="button" id="login-retour" class="ghost-button">&#8592; Changer d'eleve</button>
+      <button type="button" id="login-retour" class="ghost-button">&#8592; Changer d'élève</button>
     `;
 
     const dots = loginBody.querySelectorAll(".pin-dot");
@@ -359,7 +359,7 @@
       /* 403 = code secret refuse : message d'enfant, sans jargon. */
       setStatut(
         error.status === 403
-          ? "Code secret incorrect. Reessaie !"
+          ? "Code secret incorrect. Réessaie !"
           : `Connexion impossible : ${error.message}`,
       );
       if (typeof onEchec === "function") {

@@ -21,20 +21,20 @@ const CAUSE = {
    surtout l'action que l'enfant peut faire lui-meme. */
 const MESSAGES_ERREUR = {
   [CAUSE.RESEAU]:
-    "Hou hou ? Je n'arrive plus a te repondre : la connexion est coupee. " +
-    "Demande a un adulte de verifier Internet, puis repose-moi ta question.",
+    "Hou hou ? Je n'arrive plus à te répondre : la connexion est coupée. " +
+    "Demande à un adulte de vérifier Internet, puis repose-moi ta question.",
   [CAUSE.SESSION]:
-    "Oups, on ne regarde plus le meme exercice ! " +
+    "Oups, on ne regarde plus le même exercice ! " +
     "Recharge la page et je te retrouve tout de suite au bon endroit.",
   [CAUSE.IA_INDISPONIBLE]:
-    "Ma tete de hibou est trop fatiguee pour reflechir en ce moment. " +
+    "Ma tête de hibou est trop fatiguée pour réfléchir en ce moment. " +
     "Attends une petite minute et redemande-moi : je reviens en pleine forme !",
   [CAUSE.SANS_EXERCICE]:
     "Je ne vois aucun exercice ouvert ! " +
-    "Choisis une etape sur la carte, et je pourrai t'aider.",
+    "Choisis une étape sur la carte, et je pourrai t'aider.",
   [CAUSE.INCONNUE]:
-    "Aie, quelque chose ne marche pas de mon cote. " +
-    "Reessaie dans un petit moment, je reste avec toi.",
+    "Aïe, quelque chose ne marche pas de mon côté. " +
+    "Réessaie dans un petit moment, je reste avec toi.",
 };
 
 /* Statut HTTP du backend -> cause.
@@ -210,7 +210,7 @@ if (hasDom) {
     }
 
     ensureOpen();
-    appendMessage(`Eleve : ${question}`, "user");
+    appendMessage(`Élève : ${question}`, "user");
     chatInput.value = "";
 
     try {
@@ -219,7 +219,7 @@ if (hasDom) {
       speakTutor(data.reponse);
       if (data.progression?.niveau_resolution_courant >= 2) {
         window.ParcoursApp?.setFeedback?.(
-          "Le tuteur a aide sur ce niveau : la chaine parfaite est desormais interrompue pour cette detection de maitrise.",
+          "Le tuteur a aidé sur ce niveau : la chaîne parfaite est désormais interrompue pour cette détection de maîtrise.",
           "warning",
         );
       }

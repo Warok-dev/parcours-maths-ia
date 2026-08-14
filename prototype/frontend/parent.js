@@ -18,7 +18,7 @@
   const STORAGE_KEY = "parcours_parent_v1";
 
   /* Libelles alignes sur le bilan eleve / l'espace enseignant. */
-  const BADGES_MAITRISE = { 1: "A retravailler", 2: "En bonne voie", 3: "Acquis" };
+  const BADGES_MAITRISE = { 1: "À retravailler", 2: "En bonne voie", 3: "Acquis" };
 
   /* ---------- Coeur pur (testable sans navigateur) ---------- */
 
@@ -46,20 +46,20 @@
   function phraseBilan(prenom, decomptes) {
     const nom = prenom || "Votre enfant";
     if (!decomptes || !decomptes.total) {
-      return `${nom} n'a pas encore travaille de notion. Le suivi apparaitra des les premiers exercices.`;
+      return `${nom} n'a pas encore travaillé de notion. Le suivi apparaîtra dès les premiers exercices.`;
     }
     const morceaux = [];
     if (decomptes.acquis) {
-      morceaux.push(`${decomptes.acquis} bien maitrisee${decomptes.acquis > 1 ? "s" : ""}`);
+      morceaux.push(`${decomptes.acquis} bien maîtrisée${decomptes.acquis > 1 ? "s" : ""}`);
     }
     if (decomptes.enCours) {
       morceaux.push(`${decomptes.enCours} en bonne voie`);
     }
     if (decomptes.aRetravailler) {
-      morceaux.push(`${decomptes.aRetravailler} a retravailler`);
+      morceaux.push(`${decomptes.aRetravailler} à retravailler`);
     }
     const n = decomptes.total;
-    return `${nom} a travaille ${n} notion${n > 1 ? "s" : ""} : ${morceaux.join(", ")}.`;
+    return `${nom} a travaillé ${n} notion${n > 1 ? "s" : ""} : ${morceaux.join(", ")}.`;
   }
 
   /* Extrait les messages d'alerte de blocage (resume backend) sous forme de
@@ -182,13 +182,13 @@
       <p class="parent-eyebrow">Espace parent</p>
       <h1 class="parent-title">Suivre la progression de mon enfant</h1>
       <p class="parent-lead">
-        Saisissez le code d'acces communique par l'enseignant. Vous verrez le
+        Saisissez le code d'accès communiqué par l'enseignant. Vous verrez le
         bilan de votre enfant, en lecture seule.
       </p>
       <form id="parent-form" class="login-form parent-form" autocomplete="off">
-        <label class="login-label" for="parent-code">Code d'acces</label>
+        <label class="login-label" for="parent-code">Code d'accès</label>
         <input id="parent-code" class="login-input parent-input" type="text"
-          placeholder="Ex : K7P2M9QT" autocomplete="off" aria-label="Code d'acces parent" />
+          placeholder="Ex : K7P2M9QT" autocomplete="off" aria-label="Code d'accès parent" />
         <div class="login-form-actions">
           <button type="submit" class="btn-primary">Voir le suivi</button>
           <button type="button" id="parent-retour-jeu" class="ghost-button">&#8592; Retour</button>
@@ -214,7 +214,7 @@
       } catch (error) {
         setStatut(
           error.status === 403
-            ? "Ce code d'acces n'est pas valide. Verifiez aupres de l'enseignant."
+            ? "Ce code d'accès n'est pas valide. Vérifiez auprès de l'enseignant."
             : `Acces impossible : ${error.message}`,
         );
       }
@@ -235,7 +235,7 @@
         /* token expire (redemarrage serveur) : on redemande le code */
         deconnecter();
         vueAcces();
-        setStatut("Session expiree, saisissez de nouveau le code d'acces.");
+        setStatut("Session expirée, saisissez de nouveau le code d'accès.");
         return;
       }
       setStatut(`Impossible de charger le suivi : ${error.message}`);
@@ -291,7 +291,7 @@
       `,
           )
           .join("")
-      : `<p class="parent-vide">Aucune notion travaillee pour l'instant. Le suivi se remplira au fur et a mesure des exercices.</p>`;
+      : `<p class="parent-vide">Aucune notion travaillée pour l'instant. Le suivi se remplira au fur et à mesure des exercices.</p>`;
 
     /* Banniere d'alerte (blocage) : visible seulement si un signal est actif. */
     const alertes = messagesAlerte(notif && notif.alerte);
@@ -332,16 +332,16 @@
       <div class="parent-tuiles">
         ${tuile("acquis", decomptes.acquis, "Acquis")}
         ${tuile("encours", decomptes.enCours, "En bonne voie")}
-        ${tuile("retravailler", decomptes.aRetravailler, "A retravailler")}
+        ${tuile("retravailler", decomptes.aRetravailler, "À retravailler")}
       </div>
       <section class="parent-rapport">
         <h2 class="parent-rapport-titre">Rapport de votre enfant</h2>
-        <p class="parent-rapport-lead">Un court bilan redige, personnalise a partir de l'activite de ${echapper(infosEleve.prenom || "votre enfant")}.</p>
-        <button type="button" id="parent-rapport-btn" class="btn-primary">Generer le rapport</button>
+        <p class="parent-rapport-lead">Un court bilan rédigé, personnalisé à partir de l'activité de ${echapper(infosEleve.prenom || "votre enfant")}.</p>
+        <button type="button" id="parent-rapport-btn" class="btn-primary">Générer le rapport</button>
         <div id="parent-rapport-zone" class="parent-rapport-zone" aria-live="polite"></div>
       </section>
       <div class="parent-lecons">${sections}</div>
-      <button type="button" id="parent-retour-jeu" class="ghost-button parent-retour">&#8592; Retour a l'accueil</button>
+      <button type="button" id="parent-retour-jeu" class="ghost-button parent-retour">&#8592; Retour à l'accueil</button>
     `;
     setStatut("");
     body.querySelector("#parent-deconnexion").addEventListener("click", () => {
@@ -356,7 +356,7 @@
     const zoneRapport = body.querySelector("#parent-rapport-zone");
     boutonRapport?.addEventListener("click", async () => {
       boutonRapport.disabled = true;
-      zoneRapport.innerHTML = `<p class="parent-rapport-chargement"><span class="parent-rapport-spinner" aria-hidden="true"></span> Redaction du rapport en cours...</p>`;
+      zoneRapport.innerHTML = `<p class="parent-rapport-chargement"><span class="parent-rapport-spinner" aria-hidden="true"></span> Rédaction du rapport en cours...</p>`;
       try {
         const reponse = await appel("/parent/rapport_ia", {
           method: "GET",
@@ -364,7 +364,7 @@
         });
         const rapport = reponse.rapport || {};
         zoneRapport.innerHTML = `<p class="parent-rapport-texte">${echapper(rapport.texte || "")}</p>`;
-        boutonRapport.textContent = "Regenerer le rapport";
+        boutonRapport.textContent = "Régénérer le rapport";
       } catch (error) {
         zoneRapport.innerHTML = `<p class="parent-rapport-erreur">Rapport indisponible pour le moment : ${echapper(error.message)}</p>`;
       } finally {

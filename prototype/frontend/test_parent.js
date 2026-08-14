@@ -45,7 +45,7 @@ function check(cond, label) {
   const phrase = parent.phraseBilan("Sofia", c);
   check(/3 notions/.test(phrase), "mentionne le total de notions travaillees");
   check(
-    /maitrisee/.test(phrase) && /bonne voie/.test(phrase) && /retravailler/.test(phrase),
+    /maîtrisée/.test(phrase) && /bonne voie/.test(phrase) && /retravailler/.test(phrase),
     "detaille les trois categories en mots simples",
   );
   check(!/pattern|maitrise:|niveau_scolaire/.test(phrase), "aucun jargon technique dans la phrase");
@@ -54,7 +54,7 @@ function check(cond, label) {
 /* --- 4. Singulier / pluriel --- */
 {
   const une = parent.phraseBilan("Adam", { acquis: 1, enCours: 0, aRetravailler: 0, total: 1 });
-  check(/1 notion /.test(une) && /maitrisee/.test(une), "singulier pour une seule notion");
+  check(/1 notion /.test(une) && /maîtrisée/.test(une), "singulier pour une seule notion");
 }
 
 /* --- 5. Libelles de badges alignes sur le reste du site --- */
@@ -62,7 +62,7 @@ function check(cond, label) {
   check(
     parent.BADGES_MAITRISE[3] === "Acquis" &&
       parent.BADGES_MAITRISE[2] === "En bonne voie" &&
-      parent.BADGES_MAITRISE[1] === "A retravailler",
+      parent.BADGES_MAITRISE[1] === "À retravailler",
     "libelles de maitrise identiques au bilan eleve / enseignant",
   );
 }

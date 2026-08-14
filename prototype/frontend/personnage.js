@@ -27,7 +27,7 @@
     { id: "bleu", nom: "Bleu du matin", cout: 0, shirt: "var(--player-bleu)", shirtDark: "var(--player-bleu-dark)", teinte: "#4a7bc4" },
     { id: "vert", nom: "Vert prairie", cout: 40, shirt: "var(--grass)", shirtDark: "var(--grass-dark)", teinte: "#6fbe53" },
     { id: "orange", nom: "Orange soleil", cout: 100, shirt: "var(--road)", shirtDark: "var(--road-dark)", teinte: "#e8703a" },
-    { id: "jaune", nom: "Jaune tresor", cout: 200, shirt: "var(--gold)", shirtDark: "var(--gold-dark)", teinte: "#ffc23e" },
+    { id: "jaune", nom: "Jaune trésor", cout: 200, shirt: "var(--gold)", shirtDark: "var(--gold-dark)", teinte: "#ffc23e" },
     { id: "framboise", nom: "Rouge framboise", cout: 320, shirt: "var(--npc-body)", shirtDark: "var(--npc-body-dark)", teinte: "#a64d5f" },
   ];
 
@@ -84,7 +84,7 @@
     },
     {
       id: "badge",
-      nom: "Badge etoile",
+      nom: "Badge étoile",
       cout: 420,
       arriere: "",
       avant: `
@@ -310,7 +310,7 @@
   function apercuMarkup() {
     const dessin = window.ParcoursApp?.playerMarkup?.() || "";
     return `
-      <svg class="personnage-apercu" viewBox="-32 -32 64 64" role="img" aria-label="Apercu de ton personnage">
+      <svg class="personnage-apercu" viewBox="-32 -32 64 64" role="img" aria-label="Aperçu de ton personnage">
         <g class="player-token">${dessin}</g>
       </svg>
     `;
@@ -340,9 +340,9 @@
     const debloque = estDebloque(item, etat.etoiles_totales);
     const restantes = etoilesRestantes(item, etat.etoiles_totales);
     const statut = !debloque
-      ? `<span class="personnage-statut verrouille">&#128274; ${restantes} &#9733; a gagner</span>`
+      ? `<span class="personnage-statut verrouille">&#128274; ${restantes} &#9733; à gagner</span>`
       : choisi
-        ? `<span class="personnage-statut choisi">Porte</span>`
+        ? `<span class="personnage-statut choisi">Porté</span>`
         : `<span class="personnage-statut libre">Choisir</span>`;
     return `
       <li>
@@ -376,7 +376,7 @@
         ${apercuMarkup()}
         <div class="personnage-total">
           <span class="personnage-total-valeur">&#9733; ${etat.etoiles_totales}</span>
-          <span class="personnage-total-copy">etoiles gagnees en tout</span>
+          <span class="personnage-total-copy">étoiles gagnées en tout</span>
         </div>
       </div>
       <h3 class="personnage-section">Couleurs</h3>
