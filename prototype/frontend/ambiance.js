@@ -17,7 +17,10 @@
       return { couleur: "#ffb257", opacite: 0.14, moment: "matin" };
     }
     if (heure >= 17 && heure < 20) {
-      return { couleur: "#ff8a3d", opacite: 0.16, moment: "soir" };
+      /* Coucher de soleil : legerement plus soutenu que matin/nuit pour que
+         le rechauffement doré soit bien perceptible a l'ecran, sans virer au
+         filtre (0.20 mesure ~14 d'ecart moyen sur la scene reelle). */
+      return { couleur: "#ff8a3d", opacite: 0.2, moment: "soir" };
     }
     if (heure >= 20 || heure < 6) {
       return { couleur: "#2f3d78", opacite: 0.16, moment: "nuit" };

@@ -16,9 +16,13 @@
 
   /* Les identifiants doivent correspondre EXACTEMENT aux cles de THEMES
      dans generation/narrative.py : c'est le contrat avec le backend. */
+  /* Une couleur de pastille DISTINCTE par univers : au premier coup d'oeil,
+     chaque theme se reconnait a sa teinte (le vert du terrain, le brun de la
+     terre des dinos, l'or des princesses, le bleu nuit de l'espace, l'orange
+     des animaux, le gris neutre). Toutes viennent de la palette du design. */
   const THEMES = [
     { id: "foot", nom: "Foot", icone: "⚽", couleur: "var(--grass)" },
-    { id: "dinosaures", nom: "Dinosaures", icone: "\u{1F996}", couleur: "var(--grass-dark)" },
+    { id: "dinosaures", nom: "Dinosaures", icone: "\u{1F996}", couleur: "var(--wood)" },
     { id: "princesses", nom: "Princesses et chevaliers", icone: "\u{1F451}", couleur: "var(--gold)" },
     { id: "espace", nom: "Espace", icone: "\u{1F680}", couleur: "var(--water-dark)" },
     { id: "animaux", nom: "Animaux", icone: "\u{1F98A}", couleur: "var(--road)" },

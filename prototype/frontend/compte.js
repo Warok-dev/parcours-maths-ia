@@ -134,6 +134,20 @@
   const loginScreen = document.getElementById("login-screen");
   const loginBody = document.getElementById("login-body");
   const loginStatus = document.getElementById("login-status");
+  const loginLead = document.getElementById("login-lead");
+
+  /* Sous-titre de l'entete, propre a chaque etape : la phrase d'accueil
+     ("...ou lance un essai libre") n'a plus de sens une fois qu'on a choisi
+     de rejoindre une classe. Chaque ecran repose donc son propre texte, et
+     "" masque la ligne (l'ecran du PIN porte deja sa consigne dans le corps). */
+  const LEAD_ACCUEIL = "Rejoins ta classe pour retrouver ta progression, ou lance un essai libre.";
+  function setLead(texte) {
+    if (!loginLead) {
+      return;
+    }
+    loginLead.textContent = texte || "";
+    loginLead.classList.toggle("hidden", !texte);
+  }
 
   let apresChoix = null;
 
@@ -166,6 +180,7 @@
 
   function rendreAccueil() {
     setStatut("");
+    setLead(LEAD_ACCUEIL);
     loginBody.innerHTML = `
       <div class="level-actions login-choices">
         <button id="login-rejoindre" class="level-button" type="button">
@@ -173,7 +188,7 @@
           <span class="level-copy">Rejoindre ma classe</span>
         </button>
         <button id="login-invite" class="level-button" type="button">
-          <span class="level-sign">&#127917;</span>
+          <span class="level-sign">&#129517;</span>
           <span class="level-copy">Essai libre</span>
         </button>
       </div>
@@ -198,6 +213,7 @@
 
   function rendreSaisieCode() {
     setStatut("");
+    setLead("Entre le code que ton enseignant t'a donné.");
     loginBody.innerHTML = `
       <form id="login-code-form" class="login-form" autocomplete="off">
         <label class="login-label" for="login-code-input">Code de ta classe</label>
@@ -237,6 +253,7 @@
   function rendreListeEleves(classe, eleves) {
     setStatut(`Classe ${classe.nom} (${classe.niveau_scolaire})`);
     if (!eleves.length) {
+      setLead("");
       loginBody.innerHTML = `
         <p class="menu-lead">Cette classe n'a pas encore d'élèves. Demande à ton enseignant de t'ajouter.</p>
         <button type="button" id="login-retour" class="ghost-button">&#8592; Retour</button>
@@ -244,18 +261,18 @@
       loginBody.querySelector("#login-retour").addEventListener("click", rendreSaisieCode);
       return;
     }
+    setLead("Choisis ton prénom dans la liste.");
     const boutons = eleves
       .map(
         (eleve) => `
           <button class="lesson-card login-eleve" type="button" data-eleve-id="${eleve.id}">
-            <span class="lesson-card-icon">&#128100;</span>
+            <span class="lesson-card-icon" style="background:${couleurAvatar(eleve)};border-color:${bordAvatar(eleve)}">&#128100;</span>
             <span><span class="lesson-card-title">${escapeHtml(eleve.prenom)}</span></span>
           </button>
         `,
       )
       .join("");
     loginBody.innerHTML = `
-      <p class="menu-lead">Choisis ton prénom :</p>
       <div class="lesson-actions login-eleves">${boutons}</div>
       <button type="button" id="login-retour" class="ghost-button">&#8592; Changer de code</button>
     `;
@@ -273,11 +290,33 @@
     );
   }
 
+  /* Teinte de pastille propre a chaque eleve : deux enfants cote a cote ont
+     des avatars de couleur differente, et surtout la MEME couleur revient
+     toujours pour le meme eleve (derivee de son id, ou de son prenom a defaut).
+     Un enfant qui lit encore mal repere ainsi son avatar sans dechiffrer. */
+  function teinteEleve(eleve) {
+    const graine = String(eleve?.id ?? eleve?.prenom ?? "");
+    let hash = 0;
+    for (let i = 0; i < graine.length; i += 1) {
+      hash = (hash * 31 + graine.charCodeAt(i)) & 0xffff;
+    }
+    /* Angle d'or (~137deg) : deux ids voisins (1, 2, 3...) atterrissent a
+       l'oppose sur la roue chromatique, jamais sur des teintes voisines. */
+    return (hash * 137) % 360; /* teinte 0-359, stable pour cet eleve */
+  }
+  function couleurAvatar(eleve) {
+    return `hsl(${teinteEleve(eleve)}, 62%, 74%)`;
+  }
+  function bordAvatar(eleve) {
+    return `hsl(${teinteEleve(eleve)}, 52%, 52%)`;
+  }
+
   /* Ecran de saisie du PIN : clavier numerique a grandes touches, adapte a un
      enfant. On collecte 4 chiffres (affiches en pastilles) avant de tenter la
      connexion. Un mauvais PIN vide la saisie et affiche un message. */
   function rendrePinPad(classe, eleve, eleves) {
     setStatut(`Bonjour ${eleve.prenom} !`);
+    setLead(""); /* la consigne du code secret vit dans le corps ci-dessous */
     let saisie = "";
 
     const touche = (val, extra = "") =>
