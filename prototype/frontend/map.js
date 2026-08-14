@@ -13,12 +13,9 @@ const PLAYER_SPEED = 230;
 const CAMERA_WIDTH = 560;
 const CAMERA_HEIGHT = 390;
 const CAMERA_EASE = 5.2;
-const OBSTACLE_GAP_Y = 320;
-const FIRST_OBSTACLE_Y = SCENE_PADDING_Y + 280;
-const BARRIER_OFFSET_Y = 46;
 const INTERACTION_DISTANCE = 118;
-const LANE_XS = [550, 1560, 660, 1480, 600, 1600];
-const OBSTACLE_TYPES = ["castle_gate", "blocked_road", "broken_bridge", "crossroads"];
+/* Positions/ordre des obstacles et tracé du chemin : desormais procéduraux,
+   generes par world.js a partir de la graine de session (state.mapSeed). */
 const RIVER_HALF_HEIGHT = 62;
 /* Miroir de REINFORCEMENT_BY_MASTERY cote backend : nombre total de points
    d'arret sur la route de renforcement selon la maitrise detectee. */
@@ -103,7 +100,34 @@ const state = {
   collectibles: [],
   collectiblesSig: null,
   sceneTint: null,
+  /* Graine du monde procédural : figée au démarrage d'une session, persistée
+     avec la référence de session (la carte reste identique toute la partie et
+     a la reprise), renouvelée seulement a une nouvelle aventure. */
+  mapSeed: null,
 };
+
+/* Graine 32 bits pour une nouvelle carte. crypto si dispo, sinon Math.random. */
+function genererGraineMonde() {
+  try {
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+      return crypto.getRandomValues(new Uint32Array(1))[0] >>> 0;
+    }
+  } catch (_error) {
+    /* environnement sans crypto : repli ci-dessous */
+  }
+  return Math.floor(Math.random() * 0xffffffff) >>> 0;
+}
+
+/* Repli deterministe : derive une graine du sessionId (anciennes sauvegardes
+   sans mapSeed, pour ne pas regenerer un monde different a la reprise). */
+function graineDepuisSessionId(sessionId) {
+  const texte = String(sessionId ?? "");
+  let h = 2166136261;
+  for (let i = 0; i < texte.length; i += 1) {
+    h = Math.imul(h ^ texte.charCodeAt(i), 16777619);
+  }
+  return h >>> 0;
+}
 
 let animationFrameId = null;
 let lastTick = 0;
@@ -155,6 +179,7 @@ function saveSessionRef() {
       SESSION_STORAGE_KEY,
       JSON.stringify({
         sessionId: state.sessionId,
+        mapSeed: state.mapSeed,
         playerPosition: { x: state.playerPosition.x, y: state.playerPosition.y },
         score: state.score,
         treasures: [...state.treasuresCollected],
@@ -673,150 +698,27 @@ function applyCameraViewBox() {
 
 /* ============================================================
    MODELE DE SCENE
+   La geometrie procedurale (tracé serpentin, positions et ordre des
+   obstacles, décor, branches de renforcement) vit dans world.js —
+   module pur testable en Node (test_world.js, >= 200 graines). Ici on
+   ne fait que deleguer, en passant la graine de la session courante
+   (state.mapSeed) pour que la carte reste stable toute la partie et
+   change a chaque nouvelle aventure.
    ============================================================ */
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return function rand() {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function pointSegmentDistance(p, a, b) {
-  const abx = b.x - a.x;
-  const aby = b.y - a.y;
-  const lengthSq = abx * abx + aby * aby;
-  const t = lengthSq === 0 ? 0 : clamp(((p.x - a.x) * abx + (p.y - a.y) * aby) / lengthSq, 0, 1);
-  return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
-}
-
-function distanceToRoute(point, routePoints) {
-  let best = Infinity;
-  for (let index = 1; index < routePoints.length; index += 1) {
-    best = Math.min(best, pointSegmentDistance(point, routePoints[index - 1], routePoints[index]));
-  }
-  return best;
-}
-
-function createSceneModel(concepts) {
-  const obstacles = concepts.map((concept, index) => {
-    const type = OBSTACLE_TYPES[index % OBSTACLE_TYPES.length];
-    const x = LANE_XS[index % LANE_XS.length];
-    const y = FIRST_OBSTACLE_Y + index * OBSTACLE_GAP_Y;
-    return {
-      index,
-      concept,
-      type,
-      x,
-      y,
-      barrierY: y - BARRIER_OFFSET_Y,
-    };
-  });
-
-  const exitY = obstacles.length
-    ? obstacles[obstacles.length - 1].y + 260
-    : FIRST_OBSTACLE_Y + 260;
-  const height = Math.max(1000, exitY + 120);
-
-  const routePoints = [
-    { x: START_X, y: START_Y },
-    ...obstacles.map((obstacle) => ({ x: obstacle.x, y: obstacle.barrierY + 12 })),
-    { x: obstacles.length ? obstacles[obstacles.length - 1].x : START_X, y: exitY },
-  ];
-
-  /* Decor procedural dense mais deterministe (meme graine => meme monde). */
-  const rand = mulberry32(concepts.length * 7919 + height);
-  const riverBands = obstacles
-    .filter((obstacle) => obstacle.type === "broken_bridge")
-    .map((obstacle) => obstacle.barrierY);
-
-  function placeMany(count, minRouteDist, minMutualDist, existing) {
-    const points = [];
-    let guard = 0;
-    while (points.length < count && guard < count * 40) {
-      guard += 1;
-      const candidate = {
-        x: SCENE_PADDING_X * 0.3 + rand() * (SCENE_WIDTH - SCENE_PADDING_X * 0.6),
-        y: 120 + rand() * (height - 240),
-      };
-      if (distanceToRoute(candidate, routePoints) < minRouteDist) continue;
-      if (riverBands.some((bandY) => Math.abs(candidate.y - bandY) < RIVER_HALF_HEIGHT + 46)) continue;
-      if (obstacles.some((obstacle) => distance(candidate, { x: obstacle.x, y: obstacle.barrierY }) < 210)) continue;
-      if ([...existing, ...points].some((other) => distance(candidate, other) < minMutualDist)) continue;
-      points.push(candidate);
-    }
-    return points;
-  }
-
-  const density = height / 300;
-  const trees = placeMany(Math.round(density * 3.4), 110, 95, []);
-  const bushes = placeMany(Math.round(density * 2.6), 82, 70, trees);
-  const rocks = placeMany(Math.round(density * 1.4), 84, 120, [...trees, ...bushes]);
-  const flowers = placeMany(Math.round(density * 3.2), 62, 60, rocks);
-  const tufts = placeMany(Math.round(density * 4.2), 56, 46, []);
-  const patches = Array.from({ length: Math.round(density * 2.2) }, () => ({
-    x: rand() * SCENE_WIDTH,
-    y: 120 + rand() * (height - 240),
-    rx: 90 + rand() * 150,
-    ry: 55 + rand() * 85,
-    dark: rand() > 0.5,
-  }));
-
-  return {
-    width: SCENE_WIDTH,
-    height,
-    routePoints,
-    obstacles,
-    decor: { trees, bushes, rocks, flowers, tufts, patches },
-  };
+function createSceneModel(concepts, seed) {
+  return window.ParcoursWorld.buildScene(concepts, Number.isFinite(seed) ? seed : state.mapSeed);
 }
 
 /* ============================================================
    ROUTES : chemin principal + variantes courte / longue
+   (delegue a world.js — meme source de verite que la generation)
    ============================================================ */
 function buildRoadPath(points) {
-  if (!points.length) {
-    return "";
-  }
-  let path = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    const midY = (previous.y + current.y) / 2;
-    path += ` C ${previous.x} ${midY} ${current.x} ${midY} ${current.x} ${current.y}`;
-  }
-  return path;
+  return window.ParcoursWorld.buildRoadPath(points);
 }
 
-/* Geometrie des trois routes qui partent de l'obstacle obstacleIndex vers le
-   point suivant (obstacle suivant ou sortie) : courte (directe, doree),
-   moyenne (la route principale), longue (tres sinueuse, brune). C'est la
-   route de renforcement du concept obstacleIndex. */
 function branchGeometry(scene, obstacleIndex) {
-  const a = scene.routePoints[obstacleIndex + 1];
-  const b = scene.routePoints[obstacleIndex + 2];
-  if (!a || !b) {
-    return null;
-  }
-  const next = scene.obstacles[obstacleIndex + 1] || null;
-  /* Devant un pont, on s'arrete sur la berge nord, pas dans la riviere. */
-  const endOffset = next && next.type === "broken_bridge" ? 116 : 72;
-  const start = { x: a.x, y: a.y + 56 };
-  const end = { x: b.x, y: b.y - endOffset };
-  const dx = end.x - start.x;
-  const side = dx >= 0 ? 1 : -1;
-  const midY = (start.y + end.y) / 2;
-
-  const short = `M ${start.x} ${start.y} Q ${(start.x + end.x) / 2 + side * 30} ${midY - 40} ${end.x} ${end.y}`;
-  const medium = `M ${start.x} ${start.y} C ${start.x} ${midY} ${end.x} ${midY} ${end.x} ${end.y}`;
-  const long = `M ${start.x} ${start.y}
-    C ${start.x - side * 190} ${start.y + 60} ${start.x - side * 210} ${midY - 30} ${(start.x + end.x) / 2 - side * 60} ${midY}
-    C ${end.x + side * 230} ${midY + 40} ${end.x + side * 190} ${end.y - 70} ${end.x} ${end.y}`;
-
-  return { short, medium, long };
+  return window.ParcoursWorld.branchGeometry(scene, obstacleIndex);
 }
 
 /* Quelle route pour quelle maitrise : 3 = courte, 2 = moyenne (la route
@@ -1475,7 +1377,7 @@ function renderScene() {
     renderMinimap();
     return;
   }
-  state.scene = createSceneModel(state.session.concepts || []);
+  state.scene = createSceneModel(state.session.concepts || [], state.mapSeed);
   state.reinforcement = computeReinforcementStops();
   /* Calcule apres la scene (il suit le trace de la route active) et avant le
      markup, qui le dessine. */
@@ -2154,6 +2056,8 @@ async function loadLessons(level) {
    neuve. */
 function enterSession(payload, lesson) {
   state.sessionId = payload.session_id;
+  /* Nouvelle aventure => nouveau monde procédural. */
+  state.mapSeed = genererGraineMonde();
   state.playerPosition = { x: START_X, y: START_Y };
   state.playerAngle = 0;
   state.panelOpen = false;
@@ -2561,6 +2465,11 @@ async function tryResumeSession() {
       return false;
     }
     state.sessionId = saved.sessionId;
+    /* Meme carte qu'avant le rechargement : graine sauvegardee, ou dérivée du
+       sessionId pour les anciennes sauvegardes qui n'en avaient pas. */
+    state.mapSeed = Number.isFinite(saved.mapSeed)
+      ? saved.mapSeed >>> 0
+      : graineDepuisSessionId(saved.sessionId);
     state.score = Number.isFinite(saved.score) ? saved.score : 0;
     /* Tresors deja ramasses : sans eux, un rechargement de page les ferait
        repousser sur la meme route. */
