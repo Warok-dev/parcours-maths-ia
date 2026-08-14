@@ -1170,11 +1170,16 @@ function obstacleSceneryMarkup(obstacle, status) {
         <g transform="translate(${obstacle.x}, ${y})">${ASSETS.castle(done)}</g>
         <g transform="translate(${obstacle.x + 150}, ${y + 52})">${ASSETS.npc()}</g>
       `;
-    case "blocked_road":
+    case "blocked_road": {
+      /* La cabane (décor) et le villageois se placent du cote de l'obstacle
+         tourné vers le CENTRE du monde : sur une carte procédurale l'obstacle
+         peut etre a gauche comme a droite, et un deport fixe (-190) faisait
+         flotter la cabane pres du bord/depart, detachee de son etiquette. */
+      const versCentre = obstacle.x < SCENE_WIDTH / 2 ? 1 : -1;
       return `
         ${fenceMarkup(Math.max(40, obstacle.x - 520), obstacle.x - 120, y)}
         ${fenceMarkup(obstacle.x + 120, Math.min(SCENE_WIDTH - 40, obstacle.x + 520), y)}
-        <g transform="translate(${obstacle.x - 190}, ${y - 60})">${ASSETS.cabin()}</g>
+        <g transform="translate(${obstacle.x + versCentre * 175}, ${y - 60})">${ASSETS.cabin()}</g>
         ${
           done
             ? `
@@ -1193,8 +1198,9 @@ function obstacleSceneryMarkup(obstacle, status) {
               </g>
             `
         }
-        <g transform="translate(${obstacle.x + 108}, ${y + 46})">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x - versCentre * 110}, ${y + 46})">${ASSETS.npc()}</g>
       `;
+    }
     case "broken_bridge":
       return `
         <g class="river-group">
