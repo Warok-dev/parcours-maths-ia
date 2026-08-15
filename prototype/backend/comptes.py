@@ -233,13 +233,18 @@ def _classe_dict(classe: Classe, nb_eleves: int | None = None) -> dict:
     return infos
 
 
-def _ecole_courante(db: Session, nom: str | None) -> Ecole:
-    """Renvoie l'unique ecole, la creant au besoin (une seule pour l'instant)."""
-    ecole = db.scalars(select(Ecole).limit(1)).first()
-    if ecole is None:
-        ecole = Ecole(nom=nom or ECOLE_PAR_DEFAUT)
-        db.add(ecole)
-        db.flush()
+def _creer_ecole(db: Session, nom: str | None) -> Ecole:
+    """Cree une ECOLE PROPRE a l'enseignant qui s'inscrit.
+
+    Chaque inscription fonde son propre etablissement : deux enseignants ne
+    partagent JAMAIS une ecole implicite commune (ce serait un trou d'isolation
+    multi-tenant, masque tant qu'aucun test ne cree deux ecoles distinctes). Le
+    rattachement de plusieurs enseignants a une meme ecole (co-enseignement)
+    reste a definir via un mecanisme d'invitation dedie, pas par collision de
+    nom : nommer son ecole comme une autre ne donne aucun acces a ses donnees."""
+    ecole = Ecole(nom=nom or ECOLE_PAR_DEFAUT)
+    db.add(ecole)
+    db.flush()
     return ecole
 
 
@@ -292,7 +297,7 @@ def inscription_enseignant(
     if deja is not None:
         raise HTTPException(status_code=409, detail="Cet identifiant est deja pris.")
 
-    ecole = _ecole_courante(db, payload.ecole)
+    ecole = _creer_ecole(db, payload.ecole)
     enseignant = Enseignant(
         ecole=ecole,
         nom=payload.nom,
