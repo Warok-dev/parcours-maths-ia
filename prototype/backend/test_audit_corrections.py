@@ -216,5 +216,92 @@ class AssignationValidationTests(_Base):
         self.assertIn("vitesse_distance_duree", r.json()["detail"])
 
 
+# ============================================================
+#  m6 : propriete de session (un token ne pilote pas la session d'autrui)
+# ============================================================
+class ProprieteSessionTests(_Base):
+    def _deux_eleves(self):
+        prof = self._prof()
+        classe = self._classe(prof, niveau="CE1")
+        a_id, a_pin = self._eleve(prof, classe, "Lina")
+        b_id, b_pin = self._eleve(prof, classe, "Noah")
+        token_a = self._token_eleve(a_id, a_pin, classe["code_classe"])
+        token_b = self._token_eleve(b_id, b_pin, classe["code_classe"])
+        return token_a, token_b
+
+    def _session_de(self, token):
+        r = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1"},
+            headers=self._auth(token),
+        )
+        self.assertEqual(r.status_code, 200)
+        return r.json()
+
+    def test_proprietaire_lit_sa_session(self) -> None:
+        token_a, _ = self._deux_eleves()
+        payload = self._session_de(token_a)
+        r = self.client.get(f"/session/{payload['session_id']}", headers=self._auth(token_a))
+        self.assertEqual(r.status_code, 200)
+
+    def test_autre_eleve_ne_lit_pas_la_session(self) -> None:
+        token_a, token_b = self._deux_eleves()
+        payload = self._session_de(token_a)
+        r = self.client.get(f"/session/{payload['session_id']}", headers=self._auth(token_b))
+        self.assertEqual(r.status_code, 403)
+
+    def test_autre_eleve_ne_peut_pas_evaluer_la_session(self) -> None:
+        token_a, token_b = self._deux_eleves()
+        payload = self._session_de(token_a)
+        r = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": payload["session_id"],
+                "exercice_id": payload["exercice"]["id"],
+                "reponse_donnee": "123",
+            },
+            headers=self._auth(token_b),
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_autre_eleve_ne_peut_pas_demander_le_tuteur(self) -> None:
+        token_a, token_b = self._deux_eleves()
+        payload = self._session_de(token_a)
+        r = self.client.post(
+            "/tuteur/aide",
+            json={
+                "session_id": payload["session_id"],
+                "exercice_id": payload["exercice"]["id"],
+                "niveau": "CE1",
+                "question": "aide",
+            },
+            headers=self._auth(token_b),
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_sans_token_le_comportement_invite_reste(self) -> None:
+        # Retro-compatibilite : sans token, la lecture par session_id reste
+        # possible (mode essai libre inchange).
+        token_a, _ = self._deux_eleves()
+        payload = self._session_de(token_a)
+        r = self.client.get(f"/session/{payload['session_id']}")
+        self.assertEqual(r.status_code, 200)
+
+    def test_proprietaire_peut_evaluer(self) -> None:
+        token_a, _ = self._deux_eleves()
+        payload = self._session_de(token_a)
+        r = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": payload["session_id"],
+                "exercice_id": payload["exercice"]["id"],
+                "reponse_donnee": "999999",
+            },
+            headers=self._auth(token_a),
+        )
+        # Pas de 403 : le proprietaire evalue (juste ou faux, peu importe ici).
+        self.assertEqual(r.status_code, 200)
+
+
 if __name__ == "__main__":
     unittest.main()

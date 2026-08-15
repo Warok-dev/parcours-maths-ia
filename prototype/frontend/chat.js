@@ -214,12 +214,17 @@ async function askTutor(question) {
     throw new TutorError(CAUSE.SANS_EXERCICE, "Aucun exercice courant n'est disponible.");
   }
 
+  /* Token eleve joint quand l'eleve est connecte : le backend verifie alors que
+     la session appartient bien a cet eleve (au-dela de la possession du
+     session_id). En essai libre il n'y a pas de token, comportement inchange. */
+  const token = window.ParcoursCompte?.getToken?.();
   let response;
   try {
     response = await fetch("http://127.0.0.1:8000/tuteur/aide", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         session_id: sessionId,

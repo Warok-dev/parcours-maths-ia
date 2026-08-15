@@ -1143,7 +1143,7 @@ def generer_exercice(pattern_name: str, niveau: str | None = None) -> dict:
 
     actual_niveau = niveau or _pick_level(pattern_name)
     if actual_niveau not in LEVEL_MAP:
-        raise ValueError("Niveau invalide. Utiliser CE1 ou CE2.")
+        raise ValueError("Niveau invalide. Utiliser CE1 a CE6.")
 
     if LEVEL_MAP[actual_niveau] not in PATTERN_DEFS[pattern_name]["levels"]:
         raise ValueError(f"Le pattern {pattern_name} n'est pas disponible pour {actual_niveau}.")

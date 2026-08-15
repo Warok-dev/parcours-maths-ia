@@ -594,6 +594,18 @@ def _get_session(session_id: str) -> dict:
     return _ensure_session_fields(session)
 
 
+def _verifier_acces_session(session: dict, eleve_id: int | None) -> None:
+    """Durcit la propriete de session : posseder le session_id ne suffit pas.
+
+    Si la requete porte un token ELEVE (eleve_id non nul) ET que la session est
+    liee a un eleve, les deux doivent correspondre -- un eleve connecte ne peut
+    pas piloter/lire la session d'un camarade. Sans token (mode invite) ou pour
+    une session anonyme, le comportement historique est conserve."""
+    lie = session.get("eleve_id")
+    if eleve_id is not None and lie is not None and eleve_id != lie:
+        raise HTTPException(status_code=403, detail="Cette session ne t'appartient pas.")
+
+
 def _ensure_current_exercise(session: dict, exercice_id: str) -> dict:
     if session["terminee"]:
         raise HTTPException(status_code=400, detail="La carte est deja terminee.")
@@ -988,8 +1000,12 @@ def demarrer_session_revision(
 
 
 @app.get("/session/{session_id}")
-def get_session(session_id: str) -> dict:
+def get_session(
+    session_id: str,
+    eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
+) -> dict:
     session = _get_session(session_id)
+    _verifier_acces_session(session, eleve_id)
     return _progression_payload(session)
 
 
@@ -1023,12 +1039,15 @@ def get_exercice(niveau: str, pattern: str | None = None) -> dict:
 
 @app.post("/evaluer")
 def evaluer(
-    payload: EvaluationRequest, db: Annotated[Session, Depends(get_db)]
+    payload: EvaluationRequest,
+    db: Annotated[Session, Depends(get_db)],
+    eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
 ) -> dict:
     reponse = _extract_answer(payload)
 
     if payload.session_id is not None:
         session = _get_session(payload.session_id)
+        _verifier_acces_session(session, eleve_id)
         exercice = _ensure_current_exercise(session, payload.exercice_id)
         response = _apply_session_evaluation(session, exercice, reponse)
         _save_session(session)
@@ -1050,11 +1069,15 @@ def evaluer(
 
 
 @app.post("/tuteur/aide")
-def tuteur_aide(payload: TutorRequest) -> dict:
+def tuteur_aide(
+    payload: TutorRequest,
+    eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
+) -> dict:
     progression = None
     diagnostic = None
     if payload.session_id is not None:
         session = _get_session(payload.session_id)
+        _verifier_acces_session(session, eleve_id)
         exercice = _ensure_current_exercise(session, payload.exercice_id)
         # Pendant un aparte de confiance, l'aide du tuteur ne coute rien : la
         # chaine parfaite appartient au concept du parcours, pas a la pause.
