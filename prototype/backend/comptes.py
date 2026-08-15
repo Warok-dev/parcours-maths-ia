@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 import database
 import export_excel
 import notifications
+from rate_limit import LIMITE_AUTH, LIMITE_IA, limite
 from database import (
     ROLE_ADMINISTRATEUR,
     ROLE_ENSEIGNANT,
@@ -429,7 +430,9 @@ def inscription_enseignant(
 
 @router.post("/enseignant/connexion")
 def connexion_enseignant(
-    payload: EnseignantConnexion, db: Annotated[Session, Depends(get_db)]
+    payload: EnseignantConnexion,
+    db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_AUTH, "connexion_enseignant"))] = None,
 ) -> dict:
     enseignant = db.scalars(
         select(Enseignant).where(Enseignant.identifiant == payload.identifiant)
@@ -920,6 +923,7 @@ def rapport_ia_enseignant(
     eleve_id: int,
     enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
     db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_IA, "rapport_ia"))] = None,
 ) -> dict:
     """Rapport d'apprentissage redige par IA pour un eleve (vue enseignant :
     ton factuel et complet). Protege : proprietaire de la classe, et l'eleve
@@ -1223,7 +1227,10 @@ def rejoindre_classe(code_classe: str, db: Annotated[Session, Depends(get_db)]) 
 
 @router.post("/eleve/{eleve_id}/connexion")
 def connexion_eleve(
-    eleve_id: int, payload: EleveConnexion, db: Annotated[Session, Depends(get_db)]
+    eleve_id: int,
+    payload: EleveConnexion,
+    db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_AUTH, "connexion_eleve"))] = None,
 ) -> dict:
     eleve = db.get(Eleve, eleve_id)
     # Anti-usurpation : l'id doit appartenir a la classe du code fourni ET le PIN
@@ -1384,7 +1391,11 @@ def maj_personnage(
 #  PARENT : acces en lecture seule au suivi d'UN eleve
 # ============================================================
 @router.get("/parent/acces/{code_parent}")
-def acces_parent(code_parent: str, db: Annotated[Session, Depends(get_db)]) -> dict:
+def acces_parent(
+    code_parent: str,
+    db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_AUTH, "acces_parent"))] = None,
+) -> dict:
     """Entree publique du portail parent : echange le code d'acces contre un
     token parent limite a cet eleve (lecture seule). Recherche directe par le
     hash du code (indexe). Meme 403 si le code est inconnu (pas d'enumeration)."""
@@ -1443,6 +1454,7 @@ def notifications_parent(
 def rapport_ia_parent(
     eleve: Annotated[Eleve, Depends(parent_eleve_courant)],
     db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_IA, "rapport_ia"))] = None,
 ) -> dict:
     """Rapport d'apprentissage redige par IA pour le parent (ton simple et
     rassurant). Protege par le token parent existant : l'eleve est deduit du

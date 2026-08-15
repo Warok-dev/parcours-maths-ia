@@ -13,6 +13,8 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,6 +39,13 @@ from comptes import (
     router as comptes_router,
 )
 from database import Eleve, Progression, SessionJeu, init_db
+from rate_limit import (
+    LIMITE_IA,
+    activer_selon_env,
+    gestion_depassement,
+    limite,
+    limiter,
+)
 from tts import TTSConfigurationError, TTSServiceError
 from tutor import TutorServiceError, build_tutor_reply
 
@@ -98,6 +107,13 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Prototype Parcours Maths IA", version="0.1.0")
 
+# Rate limiting (slowapi) : limite generale par IP sur toute l'API via le
+# middleware, plus des limites plus strictes decorees endpoint par endpoint.
+# Le handler renvoie un 429 clair (message adapte a l'audience).
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, gestion_depassement)
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -108,10 +124,12 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def _initialiser_base_de_donnees() -> None:
+def _demarrage() -> None:
     """Cree data/parcours.db et ses tables au demarrage si besoin (create_all
-    idempotent). Fondation seule : le flux de jeu ne s'en sert pas encore."""
+    idempotent) et active le rate limiting (le lifespan ne s'ouvre pas pendant
+    les tests, qui restent donc non brides)."""
     init_db()
+    activer_selon_env()
 
 
 # Endpoints comptes/gestion (enseignants, classes, eleves). Isoles du flux de
@@ -1071,6 +1089,7 @@ def evaluer(
 @app.post("/tuteur/aide")
 def tuteur_aide(
     payload: TutorRequest,
+    _rl: Annotated[None, Depends(limite(LIMITE_IA, "tuteur_aide"))] = None,
     eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
 ) -> dict:
     progression = None
@@ -1108,7 +1127,10 @@ def tuteur_aide(
 
 
 @app.post("/synthese-vocale")
-def synthese_vocale(payload: SpeechRequest) -> dict:
+def synthese_vocale(
+    payload: SpeechRequest,
+    _rl: Annotated[None, Depends(limite(LIMITE_IA, "synthese_vocale"))] = None,
+) -> dict:
     """Synthese vocale neurale (Google TTS) d'un texte : reponse du tuteur ou
     enonce d'exercice. Renvoie l'audio MP3 en base64.
 
@@ -1161,7 +1183,11 @@ def get_themes() -> dict:
 
 
 @app.get("/generation/demo/{niveau}")
-def generation_demo(niveau: str, theme: str | None = None) -> dict:
+def generation_demo(
+    niveau: str,
+    theme: str | None = None,
+    _rl: Annotated[None, Depends(limite(LIMITE_IA, "generation_demo"))] = None,
+) -> dict:
     if niveau not in ALLOWED_LEVELS:
         raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
 
