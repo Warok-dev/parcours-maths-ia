@@ -38,6 +38,65 @@ let scenesGenerees = 0;
 const signatures = new Set();
 const bendCounts = new Set(); /* nombres de virages observes (n=5) */
 const amplitudes = []; /* etendues horizontales observees (n=5) */
+const directionsVues = new Set(); /* directions reellement produites par buildScene */
+
+/* Verifie les MEMES invariants qu'en natif, mais sur la scene ORIENTEE dans
+   `direction` (coordonnees d'affichage). La rotation etant une isometrie d'un
+   multiple de 90°, tout doit continuer a tenir ; ce test garde surtout la
+   transformation elle-meme (bornes d'affichage echangees, projection correcte,
+   spawn/fin aux bonnes extremites). */
+function verifierDirection(scene, direction, seed, n) {
+  const o = W.orientation(direction, scene.width, scene.height);
+  const proj = (p) => W.toDisplayPoint(p, direction, scene.width, scene.height);
+  const dispRoute = scene.routePoints.map(proj);
+
+  /* 1. Tous les points du tracé dans le cadre d'AFFICHAGE. */
+  for (const p of dispRoute) {
+    check(
+      p.x >= -0.5 && p.x <= o.width + 0.5 && p.y >= -0.5 && p.y <= o.height + 0.5,
+      `graine ${seed} n=${n} ${direction} : point du tracé dans le cadre affiché`,
+    );
+  }
+  /* 2. Distances minimales entre points consecutifs (preservees par rotation). */
+  for (let i = 1; i < dispRoute.length; i += 1) {
+    check(
+      dist(dispRoute[i], dispRoute[i - 1]) >= W.MIN_POINT_DIST - 0.5,
+      `graine ${seed} n=${n} ${direction} : distance points ${i}`,
+    );
+  }
+  /* 3. Obstacles dans le cadre d'affichage + distance mini entre eux. */
+  const dispObs = scene.obstacles.map((ob) => proj(ob));
+  for (let i = 0; i < dispObs.length; i += 1) {
+    const p = dispObs[i];
+    check(
+      p.x >= -0.5 && p.x <= o.width + 0.5 && p.y >= -0.5 && p.y <= o.height + 0.5,
+      `graine ${seed} n=${n} ${direction} : obstacle ${i} dans le cadre affiché`,
+    );
+    if (i > 0) {
+      check(
+        dist(dispObs[i], dispObs[i - 1]) >= W.MIN_OBSTACLE_DIST - 0.5,
+        `graine ${seed} n=${n} ${direction} : obstacles ${i} espacés`,
+      );
+    }
+  }
+  /* 4. Aucune auto-intersection du tracé REELLEMENT AFFICHE (on projette la
+        polyligne echantillonnee en natif : c'est exactement la courbe pivotée). */
+  const dispPoly = W.sampleRoad(scene.routePoints).map(proj);
+  check(
+    !W.hasSelfIntersection(dispPoly),
+    `graine ${seed} n=${n} ${direction} : sans auto-intersection (affiché)`,
+  );
+  /* 5. Spawn et fin aux bonnes extremites selon la direction (le joueur part
+        d'un bord et progresse vers le bord oppose, dans le bon sens). */
+  const s = dispRoute[0];
+  const e = dispRoute[dispRoute.length - 1];
+  const sensOk =
+    direction === "down" ? e.y > s.y
+      : direction === "up" ? e.y < s.y
+      : direction === "right" ? e.x > s.x
+      : e.x < s.x;
+  check(sensOk, `graine ${seed} n=${n} ${direction} : progression du spawn vers la sortie`);
+}
 
 for (let s = 0; s < SEEDS; s += 1) {
   const seed = (s * 2654435761) >>> 0; /* graines bien reparties */
@@ -45,6 +104,14 @@ for (let s = 0; s < SEEDS; s += 1) {
     const concepts = Array.from({ length: n }, (_, i) => `c${i}`);
     const scene = W.buildScene(concepts, seed);
     scenesGenerees += 1;
+
+    /* --- Direction dominante : produite et exploitable --- */
+    check(W.DIRECTIONS.includes(scene.direction), `graine ${seed} n=${n} : direction connue (${scene.direction})`);
+    directionsVues.add(scene.direction);
+    /* Les MEMES garde-fous, reverifies dans les 4 directions d'affichage. */
+    for (const direction of W.DIRECTIONS) {
+      verifierDirection(scene, direction, seed, n);
+    }
 
     /* --- Garde-fous globaux via le validateur officiel --- */
     const v = W.validateScene(scene);
@@ -138,6 +205,33 @@ check(bendCounts.size >= 3, `diversite du nombre de virages : ${[...bendCounts].
   check(max - min >= 500, `diversite d'amplitude horizontale : etendue ${Math.round(max - min)}px (${Math.round(min)}..${Math.round(max)})`);
 }
 
+/* --- Clavier intuitif : une intention d'AFFICHAGE (fleche) doit produire, une
+       fois convertie en natif puis reprojetee a l'ecran, exactement le meme
+       deplacement a l'ecran. C'est la garantie que "fleche du bas = descendre a
+       l'ecran" quelle que soit la direction (mapping des touches inchange). --- */
+{
+  const inputs = [
+    { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+  ];
+  /* Partie lineaire de toDisplayPoint (rotation, sans translation) : on la
+     obtient par difference de deux points projetes. */
+  const projDelta = (v, dir) => {
+    const a = W.toDisplayPoint({ x: 0, y: 0 }, dir, 2200, 3000);
+    const b = W.toDisplayPoint({ x: v.dx, y: v.dy }, dir, 2200, 3000);
+    return { dx: b.x - a.x, dy: b.y - a.y };
+  };
+  for (const dir of W.DIRECTIONS) {
+    for (const input of inputs) {
+      const natif = W.toNativeVector(input, dir);
+      const ecran = projDelta(natif, dir);
+      check(
+        Math.abs(ecran.dx - input.dx) < 1e-9 && Math.abs(ecran.dy - input.dy) < 1e-9,
+        `clavier intuitif ${dir} : (${input.dx},${input.dy}) preserve a l'ecran`,
+      );
+    }
+  }
+}
+
 /* --- Determinisme : meme graine => tracé identique --- */
 {
   const a = W.buildScene(["a", "b", "c", "d"], 123456);
@@ -150,6 +244,13 @@ check(bendCounts.size >= 3, `diversite du nombre de virages : ${[...bendCounts].
 /* --- Diversite reelle : >= 200 graines n=5 doivent donner une large
        majorite de tracés distincts (sinon la randomisation est illusoire). --- */
 check(signatures.size >= SEEDS * 0.95, `diversite : ${signatures.size}/${SEEDS} tracés n=5 distincts`);
+
+/* --- Les 4 directions dominantes apparaissent bien sur l'echantillon de
+       graines (sinon la randomisation de direction serait illusoire). --- */
+check(
+  directionsVues.size === W.DIRECTIONS.length,
+  `4 directions produites : ${[...directionsVues].sort().join(",")}`,
+);
 
 console.log(`\n${scenesGenerees} scenes generees ; ${total - failures}/${total} verifications passent`);
 console.log(failures === 0 ? "TOUT VERT" : `${failures} ECHECS`);

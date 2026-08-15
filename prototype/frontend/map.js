@@ -669,15 +669,57 @@ function obstacleIconSvg(type, status) {
 }
 
 /* ============================================================
+   ORIENTATION (direction dominante du parcours)
+   La scene est generee/jouee en espace NATIF (progression vers +y) ; la
+   direction tiree par la graine (world.js) est une rotation d'affichage
+   d'un multiple de 90°. Ces helpers relaient la transformation de world.js
+   au rendu, a la camera, a la mini-carte et au clavier. La logique de jeu
+   (position joueur, obstacles, collisions) reste, elle, en natif.
+   ============================================================ */
+function orientTransform() {
+  return state.scene?.orientTransform || "matrix(1,0,0,1,0,0)";
+}
+
+/* Angle a appliquer aux SEULS elements textuels (plaques, marqueurs, indice,
+   bonus) pour les garder droits : ils sont dans le groupe pivote, on annule
+   donc localement la rotation. "" quand il n'y a rien a corriger (down). */
+function uprightSuffix() {
+  const angle = state.scene?.orientAngle || 0;
+  return angle ? ` rotate(${-angle})` : "";
+}
+
+/* Espace d'affichage (dimensions et projection d'un point natif). */
+function displayWidth() {
+  return state.scene?.displayWidth || state.scene?.width || 0;
+}
+function displayHeight() {
+  return state.scene?.displayHeight || state.scene?.height || 0;
+}
+function toDisplay(point) {
+  if (!state.scene) {
+    return { x: point.x, y: point.y };
+  }
+  return window.ParcoursWorld.toDisplayPoint(
+    point,
+    state.scene.direction,
+    state.scene.width,
+    state.scene.height,
+  );
+}
+
+/* ============================================================
    CAMERA
+   La camera vit en espace d'AFFICHAGE (ce que voit l'ecran) : elle suit la
+   projection de la position joueur et se borne aux dimensions d'affichage
+   (echangees pour les rotations a 90°).
    ============================================================ */
 function clampCamera(cameraTarget) {
   if (!state.scene) {
     return cameraTarget;
   }
   return {
-    x: clamp(cameraTarget.x, CAMERA_WIDTH / 2, state.scene.width - CAMERA_WIDTH / 2),
-    y: clamp(cameraTarget.y, CAMERA_HEIGHT / 2, state.scene.height - CAMERA_HEIGHT / 2),
+    x: clamp(cameraTarget.x, CAMERA_WIDTH / 2, displayWidth() - CAMERA_WIDTH / 2),
+    y: clamp(cameraTarget.y, CAMERA_HEIGHT / 2, displayHeight() - CAMERA_HEIGHT / 2),
   };
 }
 
@@ -967,7 +1009,8 @@ function spawnTreasureFx(x, y, bonus) {
   }).join("");
 
   const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  group.setAttribute("transform", `translate(${x}, ${y})`);
+  /* Le calque d'effets est dans le groupe pivote : on redresse le texte "+N". */
+  group.setAttribute("transform", `translate(${x}, ${y})${uprightSuffix()}`);
   group.innerHTML = `
     ${eclats}
     <text x="0" y="-16" text-anchor="middle" class="treasure-bonus-text">+${bonus}</text>
@@ -1032,7 +1075,7 @@ function obstaclePlateMarkup(obstacle, status, theme) {
   const plateX = obstacle.x + offset;
   const done = status === "done";
   return `
-    <g class="obstacle-plate-group" transform="translate(${plateX}, ${plateY})">
+    <g class="obstacle-plate-group" transform="translate(${plateX}, ${plateY})${uprightSuffix()}">
       <rect x="-92" y="-22" width="184" height="42" rx="18" class="obstacle-plate"></rect>
       <text x="${done ? -8 : 0}" y="7" text-anchor="middle" class="obstacle-plate-text">${theme.name}</text>
       ${
@@ -1052,7 +1095,7 @@ function obstacleMarkerMarkup(obstacle, status) {
     return "";
   }
   return `
-    <g transform="translate(${obstacle.x}, ${obstacle.barrierY - 152})">
+    <g transform="translate(${obstacle.x}, ${obstacle.barrierY - 152})${uprightSuffix()}">
       <g class="obstacle-marker">
         <path d="M 0 22 L -14 -4 A 17 17 0 1 1 14 -4 Z" class="marker-pin"></path>
         <text x="0" y="0" text-anchor="middle" class="marker-glyph">!</text>
@@ -1185,7 +1228,11 @@ function propsMarkup(scene) {
 
 function sceneMarkup(scene) {
   const roadPath = buildRoadPath(scene.routePoints);
-  return `
+  /* Tout le contenu de la scene est genere en coordonnees NATIVES puis pivote
+     d'un bloc par le groupe #world-root : le decor pleine largeur (riviere,
+     barrieres) reste ainsi correct par construction, quelle que soit la
+     direction. Seuls les elements textuels sont redresses (uprightSuffix). */
+  return `<g id="world-root" transform="${orientTransform()}">
     <rect x="0" y="0" width="${scene.width}" height="${scene.height}" class="ground"></rect>
     <g class="patch-layer">${decorMarkup(scene)}</g>
     <g class="branch-layer">${branchMarkup(scene)}</g>
@@ -1212,7 +1259,7 @@ function sceneMarkup(scene) {
     </g>
     <g id="fx-layer"></g>
     <g id="player-token" class="player-token">${ASSETS.player()}</g>
-  `;
+  </g>`;
 }
 
 /* ============================================================
@@ -1239,8 +1286,12 @@ function renderMinimap() {
     return;
   }
   const scene = state.scene;
-  minimapSvg.setAttribute("viewBox", `0 0 ${scene.width} ${scene.height}`);
+  /* La mini-carte doit refleter la VRAIE direction de progression : on la
+     cadre en dimensions d'affichage et on pivote son contenu (genere en
+     natif) par la meme matrice que la carte principale. */
+  minimapSvg.setAttribute("viewBox", `0 0 ${displayWidth()} ${displayHeight()}`);
   minimapSvg.innerHTML = `
+    <g transform="${orientTransform()}">
     <path d="${buildRoadPath(scene.routePoints)}" class="mini-road"></path>
     ${
       state.reinforcement
@@ -1259,6 +1310,7 @@ function renderMinimap() {
       )
       .join("")}
     <circle id="minimap-player" r="46" class="mini-player"></circle>
+    </g>
   `;
   updateMinimapPlayer();
 }
@@ -1378,6 +1430,10 @@ function renderScene() {
     return;
   }
   state.scene = createSceneModel(state.session.concepts || [], state.mapSeed);
+  /* La camera vit en espace d'affichage : on la (re)pose sur la projection du
+     joueur pour eviter un recentrage brutal au 1er tick (surtout apres une
+     rotation de direction, ou les coordonnees d'affichage different du natif). */
+  state.camera = clampCamera(toDisplay(state.playerPosition));
   state.reinforcement = computeReinforcementStops();
   /* Calcule apres la scene (il suit le trace de la route active) et avant le
      markup, qui le dessine. */
@@ -1493,7 +1549,7 @@ function updateSceneDynamics() {
   const hintVisible = state.nearObstacle && !state.panelOpen;
   if (hintNode && target) {
     const hintY = target.kind === "stop" ? target.y - 84 : target.y - 152;
-    const hintTransform = `translate(${target.x.toFixed(1)}, ${hintY.toFixed(1)})`;
+    const hintTransform = `translate(${target.x.toFixed(1)}, ${hintY.toFixed(1)})${uprightSuffix()}`;
     if (hintTransform !== dynamicsCache.hintTransform) {
       dynamicsCache.hintTransform = hintTransform;
       hintNode.setAttribute("transform", hintTransform);
@@ -2584,9 +2640,14 @@ function tick(timestamp) {
   lastTick = timestamp;
 
   if (state.scene && state.session && !state.panelOpen && !state.session.terminee) {
-    const vector = movementVector();
-    state.playerMoving = Boolean(vector);
-    if (vector) {
+    const input = movementVector();
+    state.playerMoving = Boolean(input);
+    if (input) {
+      /* L'intention clavier est en espace d'AFFICHAGE (fleche du bas = vers le
+         bas de l'ecran) : on la ramene en natif pour bouger le joueur dans son
+         espace de jeu. Le jeton, lui, est dans le groupe pivote, donc son angle
+         natif s'affiche deja dans le bon sens a l'ecran. */
+      const vector = window.ParcoursWorld.toNativeVector(input, state.scene.direction);
       const proposed = {
         x: state.playerPosition.x + vector.dx * PLAYER_SPEED * deltaSeconds,
         y: state.playerPosition.y + vector.dy * PLAYER_SPEED * deltaSeconds,
@@ -2611,7 +2672,9 @@ function tick(timestamp) {
      dixieme de pixel, la camera s'aimante sur la cible : l'easing s'arrete
      vraiment et applyCameraViewBox cesse d'ecrire (donc de repeindre). */
   if (state.scene) {
-    const target = clampCamera({ x: state.playerPosition.x, y: state.playerPosition.y });
+    /* La camera vit en espace d'affichage : on suit la PROJECTION de la
+       position joueur (natif -> affichage). */
+    const target = clampCamera(toDisplay(state.playerPosition));
     const factor = 1 - Math.exp(-CAMERA_EASE * deltaSeconds);
     state.camera.x += (target.x - state.camera.x) * factor;
     state.camera.y += (target.y - state.camera.y) * factor;

@@ -9,12 +9,25 @@
    jeu ; ici on ne calcule que des coordonnées et des chemins SVG.
    Teste par test_world.js (>= 200 graines, garde-fous verifies).
 
-   PROPRIETE DE SURETE : le chemin progresse toujours de haut en bas
-   (y strictement croissant), et buildRoadPath place ses points de
-   controle a mi-hauteur (midY) — chaque courbe reste donc dans sa
-   propre bande verticale, ce qui rend l'auto-intersection du tracé
-   principal impossible par construction. Le validateur le verifie
-   quand meme geometriquement, et buildScene regenere en cas d'echec.
+   PROPRIETE DE SURETE : le chemin est GENERE en espace NATIF, ou il
+   progresse toujours de haut en bas (y strictement croissant), et
+   buildRoadPath place ses points de controle a mi-hauteur (midY) —
+   chaque courbe reste donc dans sa propre bande verticale, ce qui rend
+   l'auto-intersection du tracé principal impossible par construction.
+   Le validateur le verifie quand meme geometriquement, et buildScene
+   regenere en cas d'echec.
+
+   DIRECTION DOMINANTE : la graine tire aussi une direction d'affichage
+   (haut->bas, bas->haut, gauche->droite, droite->gauche). Ce n'est PAS
+   une reecriture du generateur : la scene est toujours produite et
+   validee en natif (axe de progression = y), puis on attache une
+   ROTATION d'un multiple de 90° (isometrie) qui envoie l'espace natif
+   vers l'espace d'AFFICHAGE. map.js applique cette rotation au rendu, a
+   la camera, a la mini-carte et au vecteur clavier ; la logique de jeu
+   (position joueur, obstacles, collisions) reste en natif. La rotation
+   etant une isometrie, tous les garde-fous verifies en natif (pas
+   d'auto-intersection, distances mini, bornes) restent vrais apres
+   orientation — les tests le reverifient dans chaque direction.
    ============================================================ */
 (function () {
   /* ---- Constantes du monde (MIROIR de map.js : doivent coincider) ----
@@ -31,6 +44,11 @@
   const BARRIER_OFFSET_Y = 46;
   const RIVER_HALF_HEIGHT = 62;
   const TYPES = ["castle_gate", "blocked_road", "broken_bridge", "crossroads"];
+
+  /* Directions dominantes d'affichage. "down" = comportement historique
+     (l'espace natif tel quel). Les trois autres sont des rotations d'un
+     multiple de 90° appliquees a l'affichage (voir orientation()). */
+  const DIRECTIONS = ["down", "up", "right", "left"];
 
   /* ---- Reglages du serpentin ----
      Le tracé suit une EPINE SINUSOIDALE dont les parametres varient par graine
@@ -406,6 +424,85 @@
   }
 
   /* ============================================================
+     ORIENTATION (rotation d'affichage, multiple de 90°)
+     Envoie l'espace NATIF (x dans [0,width], y dans [0,height], la
+     progression allant vers +y) vers l'espace d'AFFICHAGE. Chaque
+     direction est une isometrie, donc les garde-fous natifs restent
+     valides apres transformation.
+     ============================================================ */
+  /* Direction tiree de la graine, sur un flux dedie (sale distinct) pour ne
+     pas correler la direction avec la forme (freq/amp/drift). Constante sur
+     toutes les tentatives d'une meme graine : c'est une propriete du monde,
+     pas du repli. */
+  function directionForSeed(seed) {
+    const rand = seededRandom((seed ^ 0x5bd1e995) >>> 0);
+    return DIRECTIONS[Math.min(DIRECTIONS.length - 1, Math.floor(rand() * DIRECTIONS.length))];
+  }
+
+  /* Matrice SVG native->affichage, angle de rotation (deg) et dimensions
+     d'affichage (width/height echanges pour les rotations a 90°). La matrice
+     SVG matrix(a,b,c,d,e,f) applique X=a*x+c*y+e, Y=b*x+d*y+f. */
+  function orientation(direction, width, height) {
+    switch (direction) {
+      case "up": /* rotation 180° */
+        return { matrix: `matrix(-1,0,0,-1,${width},${height})`, angle: 180, width, height };
+      case "right": /* progression natif +y -> +X (vers la droite), rotation -90° */
+        return { matrix: `matrix(0,-1,1,0,0,${width})`, angle: -90, width: height, height: width };
+      case "left": /* progression natif +y -> -X (vers la gauche), rotation +90° */
+        return { matrix: `matrix(0,1,-1,0,${height},0)`, angle: 90, width: height, height: width };
+      default: /* down : identite */
+        return { matrix: "matrix(1,0,0,1,0,0)", angle: 0, width, height };
+    }
+  }
+
+  /* Point natif -> point d'affichage (memes formules que orientation()). */
+  function toDisplayPoint(p, direction, width, height) {
+    switch (direction) {
+      case "up":
+        return { x: width - p.x, y: height - p.y };
+      case "right":
+        return { x: p.y, y: width - p.x };
+      case "left":
+        return { x: height - p.y, y: p.x };
+      default:
+        return { x: p.x, y: p.y };
+    }
+  }
+
+  /* Vecteur d'AFFICHAGE (intention clavier a l'ecran) -> vecteur NATIF a
+     appliquer a la position du joueur. C'est la rotation inverse (partie
+     lineaire, sans translation) : ainsi "fleche du bas" pousse toujours le
+     jeton vers le bas de l'ecran, quelle que soit la direction du parcours. */
+  function toNativeVector(v, direction) {
+    switch (direction) {
+      case "up":
+        return { dx: -v.dx, dy: -v.dy };
+      case "right":
+        return { dx: -v.dy, dy: v.dx };
+      case "left":
+        return { dx: v.dy, dy: -v.dx };
+      default:
+        return { dx: v.dx, dy: v.dy };
+    }
+  }
+
+  /* Attache les metadonnees d'orientation a une scene deja construite en
+     natif (coordonnees natives inchangees : map.js applique la rotation au
+     rendu, la logique de jeu reste en natif). */
+  function finalizeScene(scene, direction) {
+    if (!scene) {
+      return scene;
+    }
+    const o = orientation(direction, scene.width, scene.height);
+    scene.direction = direction;
+    scene.orientTransform = o.matrix;
+    scene.orientAngle = o.angle;
+    scene.displayWidth = o.width;
+    scene.displayHeight = o.height;
+    return scene;
+  }
+
+  /* ============================================================
      POINT D'ENTREE : construit une scene complete pour une graine.
      Les parametres d'epine + les seuils (FIRST_OBSTACLE_Y, GAP, bornes)
      garantissent normalement les garde-fous des la 1re tentative ; le
@@ -415,6 +512,7 @@
   function buildScene(concepts, seed) {
     const liste = Array.isArray(concepts) ? concepts : [];
     const graine = (Number.isFinite(seed) ? seed : 1) >>> 0;
+    const direction = directionForSeed(graine);
     let derniere = null;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       const rand = seededRandom((graine ^ Math.imul(attempt, 0x9e3779b1)) >>> 0);
@@ -423,16 +521,22 @@
       scene.decor = placeDecor(scene, rand);
       derniere = scene;
       if (validateScene(scene).ok) {
-        return scene;
+        return finalizeScene(scene, direction);
       }
     }
-    return derniere; /* filet : derniere tentative (extremement rare) */
+    return finalizeScene(derniere, direction); /* filet : derniere tentative (extremement rare) */
   }
 
   const api = {
     buildScene,
     buildRoadPath,
     branchGeometry,
+    /* orientation (direction dominante) : partagee par map.js et les tests */
+    DIRECTIONS,
+    directionForSeed,
+    orientation,
+    toDisplayPoint,
+    toNativeVector,
     /* exposes pour les tests / la verification */
     mulberry32,
     shuffledTypes,
