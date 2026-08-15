@@ -395,11 +395,15 @@
       ecrireStockage(compte);
       choisir("eleve");
     } catch (error) {
-      /* 403 = code secret refuse : message d'enfant, sans jargon. */
+      /* 403 = code secret refuse ; 429 = trop d'essais rapides (anti force
+         brute) : dans les deux cas, message d'enfant sans jargon. Le 429 porte
+         deja un message rassurant venu du serveur. */
       setStatut(
         error.status === 403
           ? "Code secret incorrect. Réessaie !"
-          : `Connexion impossible : ${error.message}`,
+          : error.status === 429
+            ? error.message || "Tu vas trop vite ! Attends un instant et réessaie."
+            : `Connexion impossible : ${error.message}`,
       );
       if (typeof onEchec === "function") {
         onEchec();

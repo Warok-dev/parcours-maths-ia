@@ -14,6 +14,7 @@ const CAUSE = {
   SESSION: "session",
   IA_INDISPONIBLE: "ia-indisponible",
   SANS_EXERCICE: "sans-exercice",
+  TROP_VITE: "trop-vite", // 429 : trop de questions en peu de temps (rate limit)
   INCONNUE: "inconnue",
 };
 
@@ -35,6 +36,9 @@ const MESSAGES_ERREUR = {
   [CAUSE.SANS_EXERCICE]:
     "Je ne vois aucun exercice ouvert ! " +
     "Choisis une étape sur la carte, et je pourrai t'aider.",
+  [CAUSE.TROP_VITE]:
+    "Oh là là, tu me poses beaucoup de questions très vite ! " +
+    "Attends un petit instant, puis redemande-moi.",
   [CAUSE.INCONNUE]:
     "Aïe, quelque chose ne marche pas de mon côté. " +
     "Réessaie dans un petit moment, je reste avec toi.",
@@ -54,6 +58,9 @@ const MESSAGES_ERREUR_MOYEN = {
   [CAUSE.SANS_EXERCICE]:
     "Aucun exercice n'est ouvert. " +
     "Choisis une étape sur la carte et je pourrai t'aider.",
+  [CAUSE.TROP_VITE]:
+    "Tu m'envoies beaucoup de questions d'un coup ! " +
+    "Attends un petit moment, puis redemande-moi.",
   [CAUSE.INCONNUE]:
     "Quelque chose ne marche pas de mon côté. " +
     "Réessaie dans un moment, je reste avec toi.",
@@ -73,6 +80,9 @@ const MESSAGES_ERREUR_GRAND = {
   [CAUSE.SANS_EXERCICE]:
     "Aucun exercice n'est ouvert pour l'instant. " +
     "Sélectionne une étape sur la carte et je pourrai t'aider.",
+  [CAUSE.TROP_VITE]:
+    "Trop de demandes en peu de temps. " +
+    "Patiente un instant, puis renouvelle ta demande.",
   [CAUSE.INCONNUE]:
     "Un problème est survenu de mon côté. " +
     "Réessaie dans un instant.",
@@ -101,6 +111,9 @@ function causeDepuisStatut(status) {
   }
   if (status === 503) {
     return CAUSE.IA_INDISPONIBLE;
+  }
+  if (status === 429) {
+    return CAUSE.TROP_VITE;
   }
   return CAUSE.INCONNUE;
 }

@@ -2440,9 +2440,14 @@ async function handleSubmitAnswer(event) {
     applyEvaluationResult(payload, context);
   } catch (error) {
     /* 503 = generation du prochain exercice indisponible : la session n'a pas
-       bouge cote backend, l'eleve peut simplement revalider la meme reponse. */
+       bouge cote backend, l'eleve peut simplement revalider la meme reponse.
+       429 = trop de validations tres rapprochees (limite de debit) : message
+       rassurant et transitoire venu du serveur, l'eleve reessaie dans un
+       instant. */
     if (error.status === 503) {
       setFeedback("Un instant, je prépare la suite... réessaie dans quelques secondes !", "wait");
+    } else if (error.status === 429) {
+      setFeedback(error.message || "Tu vas un peu trop vite ! Attends un instant et réessaie.", "wait");
     } else {
       setFeedback(error.message, "warning");
     }
