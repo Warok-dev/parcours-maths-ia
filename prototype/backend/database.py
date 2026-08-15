@@ -179,6 +179,13 @@ class Eleve(Base):
         ForeignKey("classe.id", ondelete="CASCADE"), nullable=False, index=True
     )
     prenom: Mapped[str] = mapped_column(String(80), nullable=False)
+    # Archivage reversible : "retirer de la classe" met archive=True (l'eleve
+    # disparait des vues actives mais ses donnees sont conservees, au cas ou
+    # l'enseignant se serait trompe). A distinguer de la suppression definitive
+    # (effacement reel, irreversible, droit a l'effacement RGPD).
+    archive: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
     pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Unique + index : recherche directe du parent par son code (via son hash).
     code_parent_hash: Mapped[str | None] = mapped_column(
@@ -412,6 +419,12 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
                         "CREATE UNIQUE INDEX IF NOT EXISTS ix_eleve_code_parent_hash "
                         "ON eleve (code_parent_hash)"
                     )
+                )
+        if "archive" not in colonnes:
+            # Colonne avec defaut : les eleves existants sont actifs (archive=0).
+            with eng.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE eleve ADD COLUMN archive BOOLEAN NOT NULL DEFAULT 0")
                 )
     if "classe" in tables:
         colonnes = {c["name"] for c in inspector.get_columns("classe")}

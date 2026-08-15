@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import logging
 import secrets
 from datetime import date, datetime, timezone
 from typing import Annotated
@@ -26,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -44,6 +45,7 @@ from database import (
     InvitationEnseignant,
     Personnage,
     Progression,
+    SessionJeu,
     generer_code_classe,
 )
 
@@ -52,9 +54,18 @@ _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.
 
 router = APIRouter(tags=["comptes"])
 
+# Journal serveur des suppressions definitives (tracabilite RGPD : qui, quoi,
+# quand). Non visible de l'utilisateur ; sert de preuve qu'une demande
+# d'effacement a bien ete traitee.
+logger = logging.getLogger("comptes.suppression")
+
 # Une seule ecole pour l'instant (multi-tenant prepare cote schema).
 ECOLE_PAR_DEFAUT = "Ecole du Parcours"
 NIVEAUX = set(database.NIVEAUX_SCOLAIRES)
+
+# Confirmation litterale exigee pour un effacement definitif d'eleve (le corps
+# de la requete doit contenir exactement ce mot : evite un DELETE accidentel).
+CONFIRMATION_SUPPRESSION_ELEVE = "SUPPRIMER"
 
 # --- Tokens opaques cote serveur (en memoire) ---
 _TOKENS_ENSEIGNANT: dict[str, int] = {}  # token -> enseignant_id
@@ -241,6 +252,12 @@ class InvitationCreation(BaseModel):
 
 class RoleMaj(BaseModel):
     role: str = Field(pattern=r"^(administrateur|enseignant)$")
+
+
+class ConfirmationSuppression(BaseModel):
+    # Confirmation litterale exigee pour un effacement definitif. Le client doit
+    # l'envoyer explicitement : un DELETE/POST "nu" ne suffit pas.
+    confirmation: str = Field(min_length=1, max_length=120)
 
 
 class EnseignantConnexion(BaseModel):
@@ -453,7 +470,9 @@ def lister_classes_ecole(
     classes = []
     for c in rows:
         nb = db.scalar(
-            select(func.count()).select_from(Eleve).where(Eleve.classe_id == c.id)
+            select(func.count()).select_from(Eleve).where(
+                Eleve.classe_id == c.id, Eleve.archive.is_(False)
+            )
         )
         infos = _classe_dict(c, nb_eleves=nb)
         infos["enseignant"] = {"id": c.enseignant.id, "nom": c.enseignant.nom}
@@ -474,6 +493,9 @@ def lister_enseignants_ecole(
     ).all()
     return {
         "ecole_id": admin.ecole_id,
+        # Nom de l'ecole : le frontend s'en sert comme confirmation litterale
+        # exigee pour la suppression definitive de l'etablissement.
+        "ecole_nom": admin.ecole.nom,
         "enseignants": [
             {
                 "id": e.id,
@@ -561,6 +583,57 @@ def changer_role_enseignant(
     return {"id": cible.id, "nom": cible.nom, "role": cible.role}
 
 
+@router.post("/ecole/suppression", status_code=200)
+def supprimer_ecole_definitivement(
+    payload: ConfirmationSuppression,
+    admin: Annotated[Enseignant, Depends(administrateur_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """SUPPRESSION DEFINITIVE de l'ecole entiere et de TOUTES ses donnees
+    (enseignants, classes, eleves, progressions, assignations, personnages,
+    invitations) via cascade — utile si un etablissement met fin a son contrat.
+
+    Reservee a l'administrateur de CETTE ecole. Exige, comme confirmation
+    litterale, le NOM EXACT de l'ecole (garde-fou fort : on ne supprime pas un
+    etablissement entier sur un clic). Journalise l'operation cote serveur."""
+    ecole = db.get(Ecole, admin.ecole_id)
+    if ecole is None:  # incoherence extreme (token valide mais ecole disparue)
+        raise HTTPException(status_code=404, detail="Ecole introuvable.")
+    if payload.confirmation != ecole.nom:
+        raise HTTPException(
+            status_code=400,
+            detail="Confirmation requise : renvoyez le nom exact de l'ecole pour la supprimer.",
+        )
+
+    # Sessions de jeu des eleves de l'ecole : FK SET NULL les laisserait
+    # persister (anonymes) ; on les efface pour ne laisser aucune trace.
+    eleve_ids = select(Eleve.id).join(Classe, Eleve.classe_id == Classe.id).where(
+        Classe.ecole_id == ecole.id
+    )
+    db.execute(delete(SessionJeu).where(SessionJeu.eleve_id.in_(eleve_ids)))
+    # Compte informatif pour le journal (avant suppression).
+    nb_enseignants = db.scalar(
+        select(func.count()).select_from(Enseignant).where(Enseignant.ecole_id == ecole.id)
+    )
+    nb_eleves = db.scalar(
+        select(func.count()).select_from(Eleve).join(Classe, Eleve.classe_id == Classe.id)
+        .where(Classe.ecole_id == ecole.id)
+    )
+    nom = ecole.nom
+    ecole_id = ecole.id
+    admin_id, admin_ident = admin.id, admin.identifiant
+    db.delete(ecole)  # cascade : enseignants -> classes -> eleves -> progressions...
+    db.commit()
+    # Le compte admin lui-meme vient d'etre supprime : on invalide ses tokens.
+    for tok in [t for t, eid in _TOKENS_ENSEIGNANT.items() if eid == admin_id]:
+        _TOKENS_ENSEIGNANT.pop(tok, None)
+    logger.info(
+        "Effacement definitif ecole id=%s nom=%r (%s enseignants, %s eleves) par admin id=%s (%s)",
+        ecole_id, nom, nb_enseignants, nb_eleves, admin_id, admin_ident,
+    )
+    return {"supprime": True, "ecole_id": ecole_id}
+
+
 # ============================================================
 #  CLASSES (protege : enseignant connecte)
 # ============================================================
@@ -609,7 +682,9 @@ def lister_classes(
             _classe_dict(
                 c,
                 nb_eleves=db.scalar(
-                    select(func.count()).select_from(Eleve).where(Eleve.classe_id == c.id)
+                    select(func.count()).select_from(Eleve).where(
+                Eleve.classe_id == c.id, Eleve.archive.is_(False)
+            )
                 ),
             )
             for c in classes
@@ -628,7 +703,9 @@ def lister_eleves(
     Distinct de /classe/rejoindre (public, cote eleve, sans dates)."""
     classe = _classe_de_l_enseignant(db, classe_id, enseignant)
     eleves = db.scalars(
-        select(Eleve).where(Eleve.classe_id == classe.id).order_by(Eleve.date_creation, Eleve.prenom)
+        select(Eleve)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
+        .order_by(Eleve.date_creation, Eleve.prenom)
     ).all()
     return {
         "classe": _classe_dict(classe),
@@ -728,13 +805,60 @@ def retirer_eleve(
     enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
+    """RETIRER de la classe = archivage REVERSIBLE. L'eleve disparait des vues
+    actives (roster, tableau de bord, export, connexion) mais ses donnees sont
+    CONSERVEES, au cas ou l'enseignant se serait trompe. Pour un effacement reel
+    et irreversible (droit a l'effacement), voir POST .../suppression."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    eleve = db.get(Eleve, eleve_id)
+    if eleve is None or eleve.classe_id != classe.id or eleve.archive:
+        raise HTTPException(status_code=404, detail="Eleve introuvable dans cette classe.")
+    eleve.archive = True
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/classe/{classe_id}/eleve/{eleve_id}/suppression", status_code=200)
+def supprimer_eleve_definitivement(
+    classe_id: int,
+    eleve_id: int,
+    payload: ConfirmationSuppression,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """SUPPRESSION DEFINITIVE et IRREVERSIBLE des donnees d'un eleve (droit a
+    l'effacement RGPD). Efface l'eleve ET toutes ses donnees liees : progression,
+    assignations, personnage (garde-robe) via cascade, et ses sessions de jeu
+    (explicitement, pour ne laisser AUCUNE trace, meme anonyme). Fonctionne aussi
+    sur un eleve deja archive.
+
+    Exige une confirmation litterale dans le corps (evite un effacement
+    accidentel) et journalise l'operation cote serveur (tracabilite RGPD)."""
     classe = _classe_de_l_enseignant(db, classe_id, enseignant)
     eleve = db.get(Eleve, eleve_id)
     if eleve is None or eleve.classe_id != classe.id:
         raise HTTPException(status_code=404, detail="Eleve introuvable dans cette classe.")
-    db.delete(eleve)
+    if payload.confirmation != CONFIRMATION_SUPPRESSION_ELEVE:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Confirmation requise pour un effacement definitif : envoyez "
+                f'confirmation="{CONFIRMATION_SUPPRESSION_ELEVE}".'
+            ),
+        )
+
+    prenom = eleve.prenom
+    # Sessions d'abord (FK ON DELETE SET NULL les rendrait anonymes mais
+    # persistantes) : on les efface pour ne laisser aucune trace residuelle.
+    db.execute(delete(SessionJeu).where(SessionJeu.eleve_id == eleve_id))
+    db.delete(eleve)  # cascade : progression, assignations, personnage
     db.commit()
-    return Response(status_code=204)
+    # Tracabilite RGPD (journal serveur, invisible de l'utilisateur).
+    logger.info(
+        "Effacement definitif eleve id=%s prenom=%r classe_id=%s par enseignant id=%s (%s)",
+        eleve_id, prenom, classe_id, enseignant.id, enseignant.identifiant,
+    )
+    return {"supprime": True, "eleve_id": eleve_id}
 
 
 # ============================================================
@@ -752,12 +876,14 @@ def tableau_de_bord(
     de reperer d'un coup d'oeil qui maitrise quoi, sans ouvrir chaque eleve."""
     classe = _classe_de_l_enseignant(db, classe_id, enseignant)
     eleves = db.scalars(
-        select(Eleve).where(Eleve.classe_id == classe.id).order_by(Eleve.prenom)
+        select(Eleve)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
+        .order_by(Eleve.prenom)
     ).all()
     lignes = db.scalars(
         select(Progression)
         .join(Eleve, Progression.eleve_id == Eleve.id)
-        .where(Eleve.classe_id == classe.id)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
         .order_by(Progression.lecon_id, Progression.pattern_name)
     ).all()
 
@@ -826,7 +952,7 @@ def concepts_difficiles(
             func.count().label("nb"),
         )
         .join(Eleve, Progression.eleve_id == Eleve.id)
-        .where(Eleve.classe_id == classe.id, Progression.maitrise == 1)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False), Progression.maitrise == 1)
         .group_by(Progression.pattern_name)
         .order_by(func.count().desc(), Progression.pattern_name)
     ).all()
@@ -846,12 +972,14 @@ def _concepts_par_eleve(db: Session, classe: Classe) -> list[dict]:
     """Pour chaque eleve de la classe, la liste de ses concepts traverses.
     Meme donnee que le tableau de bord, reutilisee pour l'export Excel."""
     eleves = db.scalars(
-        select(Eleve).where(Eleve.classe_id == classe.id).order_by(Eleve.prenom)
+        select(Eleve)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
+        .order_by(Eleve.prenom)
     ).all()
     lignes = db.scalars(
         select(Progression)
         .join(Eleve, Progression.eleve_id == Eleve.id)
-        .where(Eleve.classe_id == classe.id)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
         .order_by(Progression.lecon_id, Progression.pattern_name)
     ).all()
     par_eleve: dict[int, list[Progression]] = {}
@@ -1017,7 +1145,9 @@ def assigner_travail(
     # Deduplication en gardant l'ordre ; tous les eleves doivent etre de la classe.
     eleve_ids = list(dict.fromkeys(payload.eleve_ids))
     presents = db.scalars(
-        select(Eleve.id).where(Eleve.id.in_(eleve_ids), Eleve.classe_id == classe.id)
+        select(Eleve.id).where(
+            Eleve.id.in_(eleve_ids), Eleve.classe_id == classe.id, Eleve.archive.is_(False)
+        )
     ).all()
     if set(presents) != set(eleve_ids):
         raise HTTPException(
@@ -1053,12 +1183,14 @@ def lister_assignations_classe(
     rows = db.scalars(
         select(Assignation)
         .join(Eleve, Assignation.eleve_id == Eleve.id)
-        .where(Eleve.classe_id == classe.id)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
         .order_by(Assignation.date_assignation.desc(), Assignation.id.desc())
     ).all()
     prenoms = {
         e.id: e.prenom
-        for e in db.scalars(select(Eleve).where(Eleve.classe_id == classe.id)).all()
+        for e in db.scalars(
+            select(Eleve).where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
+        ).all()
     }
     return {
         "assignations": [_assignation_dict(a, prenom=prenoms.get(a.eleve_id, "")) for a in rows]
@@ -1074,7 +1206,9 @@ def rejoindre_classe(code_classe: str, db: Annotated[Session, Depends(get_db)]) 
     if classe is None:
         raise HTTPException(status_code=404, detail="Aucune classe ne correspond a ce code.")
     eleves = db.scalars(
-        select(Eleve).where(Eleve.classe_id == classe.id).order_by(Eleve.prenom)
+        select(Eleve)
+        .where(Eleve.classe_id == classe.id, Eleve.archive.is_(False))
+        .order_by(Eleve.prenom)
     ).all()
     return {
         "classe": {
@@ -1097,6 +1231,7 @@ def connexion_eleve(
     # PIN" (pas d'enumeration : on ne revele pas laquelle des conditions echoue).
     if (
         eleve is None
+        or eleve.archive  # un eleve retire de la classe ne peut plus se connecter
         or eleve.classe.code_classe != payload.code_classe
         or not verifier_pin(payload.pin, eleve.pin_hash)
     ):

@@ -150,8 +150,14 @@ class PersonnageTests(_Base):
             json={"etoiles_totales": 10, "couleur": "bleu", "accessoire": "aucun"},
             headers=self._auth(token),
         )
-        # Suppression de l'eleve : cascade -> plus de ligne personnage (pas d'orphelin).
-        self.client.delete(f"/classe/{classe['id']}/eleve/{eleve_id}", headers=self._auth(prof))
+        # Suppression DEFINITIVE de l'eleve : cascade -> plus de ligne personnage
+        # (pas d'orphelin). Le simple retrait (DELETE) n'archive que l'eleve ; c'est
+        # l'effacement definitif qui supprime reellement les donnees liees.
+        self.client.post(
+            f"/classe/{classe['id']}/eleve/{eleve_id}/suppression",
+            json={"confirmation": "SUPPRIMER"},
+            headers=self._auth(prof),
+        )
         from database import Personnage
         from sqlalchemy import select
 

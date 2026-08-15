@@ -11,10 +11,23 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 import comptes
-from database import Progression, create_db_engine, init_db
+from database import (
+    Assignation,
+    Classe,
+    Ecole,
+    Eleve,
+    Enseignant,
+    InvitationEnseignant,
+    Personnage,
+    Progression,
+    SessionJeu,
+    create_db_engine,
+    init_db,
+)
 from main import app
 
 
@@ -1389,6 +1402,309 @@ class RoleAdministrateurTests(unittest.TestCase):
             json={"role": "administrateur"}, headers=self._auth(self.tAdmin),
         )
         self.assertEqual(rep.status_code, 404)
+
+
+class SuppressionDonneesTests(unittest.TestCase):
+    """Droit a l'effacement : retrait (archivage reversible) vs suppression
+    definitive complete (eleve ou ecole entiere), avec confirmation exigee."""
+
+    def setUp(self) -> None:
+        self.engine = create_db_engine("sqlite://")
+        init_db(self.engine)
+        self.Session = sessionmaker(
+            bind=self.engine, autoflush=False, expire_on_commit=False, class_=Session
+        )
+
+        def override_get_db():
+            db = self.Session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[comptes.get_db] = override_get_db
+        comptes._reset_tokens()
+        self.client = TestClient(app)
+
+        self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Admin", "identifiant": "admin", "mot_de_passe": "secret-admin"},
+        )
+        self.token = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "admin", "mot_de_passe": "secret-admin"}
+        ).json()["token"]
+        self.classe = self.client.post(
+            "/classe", json={"nom": "CE3 A", "niveau_scolaire": "CE3"}, headers=self._auth(self.token)
+        ).json()
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        comptes._reset_tokens()
+        self.engine.dispose()
+
+    def _auth(self, token):
+        return {"Authorization": f"Bearer {token}"}
+
+    def _creer_eleve(self, prenom="Sofia"):
+        return self.client.post(
+            f"/classe/{self.classe['id']}/eleve", json={"prenom": prenom}, headers=self._auth(self.token)
+        ).json()
+
+    def _seed_donnees_completes(self, eleve_id):
+        """Progression (plusieurs concepts) + assignation + personnage + session."""
+        with self.Session() as db:
+            db.add_all([
+                Progression(eleve_id=eleve_id, pattern_name="mult_a", lecon_id="l", maitrise=3),
+                Progression(eleve_id=eleve_id, pattern_name="mult_b", lecon_id="l", maitrise=1),
+                Progression(eleve_id=eleve_id, pattern_name="div_a", lecon_id="l", maitrise=2),
+                Assignation(eleve_id=eleve_id, lecon_id="l"),
+                Personnage(eleve_id=eleve_id, etoiles_totales=25, couleur="rouge", accessoire="cape"),
+            ])
+            session = SessionJeu(eleve_id=eleve_id, niveau_scolaire="CE3", lecon_id="l")
+            db.add(session)
+            db.commit()
+            return session.id
+
+    def _traces(self, eleve_id, session_id):
+        """Compte, table par table, ce qui reference encore l'eleve."""
+        with self.Session() as db:
+            return {
+                "eleve": db.get(Eleve, eleve_id) is not None,
+                "progression": db.scalar(
+                    select(func.count()).select_from(Progression).where(Progression.eleve_id == eleve_id)
+                ),
+                "assignation": db.scalar(
+                    select(func.count()).select_from(Assignation).where(Assignation.eleve_id == eleve_id)
+                ),
+                "personnage": db.scalar(
+                    select(func.count()).select_from(Personnage).where(Personnage.eleve_id == eleve_id)
+                ),
+                "session_par_id": db.get(SessionJeu, session_id) is not None,
+                "session_par_eleve": db.scalar(
+                    select(func.count()).select_from(SessionJeu).where(SessionJeu.eleve_id == eleve_id)
+                ),
+            }
+
+    # ---------- Suppression definitive d'un eleve ----------
+    def test_suppression_definitive_efface_toutes_les_donnees(self) -> None:
+        eleve = self._creer_eleve()
+        sid = self._seed_donnees_completes(eleve["id"])
+        # Etat initial : tout est present.
+        avant = self._traces(eleve["id"], sid)
+        self.assertTrue(avant["eleve"])
+        self.assertEqual(avant["progression"], 3)
+        self.assertEqual(avant["assignation"], 1)
+        self.assertEqual(avant["personnage"], 1)
+        self.assertTrue(avant["session_par_id"])
+
+        rep = self.client.post(
+            f"/classe/{self.classe['id']}/eleve/{eleve['id']}/suppression",
+            json={"confirmation": "SUPPRIMER"},
+            headers=self._auth(self.token),
+        )
+        self.assertEqual(rep.status_code, 200)
+
+        # Plus AUCUNE trace dans aucune table.
+        apres = self._traces(eleve["id"], sid)
+        self.assertFalse(apres["eleve"])
+        self.assertEqual(apres["progression"], 0)
+        self.assertEqual(apres["assignation"], 0)
+        self.assertEqual(apres["personnage"], 0)
+        self.assertFalse(apres["session_par_id"])  # la session est bien effacee, pas juste anonymisee
+        self.assertEqual(apres["session_par_eleve"], 0)
+
+    def test_suppression_definitive_sans_confirmation_refusee(self) -> None:
+        eleve = self._creer_eleve()
+        self._seed_donnees_completes(eleve["id"])
+        # Corps vide (champ confirmation absent) -> 422, rien n'est supprime.
+        r1 = self.client.post(
+            f"/classe/{self.classe['id']}/eleve/{eleve['id']}/suppression",
+            json={}, headers=self._auth(self.token),
+        )
+        self.assertEqual(r1.status_code, 422)
+        # Mauvaise confirmation -> 400, rien n'est supprime.
+        r2 = self.client.post(
+            f"/classe/{self.classe['id']}/eleve/{eleve['id']}/suppression",
+            json={"confirmation": "oui"}, headers=self._auth(self.token),
+        )
+        self.assertEqual(r2.status_code, 400)
+        with self.Session() as db:
+            self.assertIsNotNone(db.get(Eleve, eleve["id"]))  # toujours la
+
+    def test_suppression_definitive_reservee_au_proprietaire(self) -> None:
+        eleve = self._creer_eleve()
+        self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Autre", "identifiant": "autre", "mot_de_passe": "secret-autre"},
+        )
+        tok2 = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "autre", "mot_de_passe": "secret-autre"}
+        ).json()["token"]
+        rep = self.client.post(
+            f"/classe/{self.classe['id']}/eleve/{eleve['id']}/suppression",
+            json={"confirmation": "SUPPRIMER"}, headers=self._auth(tok2),
+        )
+        self.assertEqual(rep.status_code, 403)
+
+    # ---------- Retrait = archivage reversible (donnees conservees) ----------
+    def test_retrait_archive_sans_effacer_les_donnees(self) -> None:
+        eleve = self._creer_eleve()
+        sid = self._seed_donnees_completes(eleve["id"])
+        # DELETE = retrait (archivage).
+        rep = self.client.delete(
+            f"/classe/{self.classe['id']}/eleve/{eleve['id']}", headers=self._auth(self.token)
+        )
+        self.assertEqual(rep.status_code, 204)
+        # L'eleve disparait des vues actives (roster, rejoindre) et ne peut plus
+        # se connecter...
+        roster = self.client.get(
+            f"/classe/{self.classe['id']}/eleves", headers=self._auth(self.token)
+        ).json()["eleves"]
+        self.assertEqual(roster, [])
+        rejoindre = self.client.get(f"/classe/rejoindre/{self.classe['code_classe']}").json()["eleves"]
+        self.assertEqual(rejoindre, [])
+        connexion = self.client.post(
+            f"/eleve/{eleve['id']}/connexion",
+            json={"code_classe": self.classe["code_classe"], "pin": eleve["pin"]},
+        )
+        self.assertEqual(connexion.status_code, 403)
+        # ...mais TOUTES ses donnees sont conservees (archivage reversible).
+        trace = self._traces(eleve["id"], sid)
+        self.assertTrue(trace["eleve"])
+        self.assertEqual(trace["progression"], 3)
+        self.assertTrue(trace["session_par_id"])
+
+    def test_suppression_definitive_marche_sur_un_eleve_archive(self) -> None:
+        eleve = self._creer_eleve()
+        sid = self._seed_donnees_completes(eleve["id"])
+        self.client.delete(
+            f"/classe/{self.classe['id']}/eleve/{eleve['id']}", headers=self._auth(self.token)
+        )  # archive
+        rep = self.client.post(
+            f"/classe/{self.classe['id']}/eleve/{eleve['id']}/suppression",
+            json={"confirmation": "SUPPRIMER"}, headers=self._auth(self.token),
+        )
+        self.assertEqual(rep.status_code, 200)
+        apres = self._traces(eleve["id"], sid)
+        self.assertFalse(apres["eleve"])
+        self.assertEqual(apres["progression"], 0)
+
+    # ---------- Suppression definitive de l'ecole entiere ----------
+    def _compter_ecole(self, ecole_id, eleve_ids, session_ids):
+        with self.Session() as db:
+            return {
+                "ecole": db.get(Ecole, ecole_id) is not None,
+                "enseignants": db.scalar(
+                    select(func.count()).select_from(Enseignant).where(Enseignant.ecole_id == ecole_id)
+                ),
+                "classes": db.scalar(
+                    select(func.count()).select_from(Classe).where(Classe.ecole_id == ecole_id)
+                ),
+                "eleves": db.scalar(
+                    select(func.count()).select_from(Eleve).where(Eleve.id.in_(eleve_ids))
+                ),
+                "progressions": db.scalar(
+                    select(func.count()).select_from(Progression).where(Progression.eleve_id.in_(eleve_ids))
+                ),
+                "invitations": db.scalar(
+                    select(func.count()).select_from(InvitationEnseignant)
+                    .where(InvitationEnseignant.ecole_id == ecole_id)
+                ),
+                "sessions": db.scalar(
+                    select(func.count()).select_from(SessionJeu).where(SessionJeu.id.in_(session_ids))
+                ),
+            }
+
+    def test_suppression_ecole_efface_tout_en_cascade(self) -> None:
+        # Ecole complete : admin + 1 enseignant invite + 2 classes + eleves + data.
+        corps_admin = self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Directrice", "identifiant": "dir", "mot_de_passe": "secret-dir", "ecole": "Ecole Alpha"},
+        ).json()
+        ecole_id = corps_admin["ecole_id"]
+        tdir = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "dir", "mot_de_passe": "secret-dir"}
+        ).json()["token"]
+        code = self.client.post(
+            "/ecole/enseignants/inviter", json={"email": None}, headers=self._auth(tdir)
+        ).json()["code"]
+        self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Prof", "identifiant": "profa", "mot_de_passe": "secret-pa", "code_invitation": code},
+        )
+        tprof = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "profa", "mot_de_passe": "secret-pa"}
+        ).json()["token"]
+        c1 = self.client.post("/classe", json={"nom": "C1", "niveau_scolaire": "CE3"}, headers=self._auth(tdir)).json()
+        c2 = self.client.post("/classe", json={"nom": "C2", "niveau_scolaire": "CE3"}, headers=self._auth(tprof)).json()
+        e1 = self.client.post(f"/classe/{c1['id']}/eleve", json={"prenom": "A"}, headers=self._auth(tdir)).json()
+        e2 = self.client.post(f"/classe/{c2['id']}/eleve", json={"prenom": "B"}, headers=self._auth(tprof)).json()
+        sids = [self._seed_donnees_completes(e1["id"]), self._seed_donnees_completes(e2["id"])]
+
+        avant = self._compter_ecole(ecole_id, [e1["id"], e2["id"]], sids)
+        self.assertTrue(avant["ecole"])
+        self.assertEqual(avant["enseignants"], 2)
+        self.assertEqual(avant["classes"], 2)
+        self.assertEqual(avant["eleves"], 2)
+        self.assertEqual(avant["progressions"], 6)
+        self.assertEqual(avant["sessions"], 2)
+
+        # Suppression avec le NOM exact de l'ecole comme confirmation.
+        rep = self.client.post(
+            "/ecole/suppression", json={"confirmation": "Ecole Alpha"}, headers=self._auth(tdir)
+        )
+        self.assertEqual(rep.status_code, 200)
+
+        apres = self._compter_ecole(ecole_id, [e1["id"], e2["id"]], sids)
+        self.assertFalse(apres["ecole"])
+        self.assertEqual(apres["enseignants"], 0)
+        self.assertEqual(apres["classes"], 0)
+        self.assertEqual(apres["eleves"], 0)
+        self.assertEqual(apres["progressions"], 0)
+        self.assertEqual(apres["invitations"], 0)
+        self.assertEqual(apres["sessions"], 0)
+
+    def test_suppression_ecole_mauvaise_confirmation_refusee(self) -> None:
+        # setUp a cree une ecole (admin) nommee par defaut : mauvaise confirmation
+        # -> 400, l'ecole reste intacte.
+        r1 = self.client.post(
+            "/ecole/suppression", json={"confirmation": "pas le bon nom"}, headers=self._auth(self.token)
+        )
+        self.assertEqual(r1.status_code, 400)
+        # Champ absent -> 422.
+        r2 = self.client.post("/ecole/suppression", json={}, headers=self._auth(self.token))
+        self.assertEqual(r2.status_code, 422)
+        # L'ecole et sa classe sont toujours la.
+        self.assertEqual(
+            self.client.get("/classe", headers=self._auth(self.token)).json()["classes"][0]["nom"],
+            "CE3 A",
+        )
+
+    def test_suppression_ecole_reservee_a_l_administrateur(self) -> None:
+        # Un enseignant simple ne peut pas supprimer l'ecole.
+        corps_admin = self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Dir", "identifiant": "dir2", "mot_de_passe": "secret-dir2", "ecole": "Beta"},
+        ).json()
+        tdir = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "dir2", "mot_de_passe": "secret-dir2"}
+        ).json()["token"]
+        code = self.client.post(
+            "/ecole/enseignants/inviter", json={"email": None}, headers=self._auth(tdir)
+        ).json()["code"]
+        self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "P", "identifiant": "pbeta", "mot_de_passe": "secret-pb", "code_invitation": code},
+        )
+        tprof = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "pbeta", "mot_de_passe": "secret-pb"}
+        ).json()["token"]
+        rep = self.client.post(
+            "/ecole/suppression", json={"confirmation": "Beta"}, headers=self._auth(tprof)
+        )
+        self.assertEqual(rep.status_code, 403)
+        self.assertEqual(self.client.post("/ecole/suppression", json={"confirmation": "Beta"}).status_code, 401)
+        self.assertIsNotNone(corps_admin["ecole_id"])  # l'ecole existe toujours
 
 
 if __name__ == "__main__":
