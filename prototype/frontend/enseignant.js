@@ -145,10 +145,16 @@
   }
 
   /* ---------- Operations (donnees, sans rendu : testables via harnais) ---------- */
-  async function sinscrire({ nom, identifiant, mot_de_passe }) {
+  async function sinscrire({ nom, identifiant, mot_de_passe, code_invitation }) {
+    const corps = { nom, identifiant, mot_de_passe };
+    /* Avec un code d'invitation : on rejoint l'ecole invitante (enseignant
+       simple). Sans code : on fonde sa propre ecole (administrateur). */
+    if (code_invitation) {
+      corps.code_invitation = code_invitation;
+    }
     await appel("/enseignant/inscription", {
       method: "POST",
-      body: JSON.stringify({ nom, identifiant, mot_de_passe }),
+      body: JSON.stringify(corps),
     });
     /* Inscription reussie -> connexion immediate pour enchainer sur le tableau
        de bord sans redemander les identifiants. */
@@ -170,6 +176,37 @@
     const reponse = await appel("/classe", { method: "GET" });
     classes = reponse.classes || [];
     return classes;
+  }
+
+  /* Vrai si le compte connecte est administrateur de son ecole (la seule
+     source de verite pour afficher/masquer la vue etablissement). */
+  function estAdmin() {
+    return Boolean(enseignant && enseignant.role === "administrateur");
+  }
+
+  /* ---------- Operations administrateur d'ecole (role administrateur) ---------- */
+  async function chargerClassesEcole() {
+    const reponse = await appel("/ecole/classes", { method: "GET" });
+    return reponse.classes || [];
+  }
+
+  async function chargerEnseignantsEcole() {
+    const reponse = await appel("/ecole/enseignants", { method: "GET" });
+    return reponse.enseignants || [];
+  }
+
+  async function inviterEnseignant(email) {
+    return appel("/ecole/enseignants/inviter", {
+      method: "POST",
+      body: JSON.stringify({ email: email || null }),
+    });
+  }
+
+  async function changerRole(enseignantId, role) {
+    return appel(`/ecole/enseignants/${enseignantId}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    });
   }
 
   async function creerClasse({ nom, niveau_scolaire }) {
@@ -382,6 +419,9 @@
         <input id="ens-new-identifiant" class="login-input teacher-input" type="text" autocomplete="username" />
         <label class="login-label" for="ens-new-mdp">Mot de passe (6 caractères min.)</label>
         <input id="ens-new-mdp" class="login-input teacher-input" type="password" autocomplete="new-password" />
+        <label class="login-label" for="ens-code-invitation">Code d'invitation (optionnel)</label>
+        <input id="ens-code-invitation" class="login-input teacher-input" type="text" placeholder="Pour rejoindre une école existante" autocomplete="off" />
+        <p class="teacher-hint">Sans code, vous créez votre propre établissement et en devenez l'administrateur.</p>
         <div class="login-form-actions">
           <button type="submit" class="btn-primary">Créer mon compte</button>
           <button type="button" id="ens-vers-connexion" class="ghost-button">J'ai déjà un compte</button>
@@ -397,6 +437,7 @@
         nom: body.querySelector("#ens-nom").value.trim(),
         identifiant: body.querySelector("#ens-new-identifiant").value.trim(),
         mot_de_passe: body.querySelector("#ens-new-mdp").value,
+        code_invitation: body.querySelector("#ens-code-invitation").value.trim(),
       };
       const probleme = validerInscription(donnees);
       if (probleme) {
@@ -425,7 +466,10 @@
     const entete = `
       <div class="teacher-topbar">
         <p class="teacher-hello">Bonjour ${echapper(enseignant?.nom || "")}</p>
-        <button type="button" id="ens-deconnexion" class="ghost-button">Se déconnecter</button>
+        <div class="teacher-topbar-actions">
+          ${estAdmin() ? `<button type="button" id="ens-etablissement" class="ghost-button">Mon établissement</button>` : ""}
+          <button type="button" id="ens-deconnexion" class="ghost-button">Se déconnecter</button>
+        </div>
       </div>
     `;
     const cartes = classes.length
@@ -471,6 +515,10 @@
       deconnecter();
       vueConnexion();
     });
+    const boutonEtablissement = body.querySelector("#ens-etablissement");
+    if (boutonEtablissement) {
+      boutonEtablissement.addEventListener("click", () => vueEtablissement());
+    }
     body.querySelector("#ens-retour-jeu").addEventListener("click", retourAuJeu);
     body.querySelectorAll(".teacher-copy").forEach((bouton) => {
       bouton.addEventListener("click", (event) => {
@@ -514,6 +562,134 @@
     } catch (_error) {
       setStatut(`Code à partager : ${code}`, "");
     }
+  }
+
+  /* --- Vue : Mon établissement (administrateur uniquement) ---
+     Vue distincte de la vue enseignant : toutes les classes de l'ecole (avec
+     leur enseignant responsable), la liste des enseignants (avec promotion),
+     et l'invitation d'un nouvel enseignant. Un enseignant simple n'y accede
+     jamais (bouton absent + endpoints proteges cote serveur). */
+  async function vueEtablissement() {
+    if (!estAdmin()) {
+      return vueDashboard();
+    }
+    setStatut("Chargement de l'établissement...");
+    let classesEcole = [];
+    let enseignants = [];
+    try {
+      [classesEcole, enseignants] = await Promise.all([
+        chargerClassesEcole(),
+        chargerEnseignantsEcole(),
+      ]);
+    } catch (error) {
+      setStatut(error.message, "erreur");
+      return;
+    }
+
+    const cartesClasses = classesEcole.length
+      ? classesEcole
+          .map(
+            (c) => `
+        <div class="teacher-class-card admin-class-card">
+          <div class="teacher-class-main">
+            <span class="teacher-class-name">${echapper(c.nom)}</span>
+            <span class="hud-level">${c.niveau_scolaire}</span>
+          </div>
+          <div class="teacher-class-meta">
+            <span>Enseignant : ${echapper(c.enseignant?.nom || "—")}</span>
+            <span>${c.nb_eleves} élève${c.nb_eleves > 1 ? "s" : ""}</span>
+          </div>
+          <div class="teacher-code-row">
+            <span class="teacher-code">${c.code_classe}</span>
+          </div>
+        </div>`,
+          )
+          .join("")
+      : `<p class="menu-lead">Aucune classe dans l'établissement pour l'instant.</p>`;
+
+    const lignesEnseignants = enseignants
+      .map((e) => {
+        const admin = e.role === "administrateur";
+        const badge = admin
+          ? `<span class="role-badge role-admin">Administrateur</span>`
+          : `<span class="role-badge role-ens">Enseignant</span>`;
+        const actionLabel = admin ? "Rétrograder" : "Promouvoir admin";
+        const nouveauRole = admin ? "enseignant" : "administrateur";
+        return `
+        <li class="admin-teacher-row">
+          <div class="admin-teacher-id">
+            <span class="admin-teacher-name">${echapper(e.nom)}${e.est_moi ? " (vous)" : ""}</span>
+            <span class="admin-teacher-login">${echapper(e.identifiant)} · ${e.nb_classes} classe${e.nb_classes > 1 ? "s" : ""}</span>
+          </div>
+          ${badge}
+          <button type="button" class="ghost-button admin-role-btn" data-id="${e.id}" data-role="${nouveauRole}">${actionLabel}</button>
+        </li>`;
+      })
+      .join("");
+
+    body.innerHTML = `
+      <div class="teacher-topbar">
+        <p class="teacher-hello">Mon établissement</p>
+        <button type="button" id="ens-retour-classes" class="ghost-button">&#8592; Mes classes</button>
+      </div>
+      <section class="admin-section">
+        <h2 class="teacher-subtitle">Classes de l'établissement (${classesEcole.length})</h2>
+        <div class="teacher-classes">${cartesClasses}</div>
+      </section>
+      <section class="admin-section">
+        <h2 class="teacher-subtitle">Enseignants (${enseignants.length})</h2>
+        <ul class="admin-teacher-list">${lignesEnseignants}</ul>
+      </section>
+      <section class="admin-section">
+        <h2 class="teacher-subtitle">Inviter un enseignant</h2>
+        <form id="ens-inviter" class="teacher-create login-form" autocomplete="off">
+          <div class="teacher-create-row">
+            <input id="ens-invite-email" class="login-input teacher-input" type="text" placeholder="Email ou nom (optionnel)" />
+            <button type="submit" class="btn-primary">Générer un code</button>
+          </div>
+        </form>
+        <div id="ens-invite-resultat" class="admin-invite-result"></div>
+      </section>
+      <button type="button" id="ens-retour-jeu" class="ghost-button teacher-back">&#8592; Retour au jeu</button>
+    `;
+    setStatut("");
+
+    body.querySelector("#ens-retour-classes").addEventListener("click", () => vueDashboard());
+    body.querySelector("#ens-retour-jeu").addEventListener("click", retourAuJeu);
+
+    body.querySelectorAll(".admin-role-btn").forEach((bouton) => {
+      bouton.addEventListener("click", async () => {
+        bouton.disabled = true;
+        try {
+          const maj = await changerRole(Number(bouton.dataset.id), bouton.dataset.role);
+          setStatut(`${maj.nom} est désormais ${maj.role}.`, "succes");
+          await vueEtablissement();
+        } catch (error) {
+          bouton.disabled = false;
+          setStatut(error.message, "erreur");
+        }
+      });
+    });
+
+    body.querySelector("#ens-inviter").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = body.querySelector("#ens-invite-email").value.trim();
+      setStatut("Génération du code d'invitation...");
+      try {
+        const invitation = await inviterEnseignant(email);
+        setStatut("Code d'invitation généré.", "succes");
+        const zone = body.querySelector("#ens-invite-resultat");
+        zone.innerHTML = `
+          <p class="admin-invite-lead">Transmettez ce code au nouvel enseignant. Il le saisira à la création de son compte pour rejoindre l'établissement (à usage unique).</p>
+          <div class="teacher-code-row">
+            <span class="teacher-code">${echapper(invitation.code)}</span>
+            <button type="button" class="ghost-button teacher-copy" data-code="${echapper(invitation.code)}">Copier</button>
+          </div>`;
+        zone.querySelector(".teacher-copy").addEventListener("click", () => copierCode(invitation.code));
+      } catch (error) {
+        setStatut(error.message, "erreur");
+      }
+    });
   }
 
   /* Telecharge l'export Excel de la classe. Le fichier est binaire et l'endpoint

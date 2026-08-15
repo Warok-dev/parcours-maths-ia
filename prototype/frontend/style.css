@@ -5233,6 +5233,88 @@ select.teacher-input {
   font-size: 0.9rem;
 }
 
+/* ---- Vue "Mon établissement" (administrateur) ---- */
+.teacher-hint {
+  font-size: 0.82rem;
+  color: #6b6257;
+  margin: 2px 0 6px;
+}
+
+.admin-section {
+  margin-top: 22px;
+}
+
+.admin-teacher-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-teacher-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #fffaf0;
+  border: 1px solid #ecdcb8;
+  border-radius: 12px;
+}
+
+.admin-teacher-id {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.admin-teacher-name {
+  font-weight: 700;
+}
+
+.admin-teacher-login {
+  font-size: 0.8rem;
+  color: #7a7063;
+}
+
+.role-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.role-badge.role-admin {
+  background: #e5eefb;
+  color: #1f5aa8;
+  border-color: #a9c6ec;
+}
+
+.role-badge.role-ens {
+  background: #eef1ec;
+  color: #566150;
+  border-color: #cdd6c9;
+}
+
+.admin-class-card .teacher-class-meta {
+  gap: 12px;
+}
+
+.admin-invite-result {
+  margin-top: 10px;
+}
+
+.admin-invite-lead {
+  font-size: 0.85rem;
+  color: #6b6257;
+  margin: 0 0 6px;
+}
+
 /* Pastilles de decompte par maitrise (memes libelles que le bilan eleve) */
 .teacher-badges {
   display: inline-flex;
