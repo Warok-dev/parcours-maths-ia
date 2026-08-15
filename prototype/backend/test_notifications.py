@@ -46,7 +46,7 @@ class NotificationsTests(unittest.TestCase):
             db.add(enseignant)
             db.flush()
             classe = Classe(
-                enseignant_id=enseignant.id, nom="Classe", niveau_scolaire="CE2", code_classe="C1"
+                enseignant_id=enseignant.id, ecole_id=ecole.id, nom="Classe", niveau_scolaire="CE2", code_classe="C1"
             )
             db.add(classe)
             db.flush()

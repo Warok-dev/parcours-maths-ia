@@ -14,6 +14,7 @@ ON DELETE SET NULL pour les sessions (elles survivent en anonymes).
 
 from __future__ import annotations
 
+import os
 import random
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,7 +45,9 @@ from sqlalchemy.pool import StaticPool
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "parcours.db"
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+# PARCOURS_DATABASE_URL permet de pointer ailleurs (deploiement, verification
+# manuelle sur une base jetable) sans toucher au fichier reel par defaut.
+DATABASE_URL = os.environ.get("PARCOURS_DATABASE_URL", f"sqlite:///{DB_PATH}")
 
 NIVEAUX_SCOLAIRES = ("CE1", "CE2", "CE3", "CE4", "CE5", "CE6")
 
@@ -117,6 +120,13 @@ class Classe(Base):
     enseignant_id: Mapped[int] = mapped_column(
         ForeignKey("enseignant.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # ecole_id denormalise l'ecole de l'enseignant proprietaire : il vaut
+    # toujours enseignant.ecole_id (invariant maintenu a la creation). Le stocker
+    # ici rend la frontiere d'ecole explicite et indexable pour tout filtrage
+    # "au niveau ecole" (isolation multi-tenant), sans jointure sur enseignant.
+    ecole_id: Mapped[int] = mapped_column(
+        ForeignKey("ecole.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     nom: Mapped[str] = mapped_column(String(120), nullable=False)
     niveau_scolaire: Mapped[str] = mapped_column(String(8), nullable=False)
     # Code partage aux eleves pour rejoindre la classe -> unique + index.
@@ -126,6 +136,10 @@ class Classe(Base):
     )
 
     enseignant: Mapped["Enseignant"] = relationship(back_populates="classes")
+    # Relation many-to-one vers l'ecole (denormalisation). Cote enfant seulement :
+    # la suppression d'une ecole passe deja par enseignant -> classe (cascade),
+    # inutile de la dupliquer ici.
+    ecole: Mapped["Ecole"] = relationship("Ecole")
     eleves: Mapped[list["Eleve"]] = relationship(
         back_populates="classe", cascade="all, delete-orphan", passive_deletes=True
     )
@@ -349,6 +363,25 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
                         "CREATE UNIQUE INDEX IF NOT EXISTS ix_eleve_code_parent_hash "
                         "ON eleve (code_parent_hash)"
                     )
+                )
+    if "classe" in tables:
+        colonnes = {c["name"] for c in inspector.get_columns("classe")}
+        if "ecole_id" not in colonnes:
+            # SQLite refuse d'ajouter une colonne NOT NULL sans defaut sur une
+            # table peuplee : on ajoute la colonne nullable, on la remplit depuis
+            # l'ecole de l'enseignant proprietaire (invariant ecole_id ==
+            # enseignant.ecole_id), puis on l'indexe.
+            with eng.begin() as conn:
+                conn.execute(text("ALTER TABLE classe ADD COLUMN ecole_id INTEGER"))
+                conn.execute(
+                    text(
+                        "UPDATE classe SET ecole_id = ("
+                        "SELECT e.ecole_id FROM enseignant e WHERE e.id = classe.enseignant_id"
+                        ") WHERE ecole_id IS NULL"
+                    )
+                )
+                conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_classe_ecole_id ON classe (ecole_id)")
                 )
     if "progression" in tables:
         colonnes = {c["name"] for c in inspector.get_columns("progression")}

@@ -1012,5 +1012,174 @@ class ComptesIntegrationTests(unittest.TestCase):
         )
 
 
+class IsolationDeuxEcolesTests(unittest.TestCase):
+    """Isolation MULTI-ECOLES : deux ecoles reellement distinctes, un enseignant,
+    une classe et un eleve dans chacune. On verifie qu'AUCUNE donnee d'une ecole
+    ne fuit vers l'autre, sur TOUS les endpoints proteges (pas un echantillon).
+
+    Distinct du cloisonnement enseignant<->enseignant deja teste : ici les deux
+    enseignants relevent d'ecoles differentes, ce que l'ancien modele (ecole
+    implicite unique partagee) rendait impossible a exprimer."""
+
+    def setUp(self) -> None:
+        self.engine = create_db_engine("sqlite://")
+        init_db(self.engine)
+        self.testing_session = sessionmaker(
+            bind=self.engine, autoflush=False, expire_on_commit=False, class_=Session
+        )
+
+        def override_get_db():
+            db = self.testing_session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[comptes.get_db] = override_get_db
+        comptes._reset_tokens()
+        self.client = TestClient(app)
+
+        # --- Ecole A ---
+        self.ecole_a_id = self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Prof A", "identifiant": "profA", "mot_de_passe": "secretA", "ecole": "Ecole A"},
+        ).json()["ecole_id"]
+        self.tokenA = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "profA", "mot_de_passe": "secretA"}
+        ).json()["token"]
+        self.classeA = self.client.post(
+            "/classe", json={"nom": "Classe A", "niveau_scolaire": "CE3"}, headers=self._auth(self.tokenA)
+        ).json()
+        self.eleveA = self.client.post(
+            f"/classe/{self.classeA['id']}/eleve", json={"prenom": "Anna"}, headers=self._auth(self.tokenA)
+        ).json()
+        self._seed_progression(self.eleveA["id"], "division_exacte", "multiplication_division", 1)
+
+        # --- Ecole B ---
+        self.ecole_b_id = self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Prof B", "identifiant": "profB", "mot_de_passe": "secretB", "ecole": "Ecole B"},
+        ).json()["ecole_id"]
+        self.tokenB = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "profB", "mot_de_passe": "secretB"}
+        ).json()["token"]
+        self.classeB = self.client.post(
+            "/classe", json={"nom": "Classe B", "niveau_scolaire": "CE3"}, headers=self._auth(self.tokenB)
+        ).json()
+        self.eleveB = self.client.post(
+            f"/classe/{self.classeB['id']}/eleve", json={"prenom": "Bob"}, headers=self._auth(self.tokenB)
+        ).json()
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        comptes._reset_tokens()
+        self.engine.dispose()
+
+    def _auth(self, token):
+        return {"Authorization": f"Bearer {token}"}
+
+    def _seed_progression(self, eleve_id, pattern_name, lecon_id, maitrise, nb_tentatives=1):
+        with self.testing_session() as db:
+            db.add(
+                Progression(
+                    eleve_id=eleve_id,
+                    pattern_name=pattern_name,
+                    lecon_id=lecon_id,
+                    maitrise=maitrise,
+                    nb_tentatives=nb_tentatives,
+                )
+            )
+            db.commit()
+
+    # --- Le coeur : deux ecoles reellement distinctes ---
+    def test_deux_inscriptions_creent_deux_ecoles_distinctes(self) -> None:
+        # Le bug historique : toutes les inscriptions retombaient sur une seule
+        # ecole implicite. Desormais chaque enseignant fonde la sienne.
+        self.assertNotEqual(self.ecole_a_id, self.ecole_b_id)
+        with self.testing_session() as db:
+            from database import Ecole
+            self.assertEqual(db.query(Ecole).count(), 2)
+
+    # --- GET /classe : chaque enseignant ne voit que SON ecole ---
+    def test_liste_classes_cloisonnee_par_ecole(self) -> None:
+        noms_a = [c["nom"] for c in self.client.get("/classe", headers=self._auth(self.tokenA)).json()["classes"]]
+        noms_b = [c["nom"] for c in self.client.get("/classe", headers=self._auth(self.tokenB)).json()["classes"]]
+        self.assertEqual(noms_a, ["Classe A"])
+        self.assertEqual(noms_b, ["Classe B"])
+
+    # --- Tous les endpoints classe-scopes : B ne touche pas la classe de A ---
+    def test_endpoints_classe_scopes_refusent_l_autre_ecole(self) -> None:
+        cid = self.classeA["id"]
+        eid = self.eleveA["id"]
+        b = self._auth(self.tokenB)
+        # (methode, url, statut attendu quand B vise l'ecole A)
+        cas_403 = [
+            ("get", f"/classe/{cid}/eleves"),
+            ("get", f"/classe/{cid}/tableau_de_bord"),
+            ("get", f"/classe/{cid}/concepts_difficiles"),
+            ("get", f"/classe/{cid}/export_excel"),
+            ("get", f"/classe/{cid}/assignations"),
+            ("get", f"/classe/{cid}/rapport_ia/{eid}"),
+            ("post", f"/classe/{cid}/eleve/{eid}/reinitialiser_pin"),
+            ("post", f"/classe/{cid}/eleve/{eid}/code_parent"),
+            ("delete", f"/classe/{cid}/eleve/{eid}"),
+        ]
+        for methode, url in cas_403:
+            reponse = getattr(self.client, methode)(url, headers=b)
+            self.assertEqual(reponse.status_code, 403, f"{methode.upper()} {url} devrait etre 403 pour l'ecole B")
+
+        # POST creation d'eleve dans la classe de A
+        self.assertEqual(
+            self.client.post(f"/classe/{cid}/eleve", json={"prenom": "Intrus"}, headers=b).status_code, 403
+        )
+        # POST assignation dans la classe de A
+        self.assertEqual(
+            self.client.post(
+                f"/classe/{cid}/assigner", json={"eleve_ids": [eid], "lecon_id": "multiplication_division"}, headers=b
+            ).status_code,
+            403,
+        )
+
+    # --- Endpoints eleve-par-id : l'enseignant de B ne lit pas un eleve de A ---
+    def test_eleve_par_id_refuse_enseignant_autre_ecole(self) -> None:
+        b = self._auth(self.tokenB)
+        for url in (
+            f"/eleve/{self.eleveA['id']}/progression",
+            f"/eleve/{self.eleveA['id']}/assignations",
+        ):
+            self.assertEqual(self.client.get(url, headers=b).status_code, 403, url)
+
+    # --- Assignation croisee interdite meme depuis SA propre classe ---
+    def test_assigner_eleve_d_une_autre_ecole_refuse(self) -> None:
+        # A vise, depuis SA classe, un eleve de l'ecole B -> 400 (eleve hors classe).
+        reponse = self.client.post(
+            f"/classe/{self.classeA['id']}/assigner",
+            json={"eleve_ids": [self.eleveB["id"]], "lecon_id": "multiplication_division"},
+            headers=self._auth(self.tokenA),
+        )
+        self.assertEqual(reponse.status_code, 400)
+
+    # --- Le code parent d'un eleve de B ne donne acces qu'a B ---
+    def test_code_parent_ne_franchit_pas_l_ecole(self) -> None:
+        # Le parent de B accede a B, jamais aux donnees de A.
+        ptoken_b = self.client.get(f"/parent/acces/{self.eleveB['code_parent']}").json()["token"]
+        corps = self.client.get("/parent/progression", headers=self._auth(ptoken_b)).json()
+        self.assertEqual(corps["eleve"]["id"], self.eleveB["id"])
+        self.assertNotEqual(corps["eleve"]["id"], self.eleveA["id"])
+
+    # --- L'eleve de B ne lit pas la progression/assignations d'un eleve de A ---
+    def test_eleve_connecte_ne_lit_pas_l_autre_ecole(self) -> None:
+        tok_b = self.client.post(
+            f"/eleve/{self.eleveB['id']}/connexion",
+            json={"code_classe": self.classeB["code_classe"], "pin": self.eleveB["pin"]},
+        ).json()["token"]
+        for url in (
+            f"/eleve/{self.eleveA['id']}/progression",
+            f"/eleve/{self.eleveA['id']}/assignations",
+            f"/eleve/{self.eleveA['id']}/personnage",
+        ):
+            self.assertEqual(self.client.get(url, headers=self._auth(tok_b)).status_code, 403, url)
+
+
 if __name__ == "__main__":
     unittest.main()

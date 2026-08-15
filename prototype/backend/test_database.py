@@ -45,7 +45,7 @@ class DatabaseModelTests(unittest.TestCase):
             ecole=ecole, nom="Mme Amrani", identifiant="amrani", mot_de_passe_hash="hash-x"
         )
         classe = Classe(
-            enseignant=enseignant, nom="Les Renards", niveau_scolaire="CE1", code_classe="CE1-RENARD-42"
+            enseignant=enseignant, ecole=ecole, nom="Les Renards", niveau_scolaire="CE1", code_classe="CE1-RENARD-42"
         )
         eleve = Eleve(classe=classe, prenom="Sofia")
         self.session.add(ecole)
@@ -117,7 +117,7 @@ class DatabaseModelTests(unittest.TestCase):
     def test_unicite_code_classe(self) -> None:
         h = self._hierarchie()
         doublon = Classe(
-            enseignant=h["enseignant"], nom="Les Loups", niveau_scolaire="CE1", code_classe="CE1-RENARD-42"
+            enseignant=h["enseignant"], ecole=h["ecole"], nom="Les Loups", niveau_scolaire="CE1", code_classe="CE1-RENARD-42"
         )
         self.session.add(doublon)
         with self.assertRaises(IntegrityError):

@@ -141,6 +141,26 @@ def enseignant_courant(
     return enseignant
 
 
+def _acces_eleve_autorise(db: Session, token: str | None, eleve: Eleve) -> bool:
+    """Un token donne-t-il acces (lecture) a la progression/aux assignations de
+    `eleve` ? Vrai si c'est l'eleve lui-meme, OU un enseignant a la fois
+    proprietaire de la classe ET de la meme ecole que la classe. Ce dernier
+    garde-fou d'ecole double la verification par enseignant (deja la plus
+    stricte) pour verrouiller la frontiere multi-tenant."""
+    if not token:
+        return False
+    if _TOKENS_ELEVE.get(token) == eleve.id:
+        return True
+    enseignant_id = _TOKENS_ENSEIGNANT.get(token)
+    if enseignant_id is None:
+        return False
+    enseignant = db.get(Enseignant, enseignant_id)
+    if enseignant is None:
+        return False
+    classe = eleve.classe
+    return classe.enseignant_id == enseignant.id and classe.ecole_id == enseignant.ecole_id
+
+
 def eleve_id_depuis_token(token: str | None) -> int | None:
     """Resout un token eleve en eleve_id (ou None si absent/inconnu)."""
     return _TOKENS_ELEVE.get(token) if token else None
@@ -249,11 +269,18 @@ def _creer_ecole(db: Session, nom: str | None) -> Ecole:
 
 
 def _classe_de_l_enseignant(db: Session, classe_id: int, enseignant: Enseignant) -> Classe:
-    """Recupere une classe en garantissant qu'elle appartient a l'enseignant."""
+    """Recupere une classe en garantissant qu'elle appartient a l'enseignant.
+
+    Double barriere d'isolation : la classe doit appartenir a l'enseignant (le
+    plus strict) ET relever de son ecole. L'egalite d'ecole est aujourd'hui
+    impliquee par l'egalite d'enseignant, mais la verifier explicitement rend la
+    frontiere multi-tenant robuste a toute evolution future (vue partagee entre
+    enseignants d'une meme ecole) : aucune donnee d'une autre ecole ne peut
+    transiter par ce point de passage commun a tous les endpoints classe."""
     classe = db.get(Classe, classe_id)
     if classe is None:
         raise HTTPException(status_code=404, detail="Classe introuvable.")
-    if classe.enseignant_id != enseignant.id:
+    if classe.enseignant_id != enseignant.id or classe.ecole_id != enseignant.ecole_id:
         raise HTTPException(status_code=403, detail="Cette classe ne vous appartient pas.")
     return classe
 
@@ -353,6 +380,8 @@ def creer_classe(
     for _ in range(25):
         classe = Classe(
             enseignant_id=enseignant.id,
+            # Invariant : la classe herite de l'ecole de son enseignant.
+            ecole_id=enseignant.ecole_id,
             nom=payload.nom,
             niveau_scolaire=payload.niveau_scolaire,
             code_classe=generer_code_classe(payload.niveau_scolaire),
@@ -905,13 +934,8 @@ def progression_eleve(
         raise HTTPException(status_code=404, detail="Eleve introuvable.")
 
     token = creds.credentials if creds else None
-    autorise = False
-    if token and _TOKENS_ELEVE.get(token) == eleve_id:
-        autorise = True  # l'eleve consulte sa propre progression
-    elif token and token in _TOKENS_ENSEIGNANT:
-        # l'enseignant ne voit que les eleves de SES classes
-        autorise = eleve.classe.enseignant_id == _TOKENS_ENSEIGNANT[token]
-    if not autorise:
+    # L'eleve lui-meme, ou l'enseignant proprietaire de SA classe dans SON ecole.
+    if not _acces_eleve_autorise(db, token, eleve):
         raise HTTPException(status_code=403, detail="Acces non autorise a cette progression.")
 
     return _progression_payload(db, eleve)
@@ -932,12 +956,7 @@ def assignations_eleve(
         raise HTTPException(status_code=404, detail="Eleve introuvable.")
 
     token = creds.credentials if creds else None
-    autorise = False
-    if token and _TOKENS_ELEVE.get(token) == eleve_id:
-        autorise = True
-    elif token and token in _TOKENS_ENSEIGNANT:
-        autorise = eleve.classe.enseignant_id == _TOKENS_ENSEIGNANT[token]
-    if not autorise:
+    if not _acces_eleve_autorise(db, token, eleve):
         raise HTTPException(status_code=403, detail="Acces non autorise a ces assignations.")
 
     rows = db.scalars(
