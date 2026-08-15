@@ -160,5 +160,61 @@ class PersonnageTests(_Base):
         self.assertIsNone(reste)
 
 
+# ============================================================
+#  M4 : une assignation doit cibler du generable pour le niveau
+# ============================================================
+class AssignationValidationTests(_Base):
+    def _prof_classe_eleve(self, niveau="CE1"):
+        prof = self._prof()
+        classe = self._classe(prof, niveau=niveau)
+        eleve_id, _ = self._eleve(prof, classe)
+        return prof, classe, eleve_id
+
+    def test_assignation_lecon_valide_acceptee(self) -> None:
+        prof, classe, eleve_id = self._prof_classe_eleve("CE1")
+        lecons = self.client.get(f"/lecons/{classe['niveau_scolaire']}").json()["lecons"]
+        self.assertTrue(lecons)
+        lecon_id = lecons[0]["lecon_id"]
+        r = self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={"eleve_ids": [eleve_id], "lecon_id": lecon_id},
+            headers=self._auth(prof),
+        )
+        self.assertEqual(r.status_code, 201)
+
+    def test_assignation_lecon_inexistante_refusee(self) -> None:
+        prof, classe, eleve_id = self._prof_classe_eleve("CE1")
+        r = self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={"eleve_ids": [eleve_id], "lecon_id": "lecon_qui_nexiste_pas"},
+            headers=self._auth(prof),
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_assignation_revision_pattern_valide_acceptee(self) -> None:
+        prof, classe, eleve_id = self._prof_classe_eleve("CE1")
+        r = self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={
+                "eleve_ids": [eleve_id],
+                "patterns": ["partie_tout_addition_non_narratif"],
+            },
+            headers=self._auth(prof),
+        )
+        self.assertEqual(r.status_code, 201)
+
+    def test_assignation_revision_pattern_non_generable_refusee(self) -> None:
+        # "vitesse_distance_duree" est un pattern CE6, ingenerable en CE1 :
+        # l'assignation ne pourrait jamais se terminer -> rejet a la creation.
+        prof, classe, eleve_id = self._prof_classe_eleve("CE1")
+        r = self.client.post(
+            f"/classe/{classe['id']}/assigner",
+            json={"eleve_ids": [eleve_id], "patterns": ["vitesse_distance_duree"]},
+            headers=self._auth(prof),
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("vitesse_distance_duree", r.json()["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()

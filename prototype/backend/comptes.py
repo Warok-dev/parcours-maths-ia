@@ -694,6 +694,37 @@ def _assignation_dict(a: Assignation, prenom: str | None = None) -> dict:
     return infos
 
 
+def _valider_cibles_assignation(
+    niveau: str, lecon_id: str | None, patterns: list[str] | None
+) -> None:
+    """Verifie que la cible d'une assignation est generable pour `niveau`.
+
+    Reutilise les helpers de main (import paresseux : main importe deja comptes,
+    un import au chargement serait circulaire). Une lecon doit exister ET porter
+    au moins un pattern generable pour le niveau ; chaque pattern d'une revision
+    doit etre generable (procedural OU narratif) pour ce niveau."""
+    import main  # lazy : evite l'import circulaire main <-> comptes
+
+    if patterns is not None:
+        generables = main._all_patterns_for_level(niveau)
+        invalides = [p for p in patterns if p not in generables]
+        if invalides:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Concepts non generables pour le niveau {niveau} : "
+                    f"{', '.join(invalides)}."
+                ),
+            )
+    if lecon_id is not None:
+        lecons = {lecon["lecon_id"] for lecon in main._available_lessons_for_level(niveau)}
+        if lecon_id not in lecons:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La lecon '{lecon_id}' n'est pas disponible pour le niveau {niveau}.",
+            )
+
+
 def marquer_assignations_terminees(
     db: Session,
     eleve_id: int,
@@ -746,6 +777,12 @@ def assigner_travail(
             status_code=400,
             detail="Fournir soit une lecon, soit une liste de concepts (exactement l'un des deux).",
         )
+    # La cible doit etre GENERABLE pour le niveau de la classe : sinon la
+    # session correspondante ne couvrirait jamais tous les patterns vises et
+    # l'assignation resterait "en attente" indefiniment (elle ne pourrait
+    # jamais se marquer terminee). On refuse a la creation plutot que de creer
+    # un travail impossible a boucler.
+    _valider_cibles_assignation(classe.niveau_scolaire, payload.lecon_id, payload.patterns)
     # Deduplication en gardant l'ordre ; tous les eleves doivent etre de la classe.
     eleve_ids = list(dict.fromkeys(payload.eleve_ids))
     presents = db.scalars(
