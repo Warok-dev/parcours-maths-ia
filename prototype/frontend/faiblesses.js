@@ -108,7 +108,39 @@
       .sort((a, b) => String(a.date).localeCompare(String(b.date)));
   }
 
+  /* ---------- Bascule connecte (base) / invite (localStorage) ----------
+     Exactement le modele du carnet : un eleve connecte revise SES vraies
+     faiblesses (table Progression), jamais celles d'un camarade ayant joue sur
+     le meme appareil ; l'essai libre garde le localStorage. */
+  function estEleve() {
+    return typeof window !== "undefined" && Boolean(window.ParcoursCompte?.estEleve?.());
+  }
+
+  /* Patterns faibles de l'eleve connecte, charges depuis la base (deja tries
+     du plus ancien au plus recent cote compte.js). Null tant que non charge. */
+  let studentPatterns = null;
+
+  /* Recharge le cache depuis la base (best-effort). A appeler a la connexion et
+     apres chaque session terminee, pour que la revision reflete la progression
+     reelle. Sans effet en essai libre. */
+  async function rechargerPourEleve() {
+    if (!estEleve()) {
+      studentPatterns = null;
+      return [];
+    }
+    try {
+      studentPatterns = (await window.ParcoursCompte.chargerFaiblesses()) || [];
+    } catch (_error) {
+      studentPatterns = [];
+    }
+    return studentPatterns;
+  }
+
   function patternsPourNiveau(niveau) {
+    /* Connecte : source = base (le niveau est deja celui de sa classe). */
+    if (estEleve()) {
+      return studentPatterns || [];
+    }
     return listerPourNiveau(niveau).map((entry) => entry.pattern_name);
   }
 
@@ -127,7 +159,15 @@
         return;
       }
       sessionsEnregistrees.add(snapshot.session_id);
-      enregistrerFinDeLecon(snapshot);
+      /* Eleve connecte : la progression (donc les faiblesses) est deja persistee
+         en base par le backend. On n'ecrit PAS dans le localStorage partage par
+         appareil ; on recharge simplement le cache depuis la base pour que la
+         prochaine revision soit a jour. Essai libre : localStorage comme avant. */
+      if (estEleve()) {
+        rechargerPourEleve();
+      } else {
+        enregistrerFinDeLecon(snapshot);
+      }
     });
   }
 
@@ -135,6 +175,7 @@
     listerPourNiveau,
     patternsPourNiveau,
     enregistrerFinDeLecon,
+    rechargerPourEleve,
     /* Exposes pour les tests */
     STORAGE_KEY,
     MAITRISE_ACQUISE,

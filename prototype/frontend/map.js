@@ -2848,6 +2848,9 @@ function niveauImposeEleve() {
 async function demarrerFluxEleve(niveau) {
   showLessonScreen();
   lessonStatus.textContent = "Chargement de tes leçons...";
+  /* Garde-robe liee au compte : chargee une fois a la connexion (base), avant
+     tout jeu, pour ne jamais montrer celle d'un autre eleve du meme appareil. */
+  await window.ParcoursPersonnage?.rechargerPourCompte?.();
   if (await tryResumeSession()) {
     return;
   }
@@ -2859,12 +2862,16 @@ async function demarrerFluxEleve(niveau) {
   }
 }
 
-/* Recharge les travaux assignes en attente (uniquement pour un eleve connecte ;
-   vide en essai libre). Best-effort : ne bloque jamais le flux. */
+/* Recharge les donnees de compte de l'eleve connecte (travaux assignes ET
+   faiblesses reelles pour la revision ciblee) ; vide/inactif en essai libre.
+   Best-effort : ne bloque jamais le flux. */
 async function rafraichirAssignations() {
-  state.assignations = niveauImposeEleve()
-    ? (await window.ParcoursCompte?.chargerAssignations?.()) || []
-    : [];
+  if (niveauImposeEleve()) {
+    state.assignations = (await window.ParcoursCompte?.chargerAssignations?.()) || [];
+    await window.ParcoursFaiblesses?.rechargerPourEleve?.();
+  } else {
+    state.assignations = [];
+  }
 }
 
 demarrerApplication();

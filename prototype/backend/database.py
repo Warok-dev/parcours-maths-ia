@@ -166,6 +166,11 @@ class Eleve(Base):
     progressions: Mapped[list["Progression"]] = relationship(
         back_populates="eleve", cascade="all, delete-orphan", passive_deletes=True
     )
+    # Garde-robe/etoiles cosmetiques, une ligne par eleve (mode connecte). Le
+    # mode invite garde son personnage en localStorage cote frontend.
+    personnage: Mapped["Personnage | None"] = relationship(
+        back_populates="eleve", cascade="all, delete-orphan", passive_deletes=True, uselist=False
+    )
     # Les sessions survivent a la suppression de l'eleve (deviennent anonymes) :
     # pas de delete-orphan, la BD applique ON DELETE SET NULL.
     sessions: Mapped[list["SessionJeu"]] = relationship(
@@ -260,6 +265,33 @@ class Assignation(Base):
     )
 
     eleve: Mapped["Eleve"] = relationship(back_populates="assignations")
+
+
+class Personnage(Base):
+    """Personnage cosmetique d'un eleve connecte : total d'etoiles cumulees et
+    tenue choisie (couleur + accessoire). Une seule ligne par eleve. C'est
+    l'equivalent en base du localStorage `personnage_v1` du mode invite : ainsi
+    un eleve connecte retrouve SA garde-robe, jamais celle d'un camarade ayant
+    joue sur le meme appareil. Purement cosmetique (aucun enjeu pedagogique)."""
+
+    __tablename__ = "personnage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    eleve_id: Mapped[int] = mapped_column(
+        ForeignKey("eleve.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    etoiles_totales: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    couleur: Mapped[str] = mapped_column(String(40), nullable=False, default="bleu", server_default="bleu")
+    accessoire: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="aucun", server_default="aucun"
+    )
+    date_maj: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+    eleve: Mapped["Eleve"] = relationship(back_populates="personnage")
 
 
 def _enable_sqlite_foreign_keys(engine: Engine) -> None:

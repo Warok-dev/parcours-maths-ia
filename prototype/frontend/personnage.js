@@ -260,19 +260,61 @@
     window.ParcoursApp?.refreshPlayerToken?.();
   }
 
+  /* ---------- Bascule connecte (base) / invite (localStorage) ----------
+     Exactement le modele du carnet et des faiblesses : un eleve connecte
+     retrouve SA garde-robe (table personnage en base), jamais celle d'un
+     camarade ayant joue sur le meme appareil ; l'essai libre garde le
+     localStorage. */
+  function estEleve() {
+    return typeof window !== "undefined" && Boolean(window.ParcoursCompte?.estEleve?.());
+  }
+
   /* ---------- Etat vivant ---------- */
   let etat = typeof localStorage === "undefined" ? etatNormalise(null) : charger();
 
-  /* localStorage (personnage_v1) est la SOURCE DE VERITE unique du total
-     d'etoiles et de la tenue. Le cache `etat` peut se perimer si un autre
-     chemin ecrit la cle (seed, autre module, autre onglet). On resynchronise
-     donc le cache depuis le stockage avant toute lecture d'affichage et avant
-     toute ecriture : sans ca, l'ecran du personnage et le mini-jeu deco (qui
-     lit via getEtat) peuvent afficher des totaux differents, et une ecriture
-     sur un cache perime ferait REGRESSER le total persiste. */
+  /* Persiste selon le mode. Connecte : copie en memoire + sauvegarde base
+     (best-effort, le backend ne fait jamais regresser le total d'etoiles, donc
+     des PUT concurrents sont surs). Invite : localStorage (comportement
+     historique, SOURCE DE VERITE de l'essai libre). */
+  function persister(nouvel) {
+    etat = etatNormalise(nouvel);
+    if (estEleve()) {
+      window.ParcoursCompte?.sauverPersonnage?.(etat);
+    } else {
+      sauver(etat);
+    }
+    return etat;
+  }
+
+  /* Resynchronise le cache avant lecture/ecriture. Invite : depuis localStorage
+     (un autre onglet/module a pu ecrire la cle). Connecte : l'etat en memoire
+     est la copie de travail (source = base, chargee a la connexion via
+     rechargerPourCompte) — on ne relit PAS le localStorage, qui appartient a
+     l'essai libre et ferait regresser la garde-robe du compte. */
   function synchroniser() {
-    if (typeof localStorage !== "undefined") {
+    if (!estEleve() && typeof localStorage !== "undefined") {
       etat = charger();
+    }
+    return etat;
+  }
+
+  /* Charge la garde-robe du compte depuis la base (a la connexion). Sans effet
+     en essai libre. Best-effort : en cas d'echec on garde l'etat courant. */
+  async function rechargerPourCompte() {
+    if (typeof window === "undefined" || !estEleve()) {
+      return etat;
+    }
+    const distant = await window.ParcoursCompte?.chargerPersonnage?.();
+    if (distant) {
+      etat = etatNormalise({
+        etoiles_totales: distant.etoiles_totales,
+        couleur: distant.couleur,
+        accessoire: distant.accessoire,
+      });
+      appliquerApparence(etat);
+      if (isOpen) {
+        render();
+      }
     }
     return etat;
   }
@@ -282,7 +324,7 @@
   function ajouterEtoiles(points) {
     synchroniser();
     const avant = etat.etoiles_totales;
-    etat = sauver(ajouterEtoilesA(etat, points));
+    etat = persister(ajouterEtoilesA(etat, points));
     const nouveaux = nouveauxDeblocages(avant, etat.etoiles_totales);
     if (nouveaux.length && isOpen) {
       render();
@@ -292,7 +334,7 @@
 
   function selectionner(type, id) {
     synchroniser();
-    etat = sauver(appliquerSelection(etat, type, id));
+    etat = persister(appliquerSelection(etat, type, id));
     appliquerApparence(etat);
     if (isOpen) {
       render();
@@ -442,6 +484,7 @@
     isOpen: () => isOpen,
     ajouterEtoiles,
     selectionner,
+    rechargerPourCompte,
     markupAccessoire,
     appliquerApparence,
     /* Renvoie l'etat frais depuis la source de verite (localStorage), pas le

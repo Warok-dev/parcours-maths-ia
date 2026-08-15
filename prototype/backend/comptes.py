@@ -39,6 +39,7 @@ from database import (
     Ecole,
     Eleve,
     Enseignant,
+    Personnage,
     Progression,
     generer_code_classe,
 )
@@ -208,6 +209,15 @@ class AssignationCreation(BaseModel):
     eleve_ids: list[int] = Field(min_length=1)
     lecon_id: str | None = None
     patterns: list[str] | None = None
+
+
+class PersonnageMaj(BaseModel):
+    # Etat cosmetique envoye par le frontend : total d'etoiles cumulees et
+    # tenue. Les ids couleur/accessoire sont valides cote frontend (catalogue) ;
+    # ici on ne fait que borner la taille et interdire un total negatif.
+    etoiles_totales: int = Field(ge=0)
+    couleur: str = Field(min_length=1, max_length=40)
+    accessoire: str = Field(min_length=1, max_length=40)
 
 
 # --- Helpers ---
@@ -901,6 +911,80 @@ def assignations_eleve(
         },
         "assignations": [_assignation_dict(a) for a in rows],
     }
+
+
+# ============================================================
+#  PERSONNAGE COSMETIQUE (garde-robe liee au compte eleve)
+#  Equivalent en base du localStorage `personnage_v1` de l'essai libre :
+#  un eleve connecte retrouve SES etoiles et SA tenue, jamais celles d'un
+#  camarade ayant joue sur le meme appareil. Lecture/ecriture reservees a
+#  l'eleve lui-meme (son propre token).
+# ============================================================
+def _personnage_dict(perso: Personnage | None) -> dict:
+    """Etat cosmetique, avec les memes valeurs par defaut que le frontend
+    (bleu / aucun / 0) quand l'eleve n'a encore rien personnalise."""
+    if perso is None:
+        return {"etoiles_totales": 0, "couleur": "bleu", "accessoire": "aucun"}
+    return {
+        "etoiles_totales": perso.etoiles_totales,
+        "couleur": perso.couleur,
+        "accessoire": perso.accessoire,
+    }
+
+
+def _eleve_du_propre_token(
+    eleve_id: int, creds: HTTPAuthorizationCredentials | None, db: Session
+) -> Eleve:
+    """Garantit que la requete est faite par l'eleve LUI-MEME (son token eleve).
+    Le personnage est un choix perso : ni un autre eleve, ni un enseignant, ni
+    un parent ne le lisent ou le modifient ici."""
+    eleve = db.get(Eleve, eleve_id)
+    if eleve is None:
+        raise HTTPException(status_code=404, detail="Eleve introuvable.")
+    token = creds.credentials if creds else None
+    if not token or _TOKENS_ELEVE.get(token) != eleve_id:
+        raise HTTPException(status_code=403, detail="Acces non autorise a ce personnage.")
+    return eleve
+
+
+@router.get("/eleve/{eleve_id}/personnage")
+def get_personnage(
+    eleve_id: int,
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    _eleve_du_propre_token(eleve_id, creds, db)
+    perso = db.scalars(select(Personnage).where(Personnage.eleve_id == eleve_id)).first()
+    return _personnage_dict(perso)
+
+
+@router.put("/eleve/{eleve_id}/personnage")
+def maj_personnage(
+    eleve_id: int,
+    payload: PersonnageMaj,
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Upsert de la garde-robe. Le total d'etoiles ne peut jamais REGRESSER
+    (max avec l'existant) : deux sauvegardes qui se croisent ne peuvent pas
+    faire perdre des etoiles deja gagnees."""
+    _eleve_du_propre_token(eleve_id, creds, db)
+    perso = db.scalars(select(Personnage).where(Personnage.eleve_id == eleve_id)).first()
+    if perso is None:
+        perso = Personnage(
+            eleve_id=eleve_id,
+            etoiles_totales=payload.etoiles_totales,
+            couleur=payload.couleur,
+            accessoire=payload.accessoire,
+        )
+        db.add(perso)
+    else:
+        perso.etoiles_totales = max(perso.etoiles_totales, payload.etoiles_totales)
+        perso.couleur = payload.couleur
+        perso.accessoire = payload.accessoire
+    db.commit()
+    db.refresh(perso)
+    return _personnage_dict(perso)
 
 
 # ============================================================

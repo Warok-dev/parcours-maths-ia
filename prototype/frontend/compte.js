@@ -499,6 +499,68 @@
     }
   }
 
+  /* Faiblesses REELLES de l'eleve connecte, derivees de sa progression en base
+     (concepts sous la maitrise 3), les plus anciennes d'abord. Remplace, pour
+     un eleve connecte, les faiblesses localStorage (partagees par appareil).
+     Best-effort : une erreur renvoie une liste vide (pas de revision proposee). */
+  async function chargerFaiblesses() {
+    if (!compte) {
+      return [];
+    }
+    try {
+      const payload = await appel(`/eleve/${compte.eleveId}/progression`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${compte.token}` },
+      });
+      return (payload.progression || [])
+        .filter((ligne) => (ligne.maitrise || 1) < 3 && ligne.pattern_name)
+        .sort((a, b) =>
+          String(a.date_derniere_tentative || "").localeCompare(String(b.date_derniere_tentative || "")),
+        )
+        .map((ligne) => ligne.pattern_name);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  /* Garde-robe/etoiles de l'eleve connecte, depuis la base (GET). Renvoie null
+     en cas d'echec pour que le frontend garde son etat courant plutot que de
+     l'ecraser par un defaut. */
+  async function chargerPersonnage() {
+    if (!compte) {
+      return null;
+    }
+    try {
+      return await appel(`/eleve/${compte.eleveId}/personnage`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${compte.token}` },
+      });
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  /* Sauvegarde best-effort de la garde-robe (PUT). Le backend ne fait jamais
+     regresser le total d'etoiles ; un echec reseau ne casse jamais le jeu. */
+  async function sauverPersonnage(etat) {
+    if (!compte || !etat) {
+      return null;
+    }
+    try {
+      return await appel(`/eleve/${compte.eleveId}/personnage`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${compte.token}` },
+        body: JSON.stringify({
+          etoiles_totales: Math.max(0, Math.floor(etat.etoiles_totales || 0)),
+          couleur: etat.couleur || "bleu",
+          accessoire: etat.accessoire || "aucun",
+        }),
+      });
+    } catch (_error) {
+      return null;
+    }
+  }
+
   window.ParcoursCompte = {
     demarrerConnexion,
     aDecide: () => decision !== null,
@@ -510,6 +572,9 @@
     deconnecter,
     chargerEntreesCarnet,
     chargerAssignations,
+    chargerFaiblesses,
+    chargerPersonnage,
+    sauverPersonnage,
     /* Exposes pour les tests / l'affichage */
     grouperProgression,
   };
