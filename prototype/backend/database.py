@@ -51,6 +51,11 @@ DATABASE_URL = os.environ.get("PARCOURS_DATABASE_URL", f"sqlite:///{DB_PATH}")
 
 NIVEAUX_SCOLAIRES = ("CE1", "CE2", "CE3", "CE4", "CE5", "CE6")
 
+# Roles d'un compte enseignant au sein de son ecole.
+ROLE_ADMINISTRATEUR = "administrateur"
+ROLE_ENSEIGNANT = "enseignant"
+ROLES_ENSEIGNANT = (ROLE_ADMINISTRATEUR, ROLE_ENSEIGNANT)
+
 # Animaux pour les codes de classe lisibles par les enfants (ex. CE1-RENARD-42).
 _ANIMAUX_CODE = (
     "RENARD", "HIBOU", "OURS", "LOUP", "CERF", "LYNX", "AIGLE", "CASTOR",
@@ -103,6 +108,13 @@ class Enseignant(Base):
     # Recherche frequente a la connexion -> unique + index.
     identifiant: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
     mot_de_passe_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Role dans l'ecole : "administrateur" (voit toutes les classes de l'ecole
+    # et gere les comptes) ou "enseignant" (ses seules classes). Le tout premier
+    # compte d'une ecole est administrateur ; les suivants, invites, sont
+    # enseignants par defaut. Voir ROLES_ENSEIGNANT.
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="enseignant", server_default="enseignant"
+    )
     date_creation: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
@@ -308,6 +320,43 @@ class Personnage(Base):
     eleve: Mapped["Eleve"] = relationship(back_populates="personnage")
 
 
+class InvitationEnseignant(Base):
+    """Invitation a rejoindre une ecole comme enseignant simple.
+
+    Un administrateur en genere une : elle porte un code a usage unique (haute
+    entropie, comme le code parent) que le nouvel enseignant fournit a
+    l'inscription pour etre rattache a l'ecole (au lieu de fonder la sienne).
+    L'email/identifiant vise est purement indicatif (aide-memoire de l'admin) :
+    n'importe quel identifiant peut consommer le code tant qu'il n'a pas servi.
+    Le code est stocke en clair : ce n'est pas un secret d'authentification mais
+    un jeton d'enrolement a usage unique, revele par l'admin puis consomme."""
+
+    __tablename__ = "invitation_enseignant"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ecole_id: Mapped[int] = mapped_column(
+        ForeignKey("ecole.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
+    # Aide-memoire non contraignant (a qui l'admin destine l'invitation).
+    email_invite: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    # L'admin qui a emis l'invitation (indicatif ; SET NULL s'il part).
+    invitee_par: Mapped[int | None] = mapped_column(
+        ForeignKey("enseignant.id", ondelete="SET NULL"), nullable=True
+    )
+    utilisee: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    date_creation: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    date_utilisation: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    ecole: Mapped["Ecole"] = relationship()
+
+
 def _enable_sqlite_foreign_keys(engine: Engine) -> None:
     """SQLite n'applique pas les cles etrangeres par defaut : on active le
     PRAGMA a chaque connexion, sinon ON DELETE CASCADE / SET NULL seraient
@@ -382,6 +431,30 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
                 )
                 conn.execute(
                     text("CREATE INDEX IF NOT EXISTS ix_classe_ecole_id ON classe (ecole_id)")
+                )
+    if "enseignant" in tables:
+        colonnes = {c["name"] for c in inspector.get_columns("enseignant")}
+        if "role" not in colonnes:
+            # Colonne avec defaut : SQLite l'accepte sur une table peuplee. On
+            # promeut ensuite le compte le plus ancien de CHAQUE ecole en
+            # administrateur, pour qu'aucune ecole preexistante ne se retrouve
+            # sans administrateur (invariant : >= 1 admin par ecole).
+            with eng.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE enseignant "
+                        "ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'enseignant'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "UPDATE enseignant SET role = 'administrateur' WHERE id IN ("
+                        "  SELECT (SELECT e2.id FROM enseignant e2 "
+                        "          WHERE e2.ecole_id = grp.ecole_id "
+                        "          ORDER BY e2.date_creation ASC, e2.id ASC LIMIT 1) "
+                        "  FROM (SELECT DISTINCT ecole_id FROM enseignant) grp"
+                        ")"
+                    )
                 )
     if "progression" in tables:
         colonnes = {c["name"] for c in inspector.get_columns("progression")}

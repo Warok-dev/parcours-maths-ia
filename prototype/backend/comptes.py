@@ -34,11 +34,14 @@ import database
 import export_excel
 import notifications
 from database import (
+    ROLE_ADMINISTRATEUR,
+    ROLE_ENSEIGNANT,
     Assignation,
     Classe,
     Ecole,
     Eleve,
     Enseignant,
+    InvitationEnseignant,
     Personnage,
     Progression,
     generer_code_classe,
@@ -104,6 +107,14 @@ def generer_code_parent() -> str:
     return "".join(secrets.choice(_ALPHABET_CODE_PARENT) for _ in range(8))
 
 
+def generer_code_invitation() -> str:
+    """Code d'enrolement d'un enseignant dans une ecole, ex. 'ECOLE-K7P2M9QT'.
+    Meme entropie que le code parent (8 caracteres sur 31) : suffisant pour un
+    jeton a usage unique non devinable. Le prefixe aide l'admin a le reconnaitre."""
+    corps = "".join(secrets.choice(_ALPHABET_CODE_PARENT) for _ in range(8))
+    return f"ECOLE-{corps}"
+
+
 def hash_code_parent(code: str) -> str:
     """Empreinte SHA-256 (hex) du code parent. Deterministe -> indexable, donc
     on retrouve l'eleve a partir du seul code sans iterer sur toute la base
@@ -138,6 +149,19 @@ def enseignant_courant(
         # Token pointant vers un enseignant supprime : session invalide.
         _TOKENS_ENSEIGNANT.pop(token, None)
         raise HTTPException(status_code=401, detail="Session enseignant invalide.")
+    return enseignant
+
+
+def administrateur_courant(
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+) -> Enseignant:
+    """Dependance : administrateur connecte. Reutilise enseignant_courant (donc
+    l'authentification et l'appartenance a l'ecole sont deja garanties) et exige
+    en plus le role administrateur. Un enseignant simple obtient 403."""
+    if enseignant.role != ROLE_ADMINISTRATEUR:
+        raise HTTPException(
+            status_code=403, detail="Reserve a l'administrateur de l'ecole."
+        )
     return enseignant
 
 
@@ -204,6 +228,19 @@ class EnseignantInscription(BaseModel):
     identifiant: str = Field(min_length=3, max_length=80)
     mot_de_passe: str = Field(min_length=6, max_length=128)
     ecole: str | None = Field(default=None, max_length=120)
+    # Code d'invitation : si fourni et valide, le compte REJOINT l'ecole
+    # invitante comme enseignant simple. Sinon, il fonde sa propre ecole et en
+    # devient administrateur.
+    code_invitation: str | None = Field(default=None, max_length=40)
+
+
+class InvitationCreation(BaseModel):
+    # Aide-memoire non contraignant : a qui l'admin destine l'invitation.
+    email: str | None = Field(default=None, max_length=180)
+
+
+class RoleMaj(BaseModel):
+    role: str = Field(pattern=r"^(administrateur|enseignant)$")
 
 
 class EnseignantConnexion(BaseModel):
@@ -324,14 +361,40 @@ def inscription_enseignant(
     if deja is not None:
         raise HTTPException(status_code=409, detail="Cet identifiant est deja pris.")
 
-    ecole = _creer_ecole(db, payload.ecole)
+    # Avec un code d'invitation valide : on REJOINT l'ecole invitante comme
+    # enseignant simple. Sans code : on fonde sa propre ecole et on en devient
+    # administrateur (le tout premier compte d'une ecole est toujours admin).
+    invitation: InvitationEnseignant | None = None
+    if payload.code_invitation:
+        invitation = db.scalars(
+            select(InvitationEnseignant).where(
+                InvitationEnseignant.code == payload.code_invitation,
+                InvitationEnseignant.utilisee.is_(False),
+            )
+        ).first()
+        if invitation is None:
+            raise HTTPException(
+                status_code=400, detail="Code d'invitation invalide ou deja utilise."
+            )
+        ecole = db.get(Ecole, invitation.ecole_id)
+        role = ROLE_ENSEIGNANT
+    else:
+        ecole = _creer_ecole(db, payload.ecole)
+        role = ROLE_ADMINISTRATEUR
+
     enseignant = Enseignant(
         ecole=ecole,
         nom=payload.nom,
         identifiant=payload.identifiant,
         mot_de_passe_hash=hash_mot_de_passe(payload.mot_de_passe),
+        role=role,
     )
     db.add(enseignant)
+    if invitation is not None:
+        # Consommation du jeton a usage unique, dans la meme transaction que la
+        # creation : soit tout reussit, soit rien (pas de code brule pour rien).
+        invitation.utilisee = True
+        invitation.date_utilisation = datetime.now(timezone.utc)
     try:
         db.commit()
     except IntegrityError:
@@ -343,6 +406,7 @@ def inscription_enseignant(
         "nom": enseignant.nom,
         "identifiant": enseignant.identifiant,
         "ecole_id": ecole.id,
+        "role": enseignant.role,
     }
 
 
@@ -361,7 +425,140 @@ def connexion_enseignant(
 
     token = secrets.token_urlsafe(32)
     _TOKENS_ENSEIGNANT[token] = enseignant.id
-    return {"token": token, "enseignant": {"id": enseignant.id, "nom": enseignant.nom}}
+    return {
+        "token": token,
+        "enseignant": {"id": enseignant.id, "nom": enseignant.nom, "role": enseignant.role},
+    }
+
+
+# ============================================================
+#  ADMINISTRATEUR D'ECOLE (vue etablissement + gestion des comptes)
+#  Tous ces endpoints exigent le role administrateur (administrateur_courant)
+#  ET operent STRICTEMENT dans l'ecole de l'appelant (admin.ecole_id) : jamais
+#  de fuite entre etablissements, coherent avec l'isolation multi-tenant.
+# ============================================================
+@router.get("/ecole/classes")
+def lister_classes_ecole(
+    admin: Annotated[Enseignant, Depends(administrateur_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """TOUTES les classes de l'ecole, tous enseignants confondus (vue admin),
+    avec l'enseignant responsable et l'effectif. A distinguer de GET /classe,
+    qui ne renvoie que les classes de l'appelant."""
+    rows = db.scalars(
+        select(Classe)
+        .where(Classe.ecole_id == admin.ecole_id)
+        .order_by(Classe.date_creation)
+    ).all()
+    classes = []
+    for c in rows:
+        nb = db.scalar(
+            select(func.count()).select_from(Eleve).where(Eleve.classe_id == c.id)
+        )
+        infos = _classe_dict(c, nb_eleves=nb)
+        infos["enseignant"] = {"id": c.enseignant.id, "nom": c.enseignant.nom}
+        classes.append(infos)
+    return {"ecole_id": admin.ecole_id, "classes": classes}
+
+
+@router.get("/ecole/enseignants")
+def lister_enseignants_ecole(
+    admin: Annotated[Enseignant, Depends(administrateur_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Tous les enseignants de l'ecole, avec leur role et leur nombre de classes."""
+    rows = db.scalars(
+        select(Enseignant)
+        .where(Enseignant.ecole_id == admin.ecole_id)
+        .order_by(Enseignant.date_creation)
+    ).all()
+    return {
+        "ecole_id": admin.ecole_id,
+        "enseignants": [
+            {
+                "id": e.id,
+                "nom": e.nom,
+                "identifiant": e.identifiant,
+                "role": e.role,
+                "nb_classes": db.scalar(
+                    select(func.count()).select_from(Classe).where(Classe.enseignant_id == e.id)
+                ),
+                "est_moi": e.id == admin.id,
+            }
+            for e in rows
+        ],
+    }
+
+
+@router.post("/ecole/enseignants/inviter", status_code=201)
+def inviter_enseignant(
+    payload: InvitationCreation,
+    admin: Annotated[Enseignant, Depends(administrateur_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Genere un code d'invitation a usage unique pour rejoindre l'ecole comme
+    enseignant simple. Le code est renvoye en clair a l'admin, qui le transmet
+    au nouvel enseignant ; celui-ci le fournit a l'inscription (champ
+    code_invitation) pour etre rattache a l'ecole."""
+    for _ in range(25):  # retente en cas de collision de code (rare)
+        invitation = InvitationEnseignant(
+            ecole_id=admin.ecole_id,
+            code=generer_code_invitation(),
+            email_invite=payload.email,
+            invitee_par=admin.id,
+        )
+        db.add(invitation)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            continue
+        db.refresh(invitation)
+        return {
+            "id": invitation.id,
+            "code": invitation.code,
+            "email": invitation.email_invite,
+            "ecole_id": invitation.ecole_id,
+        }
+    raise HTTPException(status_code=500, detail="Impossible de generer un code d'invitation unique.")
+
+
+@router.put("/ecole/enseignants/{enseignant_id}/role")
+def changer_role_enseignant(
+    enseignant_id: int,
+    payload: RoleMaj,
+    admin: Annotated[Enseignant, Depends(administrateur_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Promeut (enseignant -> administrateur) ou retrograde (administrateur ->
+    enseignant) un compte de l'ecole. Deux garde-fous :
+    - la cible doit appartenir a l'ecole de l'admin (sinon 404) ;
+    - une ecole garde TOUJOURS au moins un administrateur : retrograder le
+      dernier admin (y compris se retrograder soi-meme) est refuse (409)."""
+    cible = db.get(Enseignant, enseignant_id)
+    if cible is None or cible.ecole_id != admin.ecole_id:
+        raise HTTPException(status_code=404, detail="Enseignant introuvable dans cette ecole.")
+
+    if cible.role == ROLE_ADMINISTRATEUR and payload.role == ROLE_ENSEIGNANT:
+        autres_admins = db.scalar(
+            select(func.count())
+            .select_from(Enseignant)
+            .where(
+                Enseignant.ecole_id == admin.ecole_id,
+                Enseignant.role == ROLE_ADMINISTRATEUR,
+                Enseignant.id != cible.id,
+            )
+        )
+        if not autres_admins:
+            raise HTTPException(
+                status_code=409,
+                detail="Impossible de retrograder le dernier administrateur de l'ecole.",
+            )
+
+    cible.role = payload.role
+    db.commit()
+    db.refresh(cible)
+    return {"id": cible.id, "nom": cible.nom, "role": cible.role}
 
 
 # ============================================================

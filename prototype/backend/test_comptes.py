@@ -1181,5 +1181,215 @@ class IsolationDeuxEcolesTests(unittest.TestCase):
             self.assertEqual(self.client.get(url, headers=self._auth(tok_b)).status_code, 403, url)
 
 
+class RoleAdministrateurTests(unittest.TestCase):
+    """Role administrateur d'ecole : vue etablissement + gestion des comptes.
+
+    Scenario de base (setUp) : une ecole A avec un administrateur et DEUX
+    enseignants simples (rejoints par invitation), chacun avec sa classe."""
+
+    def setUp(self) -> None:
+        self.engine = create_db_engine("sqlite://")
+        init_db(self.engine)
+        testing_session = sessionmaker(
+            bind=self.engine, autoflush=False, expire_on_commit=False, class_=Session
+        )
+
+        def override_get_db():
+            db = testing_session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[comptes.get_db] = override_get_db
+        comptes._reset_tokens()
+        self.client = TestClient(app)
+
+        # Admin de l'ecole A (1er compte sans code -> administrateur).
+        self.admin = self._inscrire("admin1", "secretA", "Admin A")
+        self.ecole_a = self.admin["ecole_id"]
+        self.tAdmin = self._token("admin1", "secretA")
+
+        # Deux enseignants simples rejoignent l'ecole A par invitation.
+        code1 = self._inviter(self.tAdmin)
+        code2 = self._inviter(self.tAdmin)
+        self.prof1 = self._inscrire("prof1", "secret1", "Prof Un", code_invitation=code1)
+        self.prof2 = self._inscrire("prof2", "secret2", "Prof Deux", code_invitation=code2)
+        self.t1 = self._token("prof1", "secret1")
+        self.t2 = self._token("prof2", "secret2")
+
+        # Une classe chacun (l'admin peut aussi avoir la sienne).
+        self.classe1 = self._creer_classe(self.t1, "Classe de Un")
+        self.classe2 = self._creer_classe(self.t2, "Classe de Deux")
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        comptes._reset_tokens()
+        self.engine.dispose()
+
+    # --- Helpers ---
+    def _auth(self, token):
+        return {"Authorization": f"Bearer {token}"}
+
+    def _inscrire(self, identifiant, mot_de_passe, nom, code_invitation=None):
+        corps = {"nom": nom, "identifiant": identifiant, "mot_de_passe": mot_de_passe}
+        if code_invitation is not None:
+            corps["code_invitation"] = code_invitation
+        response = self.client.post("/enseignant/inscription", json=corps)
+        self.assertEqual(response.status_code, 201, response.text)
+        return response.json()
+
+    def _token(self, identifiant, mot_de_passe):
+        return self.client.post(
+            "/enseignant/connexion",
+            json={"identifiant": identifiant, "mot_de_passe": mot_de_passe},
+        ).json()["token"]
+
+    def _inviter(self, token, email=None):
+        response = self.client.post(
+            "/ecole/enseignants/inviter", json={"email": email}, headers=self._auth(token)
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        return response.json()["code"]
+
+    def _creer_classe(self, token, nom, niveau="CE2"):
+        return self.client.post(
+            "/classe", json={"nom": nom, "niveau_scolaire": niveau}, headers=self._auth(token)
+        ).json()
+
+    # --- Modele de role ---
+    def test_premier_compte_est_administrateur(self) -> None:
+        self.assertEqual(self.admin["role"], "administrateur")
+        # Connexion : le role est aussi renvoye (le frontend en depend).
+        corps = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "admin1", "mot_de_passe": "secretA"}
+        ).json()
+        self.assertEqual(corps["enseignant"]["role"], "administrateur")
+
+    def test_invite_est_enseignant_simple_dans_la_meme_ecole(self) -> None:
+        self.assertEqual(self.prof1["role"], "enseignant")
+        self.assertEqual(self.prof1["ecole_id"], self.ecole_a)  # meme ecole que l'admin
+        self.assertEqual(self.prof2["role"], "enseignant")
+
+    def test_code_invitation_est_a_usage_unique(self) -> None:
+        code = self._inviter(self.tAdmin)
+        self._inscrire("prof3", "secret3", "Prof Trois", code_invitation=code)
+        # Reutiliser le meme code -> refuse.
+        rejeu = self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Prof Quatre", "identifiant": "prof4", "mot_de_passe": "secret4",
+                  "code_invitation": code},
+        )
+        self.assertEqual(rejeu.status_code, 400)
+
+    def test_code_invitation_inconnu_refuse(self) -> None:
+        rep = self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "X", "identifiant": "profx", "mot_de_passe": "secretx",
+                  "code_invitation": "ECOLE-INCONNU9"},
+        )
+        self.assertEqual(rep.status_code, 400)
+
+    # --- Vue etablissement (admin voit tout) ---
+    def test_admin_voit_toutes_les_classes_de_l_ecole(self) -> None:
+        rep = self.client.get("/ecole/classes", headers=self._auth(self.tAdmin))
+        self.assertEqual(rep.status_code, 200)
+        classes = rep.json()["classes"]
+        noms = {c["nom"] for c in classes}
+        self.assertEqual(noms, {"Classe de Un", "Classe de Deux"})
+        # L'enseignant responsable est indique pour chaque classe.
+        par_nom = {c["nom"]: c["enseignant"]["nom"] for c in classes}
+        self.assertEqual(par_nom["Classe de Un"], "Prof Un")
+        self.assertEqual(par_nom["Classe de Deux"], "Prof Deux")
+
+    def test_enseignant_simple_ne_voit_que_sa_classe(self) -> None:
+        # La vue enseignant normale (GET /classe) reste cloisonnee.
+        liste1 = self.client.get("/classe", headers=self._auth(self.t1)).json()["classes"]
+        self.assertEqual([c["nom"] for c in liste1], ["Classe de Un"])
+        liste2 = self.client.get("/classe", headers=self._auth(self.t2)).json()["classes"]
+        self.assertEqual([c["nom"] for c in liste2], ["Classe de Deux"])
+
+    def test_admin_liste_les_enseignants(self) -> None:
+        rep = self.client.get("/ecole/enseignants", headers=self._auth(self.tAdmin))
+        self.assertEqual(rep.status_code, 200)
+        gens = {e["identifiant"]: e for e in rep.json()["enseignants"]}
+        self.assertEqual(set(gens), {"admin1", "prof1", "prof2"})
+        self.assertEqual(gens["admin1"]["role"], "administrateur")
+        self.assertEqual(gens["prof1"]["role"], "enseignant")
+        self.assertTrue(gens["admin1"]["est_moi"])
+        self.assertEqual(gens["prof2"]["nb_classes"], 1)
+
+    # --- Endpoints admin fermes aux enseignants simples ---
+    def test_endpoints_admin_interdits_a_l_enseignant_simple(self) -> None:
+        chemins = [
+            ("get", "/ecole/classes", None),
+            ("get", "/ecole/enseignants", None),
+            ("post", "/ecole/enseignants/inviter", {"email": None}),
+            ("put", f"/ecole/enseignants/{self.prof2['id']}/role", {"role": "administrateur"}),
+        ]
+        for methode, url, corps in chemins:
+            appel = getattr(self.client, methode)
+            kwargs = {"headers": self._auth(self.t1)}
+            if corps is not None:
+                kwargs["json"] = corps
+            self.assertEqual(appel(url, **kwargs).status_code, 403, f"{methode} {url}")
+            # Sans jeton : 401.
+            kwargs.pop("headers")
+            self.assertEqual(appel(url, **kwargs).status_code, 401, f"{methode} {url} anon")
+
+    # --- Promotion / retrogradation + garde-fou dernier admin ---
+    def test_promotion_et_retrogradation(self) -> None:
+        # Promeut prof1 administrateur.
+        rep = self.client.put(
+            f"/ecole/enseignants/{self.prof1['id']}/role",
+            json={"role": "administrateur"}, headers=self._auth(self.tAdmin),
+        )
+        self.assertEqual(rep.status_code, 200)
+        self.assertEqual(rep.json()["role"], "administrateur")
+        # prof1 (desormais admin) peut voir la vue etablissement.
+        self.assertEqual(
+            self.client.get("/ecole/classes", headers=self._auth(self.t1)).status_code, 200
+        )
+        # On peut maintenant retrograder l'admin d'origine (il reste prof1 admin).
+        rep2 = self.client.put(
+            f"/ecole/enseignants/{self.admin['id']}/role",
+            json={"role": "enseignant"}, headers=self._auth(self.tAdmin),
+        )
+        self.assertEqual(rep2.status_code, 200)
+        self.assertEqual(rep2.json()["role"], "enseignant")
+
+    def test_dernier_admin_ne_peut_pas_se_retrograder(self) -> None:
+        # admin1 est le seul administrateur : se retrograder est refuse (409).
+        rep = self.client.put(
+            f"/ecole/enseignants/{self.admin['id']}/role",
+            json={"role": "enseignant"}, headers=self._auth(self.tAdmin),
+        )
+        self.assertEqual(rep.status_code, 409)
+        # Il reste bien administrateur.
+        self.assertEqual(
+            self.client.get("/ecole/classes", headers=self._auth(self.tAdmin)).status_code, 200
+        )
+
+    # --- Cloisonnement inter-ecoles du role admin ---
+    def test_admin_ne_gere_pas_une_autre_ecole(self) -> None:
+        # Ecole B, son propre admin + un enseignant.
+        self._inscrire("adminB", "secretB", "Admin B")
+        tB = self._token("adminB", "secretB")
+        codeB = self._inviter(tB)
+        profB = self._inscrire("profB", "secretpb", "Prof B", code_invitation=codeB)
+        self._creer_classe(tB, "Classe B")
+
+        # L'admin de A ne voit QUE les classes de A.
+        noms_a = {c["nom"] for c in self.client.get(
+            "/ecole/classes", headers=self._auth(self.tAdmin)).json()["classes"]}
+        self.assertNotIn("Classe B", noms_a)
+        # L'admin de A ne peut pas changer le role d'un enseignant de B -> 404.
+        rep = self.client.put(
+            f"/ecole/enseignants/{profB['id']}/role",
+            json={"role": "administrateur"}, headers=self._auth(self.tAdmin),
+        )
+        self.assertEqual(rep.status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()
