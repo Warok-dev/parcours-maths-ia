@@ -20,6 +20,10 @@
   const API_BASE = "http://127.0.0.1:8000";
   const STORAGE_KEY = "parcours_enseignant_v1";
   const NIVEAUX = ["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"];
+  /* Mot exact a taper pour armer une suppression definitive d'eleve (miroir de
+     CONFIRMATION_SUPPRESSION_ELEVE cote backend). Une ecole se confirme, elle,
+     par son NOM exact (garde-fou encore plus fort). */
+  const CONFIRMATION_SUPPRESSION = "SUPPRIMER";
 
   /* ---------- Coeur pur (testable sans navigateur) ---------- */
 
@@ -191,8 +195,9 @@
   }
 
   async function chargerEnseignantsEcole() {
-    const reponse = await appel("/ecole/enseignants", { method: "GET" });
-    return reponse.enseignants || [];
+    /* Renvoie l'objet complet : la liste des enseignants ET le nom de l'ecole
+       (utilise comme confirmation litterale pour la suppression de l'ecole). */
+    return appel("/ecole/enseignants", { method: "GET" });
   }
 
   async function inviterEnseignant(email) {
@@ -231,6 +236,24 @@
 
   async function retirerEleve(classeId, eleveId) {
     return appel(`/classe/${classeId}/eleve/${eleveId}`, { method: "DELETE" });
+  }
+
+  /* Suppression DEFINITIVE et irreversible des donnees d'un eleve (droit a
+     l'effacement). Exige la confirmation litterale attendue par le backend. */
+  async function supprimerEleveDefinitif(classeId, eleveId, confirmation) {
+    return appel(`/classe/${classeId}/eleve/${eleveId}/suppression`, {
+      method: "POST",
+      body: JSON.stringify({ confirmation }),
+    });
+  }
+
+  /* Suppression DEFINITIVE de l'ecole entiere (administrateur). La confirmation
+     attendue est le NOM exact de l'ecole. */
+  async function supprimerEcole(confirmation) {
+    return appel("/ecole/suppression", {
+      method: "POST",
+      body: JSON.stringify({ confirmation }),
+    });
   }
 
   /* Regenere le PIN d'un eleve : renvoie { id, prenom, pin } (nouveau PIN en
@@ -575,9 +598,9 @@
     }
     setStatut("Chargement de l'établissement...");
     let classesEcole = [];
-    let enseignants = [];
+    let infoEnseignants = { enseignants: [], ecole_nom: "" };
     try {
-      [classesEcole, enseignants] = await Promise.all([
+      [classesEcole, infoEnseignants] = await Promise.all([
         chargerClassesEcole(),
         chargerEnseignantsEcole(),
       ]);
@@ -585,6 +608,8 @@
       setStatut(error.message, "erreur");
       return;
     }
+    const enseignants = infoEnseignants.enseignants || [];
+    const ecoleNom = infoEnseignants.ecole_nom || "";
 
     const cartesClasses = classesEcole.length
       ? classesEcole
@@ -650,9 +675,46 @@
         </form>
         <div id="ens-invite-resultat" class="admin-invite-result"></div>
       </section>
+      <section class="admin-section admin-danger-zone">
+        <h2 class="teacher-subtitle">Zone de danger</h2>
+        <p class="teacher-danger-text">
+          <strong>Supprimer définitivement l'établissement.</strong>
+          Cette action efface l'école <em>${echapper(ecoleNom)}</em> et TOUTES ses
+          données : tous les enseignants, toutes les classes, tous les élèves et
+          leurs progressions. Elle est irréversible. Pour confirmer, tapez le nom
+          exact de l'établissement ci-dessous.
+        </p>
+        <div class="teacher-danger-row">
+          <input id="ens-ecole-confirm" class="login-input teacher-input teacher-danger-input" type="text" placeholder="${echapper(ecoleNom)}" autocomplete="off" />
+          <button type="button" id="ens-supprimer-ecole" class="btn-danger" disabled>Supprimer l'établissement</button>
+        </div>
+      </section>
       <button type="button" id="ens-retour-jeu" class="ghost-button teacher-back">&#8592; Retour au jeu</button>
     `;
     setStatut("");
+
+    const champEcole = body.querySelector("#ens-ecole-confirm");
+    const btnEcole = body.querySelector("#ens-supprimer-ecole");
+    champEcole.addEventListener("input", () => {
+      btnEcole.disabled = champEcole.value.trim() !== ecoleNom;
+    });
+    btnEcole.addEventListener("click", async () => {
+      if (champEcole.value.trim() !== ecoleNom) {
+        return;
+      }
+      btnEcole.disabled = true;
+      setStatut("Suppression de l'établissement...");
+      try {
+        await supprimerEcole(champEcole.value.trim());
+        /* L'ecole (et ce compte admin) n'existent plus : on quitte proprement. */
+        deconnecter();
+        setStatut("L'établissement a été définitivement supprimé.", "succes");
+        vueConnexion();
+      } catch (error) {
+        btnEcole.disabled = false;
+        setStatut(error.message, "erreur");
+      }
+    });
 
     body.querySelector("#ens-retour-classes").addEventListener("click", () => vueDashboard());
     body.querySelector("#ens-retour-jeu").addEventListener("click", retourAuJeu);
@@ -787,7 +849,8 @@
           <span class="teacher-eleve-actions">
             <button type="button" class="ghost-button teacher-reset-pin" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Réinitialiser le code</button>
             <button type="button" class="ghost-button teacher-code-parent" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Code parent</button>
-            <button type="button" class="ghost-button teacher-remove" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}">Retirer</button>
+            <button type="button" class="ghost-button teacher-remove" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}" title="Retirer de la classe (réversible, données conservées)">Retirer</button>
+            <button type="button" class="ghost-button teacher-delete" data-eleve-id="${e.id}" data-prenom="${echapper(e.prenom)}" title="Effacer définitivement toutes les données (irréversible)">Supprimer les données</button>
           </span>
         </li>
       `,
@@ -824,6 +887,9 @@
     body.querySelector(".teacher-copy").addEventListener("click", () => copierCode(classe.code_classe));
     body.querySelectorAll(".teacher-remove").forEach((bouton) => {
       bouton.addEventListener("click", () => demanderRetrait(classeId, bouton));
+    });
+    body.querySelectorAll(".teacher-delete").forEach((bouton) => {
+      bouton.addEventListener("click", () => demanderSuppressionDefinitive(classeId, bouton));
     });
     body.querySelectorAll(".teacher-reset-pin").forEach((bouton) => {
       bouton.addEventListener("click", () => demanderReinitPin(classeId, bouton));
@@ -1074,15 +1140,16 @@
     }
   }
 
-  /* Confirmation en ligne (pas de dialog natif qui bloque) : retirer un eleve
-     supprime aussi sa progression en cascade, on demande donc validation. */
+  /* Confirmation en ligne (pas de dialog natif qui bloque) du RETRAIT =
+     archivage reversible : l'eleve quitte les vues actives mais ses donnees
+     restent (recuperables si c'est une erreur). Distinct de la suppression
+     definitive (demanderSuppressionDefinitive). */
   function demanderRetrait(classeId, bouton) {
-    const ligne = bouton.closest(".teacher-eleve");
     const eleveId = Number(bouton.dataset.eleveId);
     const prenom = bouton.dataset.prenom;
     const actions = bouton.closest(".teacher-eleve-actions");
     actions.innerHTML = `
-      <span class="teacher-confirm-label">Retirer ${echapper(prenom)} et sa progression ?</span>
+      <span class="teacher-confirm-label">Retirer ${echapper(prenom)} de la classe ? (ses données sont conservées, action réversible)</span>
       <button type="button" class="btn-primary teacher-confirm-oui">Confirmer</button>
       <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
     `;
@@ -1098,7 +1165,54 @@
       } catch (error) {
         setStatut(error.message, "erreur");
       }
-      void ligne;
+    });
+  }
+
+  /* Confirmation FORTE de la suppression DEFINITIVE (droit a l'effacement) :
+     un texte explique clairement l'irreversibilite et l'enseignant doit taper
+     le mot exact (CONFIRMATION_SUPPRESSION) pour armer le bouton — pas un
+     simple clic. Efface l'eleve et TOUTES ses donnees (progression,
+     assignations, garde-robe, sessions). */
+  function demanderSuppressionDefinitive(classeId, bouton) {
+    const eleveId = Number(bouton.dataset.eleveId);
+    const prenom = bouton.dataset.prenom;
+    const actions = bouton.closest(".teacher-eleve-actions");
+    actions.innerHTML = `
+      <div class="teacher-danger-confirm">
+        <p class="teacher-danger-text">
+          <strong>Suppression définitive et irréversible.</strong>
+          Toutes les données de ${echapper(prenom)} (progression, travaux assignés,
+          garde-robe, historique de jeu) seront effacées et ne pourront pas être
+          récupérées. Pour confirmer, tapez <code>${CONFIRMATION_SUPPRESSION}</code> ci-dessous.
+        </p>
+        <div class="teacher-danger-row">
+          <input type="text" class="login-input teacher-input teacher-danger-input" placeholder="${CONFIRMATION_SUPPRESSION}" autocomplete="off" />
+          <button type="button" class="btn-danger teacher-danger-oui" disabled>Supprimer définitivement</button>
+          <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
+        </div>
+      </div>
+    `;
+    const champ = actions.querySelector(".teacher-danger-input");
+    const valider = actions.querySelector(".teacher-danger-oui");
+    champ.addEventListener("input", () => {
+      valider.disabled = champ.value.trim() !== CONFIRMATION_SUPPRESSION;
+    });
+    actions.querySelector(".teacher-confirm-non").addEventListener("click", () =>
+      vueClasseDetail(classeId),
+    );
+    valider.addEventListener("click", async () => {
+      if (champ.value.trim() !== CONFIRMATION_SUPPRESSION) {
+        return;
+      }
+      valider.disabled = true;
+      setStatut("Suppression définitive...");
+      try {
+        await supprimerEleveDefinitif(classeId, eleveId, champ.value.trim());
+        await vueClasseDetail(classeId);
+        setStatut(`Les données de ${prenom} ont été définitivement supprimées.`, "succes");
+      } catch (error) {
+        setStatut(error.message, "erreur");
+      }
     });
   }
 

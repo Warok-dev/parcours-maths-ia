@@ -5315,6 +5315,67 @@ select.teacher-input {
   margin: 0 0 6px;
 }
 
+/* ---- Suppression definitive (zone de danger) ---- */
+.btn-danger {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-danger:disabled {
+  background: #d9a49d;
+  cursor: not-allowed;
+}
+
+.teacher-delete {
+  color: #b23a22;
+  border-color: #e3b4aa;
+}
+
+.teacher-danger-confirm {
+  flex-basis: 100%;
+  background: #fbe9e4;
+  border: 1px solid #e3b4aa;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.teacher-danger-text {
+  font-size: 0.88rem;
+  color: #7a2f1e;
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.teacher-danger-text code {
+  background: #f4d3ca;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-weight: 700;
+}
+
+.teacher-danger-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.teacher-danger-input {
+  border-color: #d98b7c !important;
+}
+
+.admin-danger-zone {
+  border: 1px solid #e3b4aa;
+  background: #fdf3f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
 /* Pastilles de decompte par maitrise (memes libelles que le bilan eleve) */
 .teacher-badges {
   display: inline-flex;
