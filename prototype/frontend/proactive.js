@@ -18,9 +18,39 @@
     standard: { echecs: 2, inactiviteMs: 25000 }, /* niveaux 1 et 2 */
     autonome: { echecs: 3, inactiviteMs: 40000 }, /* niveau 3 */
   };
-  const BUBBLE_MESSAGE = "On dirait que tu bloques, je peux t'aider ?";
-  const GREETING_MESSAGE =
-    "J'ai vu que ce n'était pas facile, je suis là pour t'aider ! Dis-moi ce qui te bloque.";
+  /* Messages declines par tranche d'age (memes bornes que le backend :
+     petit = CE1/CE2, moyen = CE3/CE4, grand = CE5/CE6). Seul le registre de
+     langue change ; l'intention (proposer de l'aide) reste identique. La
+     tranche vient du NIVEAU SCOLAIRE de la session, distinct du niveau de
+     resolution 1/2/3 qui, lui, regle les seuils de declenchement ci-dessous. */
+  const BUBBLE_MESSAGES = {
+    petit: "On dirait que tu bloques, je peux t'aider ?",
+    moyen: "Tu sèches un peu ? Je peux te donner un coup de main.",
+    grand: "Tu butes sur cet exercice ? Je peux t'aider si tu veux.",
+  };
+  const GREETING_MESSAGES = {
+    petit: "J'ai vu que ce n'était pas facile, je suis là pour t'aider ! Dis-moi ce qui te bloque.",
+    moyen: "J'ai remarqué que c'était coriace. Explique-moi ce qui te bloque, on va y arriver.",
+    grand: "Je vois que cet exercice résiste. Dis-moi précisément ce qui te pose problème.",
+  };
+
+  function trancheAge(niveau) {
+    const rang = parseInt(String(niveau || "").replace(/\D/g, ""), 10) || 0;
+    if (rang >= 5) {
+      return "grand";
+    }
+    if (rang >= 3) {
+      return "moyen";
+    }
+    return "petit";
+  }
+
+  /* Niveau scolaire courant (CE1..CE6) pour choisir le registre, ou "" -> petit. */
+  function messagePourNiveau(table) {
+    const niveau =
+      (typeof window !== "undefined" && window.ParcoursApp?.getSessionLevel?.()) || "";
+    return table[trancheAge(niveau)] || table.petit;
+  }
 
   function seuilsPourNiveau(niveau) {
     return niveau >= 3 ? THRESHOLDS.autonome : THRESHOLDS.standard;
@@ -126,7 +156,7 @@
       return;
     }
     window.clearTimeout(hideTimer);
-    bubble.textContent = BUBBLE_MESSAGE;
+    bubble.textContent = messagePourNiveau(BUBBLE_MESSAGES);
     bubble.classList.remove("hidden");
     owl.classList.add("tutor-attention");
     /* La bulle s'efface seule si l'eleve l'ignore ; l'aide reste
@@ -136,7 +166,7 @@
 
   function acceptProposal() {
     hideProposal();
-    window.ParcoursChat?.openWithGreeting?.(GREETING_MESSAGE);
+    window.ParcoursChat?.openWithGreeting?.(messagePourNiveau(GREETING_MESSAGES));
     document.getElementById("chat-input")?.focus();
   }
 
@@ -177,7 +207,7 @@
       const bubble = bubbleNode();
       if (bubble && !bubble.classList.contains("hidden")) {
         hideProposal();
-        window.ParcoursChat?.appendAssistant?.(GREETING_MESSAGE);
+        window.ParcoursChat?.appendAssistant?.(messagePourNiveau(GREETING_MESSAGES));
       }
     });
   }

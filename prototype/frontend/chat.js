@@ -17,8 +17,11 @@ const CAUSE = {
   INCONNUE: "inconnue",
 };
 
-/* Un message par cause : phrases courtes, vocabulaire CE1/CE2, et
-   surtout l'action que l'enfant peut faire lui-meme. */
+/* Un message par cause, DECLINE par tranche d'age (meme principe que
+   tutor.construire_system_instruction cote backend) : seul le registre de
+   langue change, l'action a faire et le mot-cle (Internet / recharge / attends
+   / carte / réessaie) restent identiques. La table par defaut ci-dessous est
+   le registre CE1/CE2 (le plus accompagne) ; c'est aussi le repli. */
 const MESSAGES_ERREUR = {
   [CAUSE.RESEAU]:
     "Hou hou ? Je n'arrive plus à te répondre : la connexion est coupée. " +
@@ -37,6 +40,57 @@ const MESSAGES_ERREUR = {
     "Réessaie dans un petit moment, je reste avec toi.",
 };
 
+/* Registre CE3/CE4 : ton pose, un peu plus riche, sans etre bebe. */
+const MESSAGES_ERREUR_MOYEN = {
+  [CAUSE.RESEAU]:
+    "Je n'arrive plus à te répondre : la connexion Internet est coupée. " +
+    "Vérifie Internet, puis repose-moi ta question.",
+  [CAUSE.SESSION]:
+    "On ne regarde plus le même exercice. " +
+    "Recharge la page et je te retrouve au bon endroit.",
+  [CAUSE.IA_INDISPONIBLE]:
+    "Je n'arrive pas à réfléchir juste là. " +
+    "Attends un petit moment et redemande-moi.",
+  [CAUSE.SANS_EXERCICE]:
+    "Aucun exercice n'est ouvert. " +
+    "Choisis une étape sur la carte et je pourrai t'aider.",
+  [CAUSE.INCONNUE]:
+    "Quelque chose ne marche pas de mon côté. " +
+    "Réessaie dans un moment, je reste avec toi.",
+};
+
+/* Registre CE5/CE6 : ton respectueux, sans infantiliser. */
+const MESSAGES_ERREUR_GRAND = {
+  [CAUSE.RESEAU]:
+    "Impossible de te répondre : la connexion Internet est interrompue. " +
+    "Vérifie ta connexion, puis pose à nouveau ta question.",
+  [CAUSE.SESSION]:
+    "Ta session n'est plus synchronisée avec cet exercice. " +
+    "Recharge la page pour reprendre au bon endroit.",
+  [CAUSE.IA_INDISPONIBLE]:
+    "Le service d'aide est momentanément indisponible. " +
+    "Attends un instant, puis renouvelle ta demande.",
+  [CAUSE.SANS_EXERCICE]:
+    "Aucun exercice n'est ouvert pour l'instant. " +
+    "Sélectionne une étape sur la carte et je pourrai t'aider.",
+  [CAUSE.INCONNUE]:
+    "Un problème est survenu de mon côté. " +
+    "Réessaie dans un instant.",
+};
+
+/* Tranche d'age depuis le niveau scolaire (CE1..CE6), memes bornes que le
+   backend : petit = CE1/CE2, moyen = CE3/CE4, grand = CE5/CE6. */
+function trancheAge(niveau) {
+  const rang = parseInt(String(niveau || "").replace(/\D/g, ""), 10) || 0;
+  if (rang >= 5) {
+    return "grand";
+  }
+  if (rang >= 3) {
+    return "moyen";
+  }
+  return "petit";
+}
+
 /* Statut HTTP du backend -> cause.
    404 (session introuvable, ex. serveur redemarre) et 409 (exercice
    courant invalide) se reglent tous deux en rechargeant la page.
@@ -51,8 +105,19 @@ function causeDepuisStatut(status) {
   return CAUSE.INCONNUE;
 }
 
-function messageErreurTuteur(cause) {
-  return MESSAGES_ERREUR[cause] || MESSAGES_ERREUR[CAUSE.INCONNUE];
+/* Message d'erreur adapte a l'age (registre) ; niveau optionnel -> registre
+   CE1/CE2 par defaut, qui sert aussi de repli pour une cause inconnue. */
+function messageErreurTuteur(cause, niveau) {
+  const tranche = trancheAge(niveau);
+  const table =
+    tranche === "grand" ? MESSAGES_ERREUR_GRAND : tranche === "moyen" ? MESSAGES_ERREUR_MOYEN : MESSAGES_ERREUR;
+  return table[cause] || MESSAGES_ERREUR[CAUSE.INCONNUE];
+}
+
+/* Niveau scolaire de la session en cours (pour choisir le registre), ou "" si
+   indisponible (registre CE1/CE2 par defaut). */
+function niveauScolaireCourant() {
+  return (typeof window !== "undefined" && window.ParcoursApp?.getSessionLevel?.()) || "";
 }
 
 /* Erreur portant sa cause : le detail technique reste disponible pour
@@ -125,7 +190,7 @@ function appendMessage(text, role) {
    ne pas etre confondu avec une explication de l'exercice. */
 function appendError(cause, detail) {
   console.warn(`[tuteur] echec (${cause}) :`, detail || "sans detail");
-  appendMessage(`Tuteur : ${messageErreurTuteur(cause)}`, "assistant tutor-error");
+  appendMessage(`Tuteur : ${messageErreurTuteur(cause, niveauScolaireCourant())}`, "assistant tutor-error");
 }
 
 function ensureOpen() {
