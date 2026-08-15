@@ -65,21 +65,16 @@
     return token === "cent" || WORD_VALUES[token] !== undefined;
   }
 
-  /* Convertit une transcription en nombre entier, ou null si aucun nombre
-     exploitable. Accepte aussi les chiffres deja ecrits ("12"). */
-  function convertirTranscription(texte) {
-    const digits = String(texte).match(/-?\d+/);
-    if (digits) {
-      return parseInt(digits[0], 10);
-    }
-
+  /* Convertit une suite de mots-nombres francais en entier, ou null si aucun
+     nombre exploitable (premiere sequence contigue rencontree). */
+  function convertirMots(texte) {
     let norm = normaliser(texte)
       .replace(/\bvingts\b/g, "vingt")
       .replace(/\bcents\b/g, "cent");
     for (const [phrase, alias] of COMPOUND_TENS) {
       norm = norm.split(phrase).join(alias);
     }
-    const tokens = norm.split(" ");
+    const tokens = norm.split(" ").filter(Boolean);
 
     /* Premiere sequence contigue de mots-nombres ("la reponse est douze"). */
     let index = 0;
@@ -114,6 +109,34 @@
       consomme = true;
     }
     return consomme ? valeur : null;
+  }
+
+  /* Convertit une transcription en reponse chiffree, ou null si rien
+     d'exploitable. Un ENTIER est renvoye comme nombre (ex. 42) ; un DECIMAL
+     comme chaine a virgule francaise (ex. "3,5"), directement utilisable dans
+     le champ de reponse et accepte par l'evaluation (virgule ou point).
+     Gere : chiffres deja ecrits ("12", "3,5", "3.5") et nombres parles, y
+     compris "trois virgule cinq". */
+  function convertirTranscription(texte) {
+    const chiffres = String(texte).match(/-?\d+(?:[.,]\d+)?/);
+    if (chiffres) {
+      const brut = chiffres[0];
+      return /[.,]/.test(brut) ? brut.replace(".", ",") : parseInt(brut, 10);
+    }
+
+    const norm = normaliser(texte);
+    if (/\bvirgule\b/.test(norm)) {
+      const [gauche, droite = ""] = norm.split(/\bvirgule\b/);
+      const entier = convertirMots(gauche);
+      const frac = convertirMots(droite);
+      if (entier === null) {
+        return null;
+      }
+      /* Partie decimale inexploitable : on rend au moins la partie entiere. */
+      return frac === null ? entier : `${entier},${frac}`;
+    }
+
+    return convertirMots(texte);
   }
 
   /* ---------- Reconnaissance vocale (navigateur uniquement) ---------- */

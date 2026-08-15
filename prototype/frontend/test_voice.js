@@ -36,6 +36,13 @@ const CASES = [
   ["la réponse est 42", 42],
   ["je crois que c'est quarante-deux", 42],
   ["euh quatre-vingt-dix je pense", 90],
+  /* decimaux : chaine a virgule francaise (entier reste un nombre) */
+  ["trois virgule cinq", "3,5"],
+  ["douze virgule quatre", "12,4"],
+  ["trois virgule vingt-cinq", "3,25"],
+  ["3,5", "3,5"],
+  ["3.5", "3,5"],
+  ["la réponse est 12,4", "12,4"],
   /* aucun nombre exploitable */
   ["je ne sais pas", null],
   ["", null],

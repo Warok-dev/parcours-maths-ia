@@ -1714,6 +1714,15 @@ function renderExerciseModal() {
   const mechanic = window.ParcoursMechanics
     ? window.ParcoursMechanics.choose(exercise, state.session.concept_index || 0)
     : "clavier";
+  /* Saisie clavier adaptee au format de reponse. Sur tablette, inputmode
+     "numeric" empechait de taper la virgule (decimaux) ou x/= (expressions) :
+     on ouvre le bon clavier tactile selon le format. */
+  const answerFormat = exercise.reponse_attendue?.format || "nombre_entier";
+  const answerInputMode =
+    answerFormat === "decimal" ? "decimal" : answerFormat === "expression" ? "text" : "numeric";
+  /* Le micro ne convertit que des nombres (entiers/decimaux) : on le masque
+     pour les autres formats (expressions), qu'il ne saurait pas dicter. */
+  const micUtile = answerFormat === "nombre_entier" || answerFormat === "decimal";
   const resolutionKey = state.session.presentation_courante;
   const details = exercise.presentations?.[resolutionKey] || {};
   const steps = (details.etapes_methode || []).map((step) => `<li>${step}</li>`).join("");
@@ -1781,8 +1790,10 @@ function renderExerciseModal() {
           mechanic === "clavier"
             ? `<label for="answer-input">Ta réponse</label>
                <div class="answer-row">
-                 <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="numeric" />
-                 <button id="mic-button" class="mic-button" type="button" aria-label="Répondre à la voix" title="Réponds à la voix">
+                 <input id="answer-input" name="answer" type="text" autocomplete="off" inputmode="${answerInputMode}" />
+                 ${
+                   micUtile
+                     ? `<button id="mic-button" class="mic-button" type="button" aria-label="Répondre à la voix" title="Réponds à la voix">
                    <svg viewBox="0 0 32 32" aria-hidden="true">
                      <rect x="12" y="4" width="8" height="15" rx="4" fill="currentColor"></rect>
                      <path d="M8 15 a 8 8 0 0 0 16 0" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path>
@@ -1790,9 +1801,11 @@ function renderExerciseModal() {
                      <line x1="11" y1="27" x2="21" y2="27" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></line>
                    </svg>
                    <span class="mic-pulse" aria-hidden="true"></span>
-                 </button>
+                 </button>`
+                     : ""
+                 }
                </div>
-               <p id="mic-status" class="mic-status"></p>`
+               ${micUtile ? `<p id="mic-status" class="mic-status"></p>` : ""}`
             : `<input id="answer-input" name="answer" type="hidden" />
                <div id="mechanic-area" class="mechanic-area"></div>`
         }
