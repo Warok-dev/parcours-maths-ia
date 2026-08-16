@@ -19,7 +19,7 @@ import io
 import json
 import logging
 import secrets
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
 import bcrypt
@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 import database
 import export_excel
 import notifications
-from rate_limit import LIMITE_AUTH, LIMITE_IA, limite
+from rate_limit import LIMITE_AUTH, LIMITE_DEMO, LIMITE_IA, limite
 from database import (
     ROLE_ADMINISTRATEUR,
     ROLE_ENSEIGNANT,
@@ -67,6 +67,39 @@ NIVEAUX = set(database.NIVEAUX_SCOLAIRES)
 # Confirmation litterale exigee pour un effacement definitif d'eleve (le corps
 # de la requete doit contenir exactement ce mot : evite un DELETE accidentel).
 CONFIRMATION_SUPPRESSION_ELEVE = "SUPPRIMER"
+
+# --- Mode demo / bac a sable ---
+# Duree de vie d'une ecole de demonstration : passe ce delai, le nettoyage au
+# demarrage la purge en cascade. 48h laisse le temps d'explorer sur deux jours.
+DEMO_DUREE_HEURES = 48
+DEMO_ECOLE_NOM = "Ecole de demonstration"
+# Classes de demo : un niveau facile et un niveau plus avance, pour montrer que
+# le meme tableau de bord sert du CE1 au CE6.
+DEMO_CLASSES = (
+    ("CE1", "CE1 - Les Explorateurs"),
+    ("CE4", "CE4 - Les Batisseurs"),
+)
+# Eleves fictifs semes dans CHAQUE classe de demo, avec un PROFIL de maitrise
+# volontairement contraste pour que le tableau de bord, les concepts difficiles
+# et les rapports IA soient parlants d'entree :
+#  - "fort"       : presque tout acquis (maitrise 3) ;
+#  - "moyen"      : majoritairement en bonne voie (2), quelques acquis/fragilites ;
+#  - "fragile"    : plusieurs concepts a retravailler (1), retravailles en vain
+#                   -> declenche l'alerte de blocage (nb_tentatives eleve) ;
+#  - "irregulier" : acquis et fragilites en alternance.
+_PROFILS_ELEVES_DEMO = (
+    ("Lea", "fort"),
+    ("Gabriel", "moyen"),
+    ("Sofia", "fragile"),
+    ("Adam", "irregulier"),
+    ("Jade", "moyen"),
+)
+# Au plus ce nombre de concepts par eleve : assez pour etre demonstratif, sans
+# noyer le tableau de bord.
+DEMO_MAX_CONCEPTS = 6
+# nb_tentatives seme selon la maitrise : un concept "a retravailler" (1) a ete
+# retente plusieurs fois (>= seuil de blocage cote notifications) -> alerte.
+_TENTATIVES_PAR_MAITRISE = {1: 3, 2: 2, 3: 1}
 
 # --- Tokens opaques cote serveur (en memoire) ---
 _TOKENS_ENSEIGNANT: dict[str, int] = {}  # token -> enseignant_id
@@ -323,6 +356,60 @@ def _creer_ecole(db: Session, nom: str | None) -> Ecole:
     return ecole
 
 
+def _en_utc(dt: datetime) -> datetime:
+    """Normalise une date en UTC. SQLite peut relire une colonne DateTime sans
+    fuseau (naive) : on la considere alors comme deja UTC (c'est ainsi qu'on
+    l'ecrit). Evite de comparer un naive a un aware (TypeError)."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def _effacer_ecole_en_cascade(db: Session, ecole: Ecole) -> tuple[int, int]:
+    """Efface une ecole et TOUTES ses donnees liees (enseignants, classes,
+    eleves, progressions, assignations, personnages, invitations) via la cascade
+    ON DELETE, plus les sessions de jeu de ses eleves (que la FK SET NULL
+    laisserait persister, anonymes) — pour ne laisser AUCUNE trace.
+
+    Renvoie (nb_enseignants, nb_eleves) comptes AVANT suppression (pour la
+    journalisation). Commit inclus. NE gere PAS l'invalidation des tokens ni le
+    journal : l'appelant (endpoint admin ou purge des demos) s'en charge, car
+    les deux n'ont pas les memes traces a produire. Source unique de la logique
+    de suppression d'ecole, partagee par le droit a l'effacement et la purge des
+    demos expirees."""
+    # Sessions de jeu des eleves de l'ecole : la FK SET NULL les rendrait
+    # anonymes mais persistantes ; on les efface explicitement.
+    eleve_ids = select(Eleve.id).join(Classe, Eleve.classe_id == Classe.id).where(
+        Classe.ecole_id == ecole.id
+    )
+    db.execute(delete(SessionJeu).where(SessionJeu.eleve_id.in_(eleve_ids)))
+    nb_enseignants = db.scalar(
+        select(func.count()).select_from(Enseignant).where(Enseignant.ecole_id == ecole.id)
+    )
+    nb_eleves = db.scalar(
+        select(func.count()).select_from(Eleve).join(Classe, Eleve.classe_id == Classe.id)
+        .where(Classe.ecole_id == ecole.id)
+    )
+    db.delete(ecole)  # cascade : enseignants -> classes -> eleves -> progressions...
+    db.commit()
+    return nb_enseignants or 0, nb_eleves or 0
+
+
+def _enseignant_public(enseignant: Enseignant) -> dict:
+    """Representation renvoyee au frontend a la connexion / en mode demo. Porte
+    le statut demo de l'ecole (est_demo + expire_le) : c'est ce qui permet a
+    l'espace enseignant d'afficher le bandeau "Mode demo — expire dans X heures",
+    quelle que soit la porte d'entree (bouton demo OU connexion classique du
+    compte de demo avec ses identifiants). Une ecole reelle renvoie est_demo=false
+    et expire_le=null (aucun bandeau)."""
+    ecole = enseignant.ecole
+    return {
+        "id": enseignant.id,
+        "nom": enseignant.nom,
+        "role": enseignant.role,
+        "est_demo": bool(ecole.est_demo),
+        "expire_le": ecole.expire_le.isoformat() if ecole.expire_le else None,
+    }
+
+
 def _classe_de_l_enseignant(db: Session, classe_id: int, enseignant: Enseignant) -> Classe:
     """Recupere une classe en garantissant qu'elle appartient a l'enseignant.
 
@@ -447,8 +534,215 @@ def connexion_enseignant(
     _TOKENS_ENSEIGNANT[token] = enseignant.id
     return {
         "token": token,
-        "enseignant": {"id": enseignant.id, "nom": enseignant.nom, "role": enseignant.role},
+        "enseignant": _enseignant_public(enseignant),
     }
+
+
+# ============================================================
+#  MODE DEMO / BAC A SABLE (public, sans authentification)
+#  Un visiteur cree en un clic une ecole de DEMONSTRATION, isolee comme
+#  n'importe quelle ecole reelle (meme multi-tenancy), pre-remplie de donnees
+#  variees, et effacee automatiquement apres DEMO_DUREE_HEURES.
+# ============================================================
+def _maitrise_profil(profil: str, index: int) -> int:
+    """Maitrise (1-3) a semer pour le concept n°`index` d'un eleve au profil
+    donne. Deterministe (un profil produit toujours la meme silhouette), mais
+    les profils different entre eux -> classe heterogene, donc tableau de bord
+    parlant."""
+    if profil == "fort":
+        return 2 if index % 5 == 0 else 3
+    if profil == "moyen":
+        return (3, 2, 2, 3, 1)[index % 5]
+    if profil == "fragile":
+        return (1, 2, 1, 1, 2)[index % 5]
+    if profil == "irregulier":
+        return (3, 1, 3, 2, 1)[index % 5]
+    return 2
+
+
+def _concepts_demo_pour_niveau(niveau: str) -> list[tuple[str, str]]:
+    """Liste (lecon_id, pattern_name) a semer pour une classe de ce niveau,
+    tronquee a DEMO_MAX_CONCEPTS. S'appuie sur les VRAIES lecons/patterns
+    generables du niveau (import paresseux de main, comme _valider_cibles_
+    assignation) : les concepts semes sont donc coherents avec le jeu (une
+    revision ciblee sur ces concepts serait reellement jouable)."""
+    import main  # lazy : evite l'import circulaire main <-> comptes
+
+    concepts: list[tuple[str, str]] = []
+    for lecon in main._available_lessons_for_level(niveau):
+        for pattern in lecon["patterns"]:
+            concepts.append((lecon["lecon_id"], pattern))
+            if len(concepts) >= DEMO_MAX_CONCEPTS:
+                return concepts
+    return concepts
+
+
+def _code_classe_demo_unique(db: Session, niveau: str) -> str:
+    """Code de classe non encore utilise (verification prealable, plus simple
+    qu'un retry sur IntegrityError au sein de la grosse transaction de seeding).
+    La contrainte SQL reste le garde-fou ultime."""
+    for _ in range(50):
+        code = generer_code_classe(niveau)
+        if not db.scalar(select(Classe.id).where(Classe.code_classe == code)):
+            return code
+    raise HTTPException(status_code=500, detail="Impossible de generer un code de classe unique.")
+
+
+def _identifiant_demo_unique(db: Session) -> str:
+    """Identifiant d'enseignant de demo non encore pris (ex. 'demo-1a2b3c4d')."""
+    for _ in range(50):
+        ident = f"demo-{secrets.token_hex(4)}"
+        if not db.scalar(select(Enseignant.id).where(Enseignant.identifiant == ident)):
+            return ident
+    raise HTTPException(status_code=500, detail="Impossible de generer un identifiant de demo unique.")
+
+
+def _semer_classe_demo(
+    db: Session, enseignant: Enseignant, niveau: str, nom_classe: str, maintenant: datetime
+) -> Classe:
+    """Cree une classe de demo peuplee d'eleves fictifs aux progressions variees.
+    Les eleves recoivent un PIN et un code parent haches (comme a la creation
+    reelle) pour que toutes les vues (roster, connexion eleve, portail parent)
+    fonctionnent sur la demo. Ne commit pas : l'appelant gere la transaction."""
+    classe = Classe(
+        enseignant_id=enseignant.id,
+        ecole_id=enseignant.ecole_id,  # invariant : la classe herite de l'ecole
+        nom=nom_classe,
+        niveau_scolaire=niveau,
+        code_classe=_code_classe_demo_unique(db, niveau),
+    )
+    db.add(classe)
+    db.flush()
+
+    concepts = _concepts_demo_pour_niveau(niveau)
+    for prenom, profil in _PROFILS_ELEVES_DEMO:
+        eleve = Eleve(
+            classe_id=classe.id,
+            prenom=prenom,
+            pin_hash=hash_mot_de_passe(generer_pin()),
+            code_parent_hash=hash_code_parent(generer_code_parent()),
+        )
+        db.add(eleve)
+        db.flush()
+        for index, (lecon_id, pattern) in enumerate(concepts):
+            maitrise = _maitrise_profil(profil, index)
+            db.add(
+                Progression(
+                    eleve_id=eleve.id,
+                    pattern_name=pattern,
+                    lecon_id=lecon_id,
+                    maitrise=maitrise,
+                    nb_tentatives=_TENTATIVES_PAR_MAITRISE[maitrise],
+                    # Etale sur les derniers jours (< 7) : l'activite tombe dans
+                    # la fenetre du resume hebdomadaire -> notifications parlantes.
+                    date_derniere_tentative=maintenant - timedelta(days=index % 6),
+                )
+            )
+    return classe
+
+
+@router.post("/demo/creer", status_code=201)
+def creer_demo(
+    db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_DEMO, "creer_demo"))] = None,
+) -> dict:
+    """Cree une ECOLE DE DEMONSTRATION complete et connecte immediatement
+    l'appelant (token renvoye, comme une connexion). L'ecole est marquee
+    est_demo=true avec une expiration (DEMO_DUREE_HEURES), possede un compte
+    administrateur aux identifiants generes (renvoyes pour une reconnexion
+    ulterieure), et est semee de classes/eleves aux progressions variees pour
+    que le tableau de bord et les rapports IA soient demonstratifs d'entree.
+
+    Public (pas d'auth) mais limite par IP (LIMITE_DEMO) : on n'inonde pas la
+    base de fausses ecoles. L'isolation multi-tenant est la meme que pour une
+    ecole reelle (rien de special : ecole_id/enseignant_id cloisonnent tout)."""
+    maintenant = datetime.now(timezone.utc)
+    ecole = Ecole(
+        nom=DEMO_ECOLE_NOM,
+        est_demo=True,
+        expire_le=maintenant + timedelta(hours=DEMO_DUREE_HEURES),
+    )
+    db.add(ecole)
+    db.flush()
+
+    identifiant = _identifiant_demo_unique(db)
+    mot_de_passe = secrets.token_urlsafe(9)
+    admin = Enseignant(
+        ecole=ecole,
+        nom="Enseignant de demo",
+        identifiant=identifiant,
+        mot_de_passe_hash=hash_mot_de_passe(mot_de_passe),
+        role=ROLE_ADMINISTRATEUR,  # 1er (et seul) compte de l'ecole -> admin
+    )
+    db.add(admin)
+    db.flush()
+
+    for niveau, nom_classe in DEMO_CLASSES:
+        _semer_classe_demo(db, admin, niveau, nom_classe, maintenant)
+
+    db.commit()
+    db.refresh(admin)
+    db.refresh(ecole)
+
+    # Connexion immediate : on delivre un token comme /enseignant/connexion.
+    token = secrets.token_urlsafe(32)
+    _TOKENS_ENSEIGNANT[token] = admin.id
+    logger.info(
+        "Creation demo ecole id=%s (expire %s) admin id=%s (%s)",
+        ecole.id, ecole.expire_le.isoformat(), admin.id, identifiant,
+    )
+    return {
+        "token": token,
+        "enseignant": _enseignant_public(admin),
+        # Identifiants renvoyes une fois : permettent de se reconnecter a la demo
+        # (le token en memoire saute au redemarrage du serveur).
+        "identifiants": {"identifiant": identifiant, "mot_de_passe": mot_de_passe},
+        "ecole": {
+            "id": ecole.id,
+            "nom": ecole.nom,
+            "est_demo": True,
+            "expire_le": ecole.expire_le.isoformat(),
+        },
+    }
+
+
+def purger_ecoles_demo_expirees(db: Session | None = None) -> int:
+    """Supprime en cascade toute ecole de DEMO dont expire_le est depasse.
+    N'affecte JAMAIS une ecole reelle (est_demo=false) ni une demo encore
+    valide. Renvoie le nombre d'ecoles purgees.
+
+    Appelee au demarrage du serveur (comme le nettoyage des vieux fichiers de
+    session). `db` est injectable pour les tests ; sinon une session est ouverte
+    sur l'engine par defaut. Reutilise le helper de suppression d'ecole partage
+    avec le droit a l'effacement (cascade complete + sessions de jeu)."""
+    proprietaire = db is None
+    session = db or database.SessionLocal()
+    try:
+        maintenant = datetime.now(timezone.utc)
+        # On filtre l'expiration en Python (via _en_utc) pour eviter toute
+        # subtilite de comparaison de dates naive/aware au niveau SQLite.
+        candidates = session.scalars(select(Ecole).where(Ecole.est_demo.is_(True))).all()
+        expirees = [
+            e for e in candidates
+            if e.expire_le is not None and _en_utc(e.expire_le) < maintenant
+        ]
+        n = 0
+        for ecole in expirees:
+            ecole_id, nom = ecole.id, ecole.nom
+            # Tokens des enseignants de la demo (a invalider apres suppression).
+            enseignant_ids = session.scalars(
+                select(Enseignant.id).where(Enseignant.ecole_id == ecole.id)
+            ).all()
+            _effacer_ecole_en_cascade(session, ecole)
+            for eid in enseignant_ids:
+                for tok in [t for t, v in _TOKENS_ENSEIGNANT.items() if v == eid]:
+                    _TOKENS_ENSEIGNANT.pop(tok, None)
+            logger.info("Purge demo expiree id=%s nom=%r", ecole_id, nom)
+            n += 1
+        return n
+    finally:
+        if proprietaire:
+            session.close()
 
 
 # ============================================================
@@ -608,25 +902,12 @@ def supprimer_ecole_definitivement(
             detail="Confirmation requise : renvoyez le nom exact de l'ecole pour la supprimer.",
         )
 
-    # Sessions de jeu des eleves de l'ecole : FK SET NULL les laisserait
-    # persister (anonymes) ; on les efface pour ne laisser aucune trace.
-    eleve_ids = select(Eleve.id).join(Classe, Eleve.classe_id == Classe.id).where(
-        Classe.ecole_id == ecole.id
-    )
-    db.execute(delete(SessionJeu).where(SessionJeu.eleve_id.in_(eleve_ids)))
-    # Compte informatif pour le journal (avant suppression).
-    nb_enseignants = db.scalar(
-        select(func.count()).select_from(Enseignant).where(Enseignant.ecole_id == ecole.id)
-    )
-    nb_eleves = db.scalar(
-        select(func.count()).select_from(Eleve).join(Classe, Eleve.classe_id == Classe.id)
-        .where(Classe.ecole_id == ecole.id)
-    )
+    # Capture des infos AVANT suppression (l'objet ecole devient inutilisable
+    # apres). La cascade (sessions comprises) est deleguee au helper partage.
     nom = ecole.nom
     ecole_id = ecole.id
     admin_id, admin_ident = admin.id, admin.identifiant
-    db.delete(ecole)  # cascade : enseignants -> classes -> eleves -> progressions...
-    db.commit()
+    nb_enseignants, nb_eleves = _effacer_ecole_en_cascade(db, ecole)
     # Le compte admin lui-meme vient d'etre supprime : on invalide ses tokens.
     for tok in [t for t, eid in _TOKENS_ENSEIGNANT.items() if eid == admin_id]:
         _TOKENS_ENSEIGNANT.pop(tok, None)

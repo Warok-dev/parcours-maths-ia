@@ -91,6 +91,18 @@ class Ecole(Base):
     date_creation: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+    # Marqueur d'ecole de DEMONSTRATION (bac a sable public cree en un clic).
+    # Une ecole REELLE ne porte JAMAIS ce marqueur : il n'est mis que par
+    # l'endpoint /demo/creer. C'est lui qui autorise la purge automatique.
+    est_demo: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    # Date d'expiration, renseignee UNIQUEMENT pour les ecoles de demo (NULL
+    # pour une ecole reelle, qui n'expire jamais). Passe cette date, le nettoyage
+    # au demarrage purge l'ecole en cascade (comme les vieux fichiers de session).
+    expire_le: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     enseignants: Mapped[list["Enseignant"]] = relationship(
         back_populates="ecole", cascade="all, delete-orphan", passive_deletes=True
@@ -405,6 +417,19 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
     Idempotent : on n'ajoute que ce qui manque."""
     inspector = inspect(eng)
     tables = set(inspector.get_table_names())
+    if "ecole" in tables:
+        colonnes = {c["name"] for c in inspector.get_columns("ecole")}
+        if "est_demo" not in colonnes:
+            # Colonne avec defaut : SQLite l'accepte sur une table peuplee. Les
+            # ecoles existantes sont REELLES (est_demo=0), jamais des demos.
+            with eng.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE ecole ADD COLUMN est_demo BOOLEAN NOT NULL DEFAULT 0")
+                )
+        if "expire_le" not in colonnes:
+            # Nullable, sans defaut : les ecoles reelles restent sans expiration.
+            with eng.begin() as conn:
+                conn.execute(text("ALTER TABLE ecole ADD COLUMN expire_le DATETIME"))
     if "eleve" in tables:
         colonnes = {c["name"] for c in inspector.get_columns("eleve")}
         if "pin_hash" not in colonnes:

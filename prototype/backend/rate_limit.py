@@ -41,6 +41,7 @@ from starlette.responses import JSONResponse
 LIMITE_GENERALE = "60/minute"  # usage normal intensif (eleve qui enchaine)
 LIMITE_AUTH = "10/minute"  # PIN eleve, code parent, mot de passe enseignant (anti force brute)
 LIMITE_IA = "20/minute"  # endpoints appelant les fournisseurs IA / TTS (anti sur-consommation quota)
+LIMITE_DEMO = "3/hour"  # creation d'ecoles de demo (anti abus : eviter de remplir la base)
 
 # Limiteur slowapi : porte UNIQUEMENT la limite generale, appliquee via
 # SlowAPIMiddleware. `enabled` pilote AUSSI les limites strictes ci-dessous.

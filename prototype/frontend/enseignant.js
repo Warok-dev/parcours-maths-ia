@@ -176,6 +176,23 @@
     return enseignant;
   }
 
+  /* Mode demo : cree une ecole de demonstration pre-remplie cote backend et
+     connecte immediatement l'appelant dessus (le backend renvoie un token,
+     comme une connexion). L'objet enseignant porte est_demo/expire_le : le
+     tableau de bord affichera alors son bandeau "Mode démo". */
+  async function demarrerDemo() {
+    const reponse = await appel("/demo/creer", { method: "POST" });
+    token = reponse.token;
+    enseignant = reponse.enseignant;
+    ecrireStockage({ token, enseignant });
+    afficherEcran();
+    if (window.location.hash !== "#enseignant") {
+      window.location.hash = "enseignant";
+    }
+    await vueDashboard();
+    return enseignant;
+  }
+
   async function chargerClasses() {
     const reponse = await appel("/classe", { method: "GET" });
     classes = reponse.classes || [];
@@ -367,6 +384,35 @@
     return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   }
 
+  /* Nombre d'heures (arrondi au superieur) avant l'expiration d'une demo, ou 0
+     si la date est passee/invalide. Sert au libelle du bandeau. */
+  function heuresRestantes(iso) {
+    const fin = new Date(iso).getTime();
+    if (Number.isNaN(fin)) {
+      return 0;
+    }
+    return Math.max(0, Math.ceil((fin - Date.now()) / 3600000));
+  }
+
+  /* Bandeau discret mais visible rappelant qu'on est sur un COMPTE DE DEMO
+     ephemere. Vide (aucun bandeau) pour un vrai compte. */
+  function bandeauDemoMarkup() {
+    if (!enseignant?.est_demo || !enseignant.expire_le) {
+      return "";
+    }
+    const restant = heuresRestantes(enseignant.expire_le);
+    const echeance =
+      restant > 0
+        ? `expire dans ${restant} heure${restant > 1 ? "s" : ""}`
+        : "expiration imminente";
+    return `
+      <div class="teacher-demo-banner" role="status">
+        <span class="teacher-demo-badge">Mode démo</span>
+        <span class="teacher-demo-text">Compte de démonstration (${echeance}) — les données sont fictives et seront effacées automatiquement.</span>
+      </div>
+    `;
+  }
+
   /* Libelle lisible d'un concept : on reutilise ceux du carnet eleve quand il
      est charge, sinon un repli lisible (underscores -> espaces). */
   function libelleConcept(pattern) {
@@ -518,6 +564,7 @@
       : `<p class="menu-lead">Aucune classe pour l'instant. Crée ta première classe ci-dessous.</p>`;
 
     body.innerHTML = `
+      ${bandeauDemoMarkup()}
       ${entete}
       <div class="teacher-classes">${cartes}</div>
       <form id="ens-creer-classe" class="teacher-create login-form" autocomplete="off">
@@ -1436,6 +1483,7 @@
 
   window.ParcoursEnseignant = {
     ouvrir,
+    demarrerDemo,
     demandeParURL,
     estConnecte: () => Boolean(token),
     getToken: () => token,

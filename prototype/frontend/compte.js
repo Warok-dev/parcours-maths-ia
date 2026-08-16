@@ -199,6 +199,9 @@
         <button id="login-parent" class="ghost-button login-enseignant-lien" type="button">
           Espace parent
         </button>
+        <button id="login-demo" class="ghost-button login-enseignant-lien login-demo-lien" type="button">
+          &#129514; Essayer une démo
+        </button>
       </div>
     `;
     loginBody.querySelector("#login-rejoindre").addEventListener("click", rendreSaisieCode);
@@ -208,6 +211,23 @@
     });
     loginBody.querySelector("#login-parent").addEventListener("click", () => {
       window.ParcoursParent?.ouvrir?.();
+    });
+    loginBody.querySelector("#login-demo").addEventListener("click", async (event) => {
+      /* Bac a sable en un clic : cree une ecole de demo pre-remplie et ouvre
+         l'espace enseignant deja connecte dessus. */
+      const bouton = event.currentTarget;
+      bouton.disabled = true;
+      setStatut("Préparation de votre démonstration...");
+      try {
+        await window.ParcoursEnseignant?.demarrerDemo?.();
+      } catch (error) {
+        bouton.disabled = false;
+        setStatut(
+          error?.status === 429
+            ? "Trop de démos créées récemment. Réessayez dans un moment."
+            : `Impossible de créer la démo : ${error?.message || error}`,
+        );
+      }
     });
   }
 

@@ -5048,6 +5048,40 @@ select.teacher-input {
   margin-top: 18px;
 }
 
+/* Bandeau "Mode démo" : discret mais toujours visible en tete du tableau de
+   bord quand le compte connecte est une demonstration ephemere. */
+.teacher-demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 9px 14px;
+  border: 1px solid #e8b34a;
+  border-left: 4px solid #e8703a;
+  border-radius: 10px;
+  background: #fff5e2;
+  color: #7a4a12;
+  font-size: 0.92rem;
+}
+
+.teacher-demo-badge {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #e8703a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.teacher-demo-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .teacher-topbar {
   display: flex;
   align-items: center;
@@ -5580,6 +5614,24 @@ select.teacher-input {
 
 .login-liens-adultes .login-enseignant-lien {
   margin-top: 0;
+}
+
+/* "Essayer une démo" : mis en avant parmi les liens adultes (fond plein) pour
+   inviter un visiteur a tester sans creer de compte. */
+.login-demo-lien {
+  background: #e8703a;
+  color: #fff;
+  border-color: #cf5a29;
+  font-weight: 600;
+}
+
+.login-demo-lien:hover:not(:disabled) {
+  background: #d5602c;
+}
+
+.login-demo-lien:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 /* ============================================================

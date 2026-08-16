@@ -129,6 +129,9 @@ def _demarrage() -> None:
     idempotent) et active le rate limiting (le lifespan ne s'ouvre pas pendant
     les tests, qui restent donc non brides)."""
     init_db()
+    # La base existe maintenant : on peut purger les ecoles de demo expirees
+    # (definie plus bas ; resolue au moment de l'appel, au demarrage reel).
+    _cleanup_demos_expirees()
     activer_selon_env()
 
 
@@ -237,6 +240,26 @@ def _cleanup_old_sessions() -> None:
                 path.unlink()
         except OSError:
             pass
+
+
+def _cleanup_demos_expirees() -> None:
+    """Au demarrage : purge en cascade les ecoles de demo expirees (meme
+    principe que le nettoyage des vieux fichiers de session). Ne touche jamais
+    une ecole reelle ni une demo encore valide. Tolerant aux pannes : un echec
+    (base pas encore prete, etc.) ne doit pas empecher le serveur de demarrer."""
+    from comptes import purger_ecoles_demo_expirees
+
+    try:
+        n = purger_ecoles_demo_expirees()
+        if n:
+            logging.getLogger("comptes.suppression").info(
+                "Demarrage : %s ecole(s) de demo expiree(s) purgee(s).", n
+            )
+    except Exception:  # noqa: BLE001 - le nettoyage ne doit jamais bloquer le boot
+        logging.getLogger("comptes.suppression").warning(
+            "Purge des demos expirees ignoree au demarrage (erreur non bloquante).",
+            exc_info=True,
+        )
 
 
 _cleanup_old_sessions()

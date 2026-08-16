@@ -8,6 +8,7 @@ classe/eleves, le cloisonnement entre enseignants, et la connexion eleve.
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -1705,6 +1706,164 @@ class SuppressionDonneesTests(unittest.TestCase):
         self.assertEqual(rep.status_code, 403)
         self.assertEqual(self.client.post("/ecole/suppression", json={"confirmation": "Beta"}).status_code, 401)
         self.assertIsNotNone(corps_admin["ecole_id"])  # l'ecole existe toujours
+
+
+class DemoIntegrationTests(unittest.TestCase):
+    """Mode demo / bac a sable : creation d'une ecole de demonstration isolee et
+    pre-remplie, calcul de l'expiration, et purge automatique selective."""
+
+    def setUp(self) -> None:
+        self.engine = create_db_engine("sqlite://")  # en memoire (StaticPool)
+        init_db(self.engine)
+        self.TS = sessionmaker(
+            bind=self.engine, autoflush=False, expire_on_commit=False, class_=Session
+        )
+
+        def override_get_db():
+            db = self.TS()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[comptes.get_db] = override_get_db
+        comptes._reset_tokens()
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        comptes._reset_tokens()
+        self.engine.dispose()
+
+    def _auth(self, token):
+        return {"Authorization": f"Bearer {token}"}
+
+    def _creer_demo(self):
+        reponse = self.client.post("/demo/creer")
+        self.assertEqual(reponse.status_code, 201)
+        return reponse.json()
+
+    def _forcer_expiration(self, ecole_id, quand):
+        """Force expire_le d'une ecole (simulation d'une demo expiree/valide)."""
+        with self.TS() as db:
+            ecole = db.get(Ecole, ecole_id)
+            ecole.expire_le = quand
+            db.commit()
+
+    # ---------- Creation ----------
+    def test_creation_demo_marquee_et_expiree(self) -> None:
+        corps = self._creer_demo()
+        self.assertTrue(corps["ecole"]["est_demo"])
+        self.assertTrue(corps["token"])
+        # Le compte est bien un administrateur (1er compte de l'ecole).
+        self.assertEqual(corps["enseignant"]["role"], "administrateur")
+        self.assertTrue(corps["enseignant"]["est_demo"])
+        # Identifiants renvoyes pour une reconnexion ulterieure.
+        self.assertIn("identifiant", corps["identifiants"])
+        self.assertIn("mot_de_passe", corps["identifiants"])
+
+    def test_expiration_calculee_48h(self) -> None:
+        corps = self._creer_demo()
+        with self.TS() as db:
+            ecole = db.get(Ecole, corps["ecole"]["id"])
+            self.assertTrue(ecole.est_demo)
+            self.assertIsNotNone(ecole.expire_le)
+            delta = comptes._en_utc(ecole.expire_le) - comptes._en_utc(ecole.date_creation)
+            # ~DEMO_DUREE_HEURES, a la seconde de traitement pres.
+            self.assertAlmostEqual(
+                delta.total_seconds(), comptes.DEMO_DUREE_HEURES * 3600, delta=60
+            )
+
+    def test_donnees_semees_coherentes_et_variees(self) -> None:
+        corps = self._creer_demo()
+        h = self._auth(corps["token"])
+        classes = self.client.get("/classe", headers=h).json()["classes"]
+        # Deux classes de niveaux differents, peuplees.
+        self.assertEqual(len(classes), len(comptes.DEMO_CLASSES))
+        self.assertEqual({c["niveau_scolaire"] for c in classes}, {"CE1", "CE4"})
+        for c in classes:
+            self.assertGreater(c["nb_eleves"], 0)
+        # Le tableau de bord montre de VRAIES variations de maitrise : au moins
+        # un concept acquis ET au moins un a retravailler dans la classe.
+        tb = self.client.get(
+            f"/classe/{classes[0]['id']}/tableau_de_bord", headers=h
+        ).json()
+        total_acquis = sum(e["nb_acquis"] for e in tb["eleves"])
+        total_a_retravailler = sum(e["nb_a_retravailler"] for e in tb["eleves"])
+        self.assertGreater(total_acquis, 0)
+        self.assertGreater(total_a_retravailler, 0)
+
+    def test_demo_isolee_des_autres_ecoles(self) -> None:
+        # Une ecole reelle avec sa classe.
+        self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Vrai Prof", "identifiant": "vrai1", "mot_de_passe": "secret123"},
+        )
+        treel = self.client.post(
+            "/enseignant/connexion", json={"identifiant": "vrai1", "mot_de_passe": "secret123"}
+        ).json()["token"]
+        self.client.post(
+            "/classe", json={"nom": "Vraie Classe", "niveau_scolaire": "CE2"}, headers=self._auth(treel)
+        )
+        # La demo ne voit que SES classes (ecole distincte), jamais la vraie.
+        corps = self._creer_demo()
+        demo_classes = self.client.get("/classe", headers=self._auth(corps["token"])).json()["classes"]
+        self.assertNotIn("Vraie Classe", {c["nom"] for c in demo_classes})
+        with self.TS() as db:
+            ecole_demo = db.get(Ecole, corps["ecole"]["id"])
+            reelle = db.scalars(select(Ecole).where(Ecole.est_demo.is_(False))).first()
+            self.assertIsNotNone(reelle)
+            self.assertNotEqual(ecole_demo.id, reelle.id)
+
+    # ---------- Purge automatique ----------
+    def test_purge_supprime_uniquement_les_demos_expirees(self) -> None:
+        passe = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        futur = datetime(2999, 1, 1, tzinfo=timezone.utc)
+
+        expiree = self._creer_demo()
+        valide = self._creer_demo()
+        self._forcer_expiration(expiree["ecole"]["id"], passe)
+        self._forcer_expiration(valide["ecole"]["id"], futur)
+
+        # Une ecole REELLE (jamais expire_le, jamais touchee).
+        self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Vrai", "identifiant": "reel1", "mot_de_passe": "secret123"},
+        )
+
+        with self.TS() as db:
+            n = comptes.purger_ecoles_demo_expirees(db)
+        self.assertEqual(n, 1)
+
+        with self.TS() as db:
+            restantes = db.scalars(select(Ecole)).all()
+            ids = {e.id for e in restantes}
+            self.assertNotIn(expiree["ecole"]["id"], ids)  # demo expiree purgee
+            self.assertIn(valide["ecole"]["id"], ids)  # demo valide conservee
+            # L'ecole reelle est intacte.
+            self.assertTrue(any(not e.est_demo for e in restantes))
+
+    def test_purge_invalide_le_token_de_la_demo_expiree(self) -> None:
+        corps = self._creer_demo()
+        h = self._auth(corps["token"])
+        # Le token marche avant la purge.
+        self.assertEqual(self.client.get("/classe", headers=h).status_code, 200)
+        self._forcer_expiration(corps["ecole"]["id"], datetime(2000, 1, 1, tzinfo=timezone.utc))
+        with self.TS() as db:
+            comptes.purger_ecoles_demo_expirees(db)
+        # Apres purge : token invalide (ecole + compte supprimes).
+        self.assertEqual(self.client.get("/classe", headers=h).status_code, 401)
+
+    def test_purge_ne_touche_pas_une_ecole_reelle_meme_ancienne(self) -> None:
+        # Ecole reelle : est_demo=false, expire_le=NULL -> jamais purgee.
+        self.client.post(
+            "/enseignant/inscription",
+            json={"nom": "Vrai", "identifiant": "reel1", "mot_de_passe": "secret123"},
+        )
+        with self.TS() as db:
+            n = comptes.purger_ecoles_demo_expirees(db)
+            self.assertEqual(n, 0)
+            self.assertEqual(db.scalar(select(func.count()).select_from(Ecole)), 1)
 
 
 if __name__ == "__main__":
