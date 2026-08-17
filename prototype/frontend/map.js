@@ -863,8 +863,12 @@ function stopsMarkup() {
   return stops
     .map((stop, index) => {
       const status = index < nextStopIndex ? "done" : index === nextStopIndex ? "current" : "locked";
+      /* Le fanion est un MARQUEUR (mât + drapeau dessines debout), pas du decor
+         de terrain : on le redresse comme le pin "!" et les plaques
+         (uprightSuffix), sinon il apparait a l'envers sur une carte up (180°)
+         ou couche sur une carte left/right (±90°). */
       return `
-        <g class="reinforcement-stop stop-${status}" transform="translate(${stop.x}, ${stop.y})">
+        <g class="reinforcement-stop stop-${status}" transform="translate(${stop.x}, ${stop.y})${uprightSuffix()}">
           ${ASSETS.trainingStop(status)}
         </g>
       `;
@@ -1175,7 +1179,11 @@ function obstacleSceneryMarkup(obstacle, status) {
         <line x1="${obstacle.x + 120}" y1="${y}" x2="${Math.min(SCENE_WIDTH - 40, obstacle.x + 520)}" y2="${y}" class="hedge-line"></line>
         <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path-edge"></path>
         <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path"></path>
-        <g transform="translate(${obstacle.x - 110}, ${y - 30})">${ASSETS.signpost(done)}</g>
+        <!-- Le panneau est une SIGNALETIQUE (poteau + boards + "?"), redressee
+             comme les plaques (uprightSuffix) : sans ça le "?" s'affiche en "¿"
+             sur une carte up (180°). Les haies, la brume et le PNJ restent, eux,
+             du decor de terrain qui pivote avec la carte. -->
+        <g transform="translate(${obstacle.x - 110}, ${y - 30})${uprightSuffix()}">${ASSETS.signpost(done)}</g>
         <g class="mist-cloud">
           <ellipse cx="${obstacle.x + 190}" cy="${y - 74}" rx="72" ry="30" class="mist"></ellipse>
           <ellipse cx="${obstacle.x + 240}" cy="${y - 120}" rx="56" ry="24" class="mist"></ellipse>
