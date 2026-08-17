@@ -11,7 +11,12 @@
 (function () {
   const STORAGE_KEY = "carnet_aventurier_v1";
 
-  /* Libelles courts des patterns d'exercices pour l'affichage. */
+  /* Libelles courts des patterns d'exercices pour l'affichage.
+     Couverture COMPLETE des 36 concepts (CE1 -> CE6) : un concept sans libelle
+     ici retomberait sur son nom technique brut (underscores -> espaces) dans le
+     carnet, le bilan et le tableau de bord enseignant. MIROIR de la table
+     _LIBELLES_CONCEPTS de notifications.py (backend) : garder les deux
+     synchronises quand on ajoute/renomme un pattern. */
   const CONCEPT_LABELS = {
     addition_pas_a_pas_sans_retenue: "Addition pas à pas",
     partie_tout_addition_non_narratif: "Partie et tout : addition",
@@ -32,6 +37,24 @@
     double_via_2xn: "Trouver le double",
     suite_multiples_de_10_a_completer: "Suites de 10 à compléter",
     conversion_cm_mm_vers_mm: "Convertir cm et mm",
+    /* CE3 -> CE6 : concepts qui fuyaient leur nom technique avant ce correctif. */
+    completer_ligne_graduee: "Compléter une ligne graduée",
+    multiplication_groupes_egaux_modele: "Multiplication : groupes égaux",
+    multiplication_posee_2chiffres: "Multiplication posée (2 chiffres)",
+    division_exacte_partage: "Division exacte (partage)",
+    conversion_kg_g: "Convertir kg et g",
+    addition_durees_min: "Additionner des durées (min)",
+    lecture_heure_analogique: "Lire l'heure",
+    completer_tableau_proportionnalite: "Compléter un tableau de proportionnalité",
+    figure_cotee_simple: "Périmètre et aire d'une figure",
+    echelle_plan: "Échelle et plan",
+    comparaison_decimaux: "Comparer des décimaux",
+    addition_decimaux: "Additionner des décimaux",
+    soustraction_decimaux: "Soustraire des décimaux",
+    conversion_duree_min: "Convertir une durée en minutes",
+    duree_entre_horaires: "Durée entre deux horaires",
+    pourcentage_d_une_quantite: "Pourcentage d'une quantité",
+    vitesse_distance_duree: "Vitesse, distance et durée",
   };
 
   /* Badges du bilan de session, generes par regles (aucun appel IA). */

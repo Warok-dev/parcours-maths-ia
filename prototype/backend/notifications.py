@@ -58,10 +58,58 @@ def _en_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+# Libelles lisibles des 36 concepts (CE1 -> CE6), pour le rapport IA, les
+# alertes et le portail parent. MIROIR de CONCEPT_LABELS dans carnet.js
+# (frontend) : garder les deux synchronises quand on ajoute/renomme un pattern.
+# Sans cette table, le rapport affichait le nom technique brut du pattern
+# ("comparaison decimaux", "pourcentage d une quantite"...).
+_LIBELLES_CONCEPTS = {
+    "addition_pas_a_pas_sans_retenue": "Addition pas à pas",
+    "partie_tout_addition_non_narratif": "Partie et tout : addition",
+    "addition_2chiffres_sans_retenue": "Addition à 2 chiffres",
+    "probleme_total_partie_tout": "Problème : trouver le total",
+    "partie_tout_soustraction_non_narratif": "Partie et tout : soustraction",
+    "probleme_reste_partie_tout": "Problème : trouver le reste",
+    "probleme_comparaison_difference": "Problème : comparer",
+    "multiplication_par_10": "Multiplication par 10",
+    "multiplication_chiffre_x_multiple_de_10": "Chiffre x multiple de 10",
+    "identifier_multiple_de_10": "Reconnaître les multiples de 10",
+    "multiplication_decomposee_chiffre_x_2chiffres": "Multiplication décomposée",
+    "addition_repetee_vers_multiplication": "De l'addition à la multiplication",
+    "facteur_manquant_table_de_2": "Facteur manquant (table de 2)",
+    "probleme_groupes_egaux_total": "Groupes égaux : le total",
+    "probleme_groupes_egaux_quotient": "Groupes égaux : le partage",
+    "moitie_via_2xn": "Trouver la moitié",
+    "double_via_2xn": "Trouver le double",
+    "suite_multiples_de_10_a_completer": "Suites de 10 à compléter",
+    "conversion_cm_mm_vers_mm": "Convertir cm et mm",
+    "completer_ligne_graduee": "Compléter une ligne graduée",
+    "multiplication_groupes_egaux_modele": "Multiplication : groupes égaux",
+    "multiplication_posee_2chiffres": "Multiplication posée (2 chiffres)",
+    "division_exacte_partage": "Division exacte (partage)",
+    "conversion_kg_g": "Convertir kg et g",
+    "addition_durees_min": "Additionner des durées (min)",
+    "lecture_heure_analogique": "Lire l'heure",
+    "completer_tableau_proportionnalite": "Compléter un tableau de proportionnalité",
+    "figure_cotee_simple": "Périmètre et aire d'une figure",
+    "echelle_plan": "Échelle et plan",
+    "comparaison_decimaux": "Comparer des décimaux",
+    "addition_decimaux": "Additionner des décimaux",
+    "soustraction_decimaux": "Soustraire des décimaux",
+    "conversion_duree_min": "Convertir une durée en minutes",
+    "duree_entre_horaires": "Durée entre deux horaires",
+    "pourcentage_d_une_quantite": "Pourcentage d'une quantité",
+    "vitesse_distance_duree": "Vitesse, distance et durée",
+}
+
+
 def _libelle_concept(pattern_name: str) -> str:
-    """Nom de concept lisible par un parent (underscores -> espaces). Aligne sur
-    le repli deja utilise dans l'export Excel et le portail parent."""
-    return str(pattern_name or "").replace("_", " ")
+    """Nom de concept lisible par un parent. Table complete des 36 concepts ;
+    repli sur les underscores -> espaces pour un pattern inconnu (jamais un
+    crash, au pire l'ancien comportement pour un futur pattern non encore
+    ajoute a la table)."""
+    key = str(pattern_name or "")
+    return _LIBELLES_CONCEPTS.get(key, key.replace("_", " "))
 
 
 def _lignes_progression(db: Session, eleve_id: int) -> list[Progression]:
