@@ -62,6 +62,7 @@ const scoreValue = document.getElementById("score-value");
 const minimapButton = document.getElementById("minimap");
 const minimapSvg = document.getElementById("minimap-svg");
 const feedback = document.getElementById("feedback");
+const offlineBanner = document.getElementById("offline-banner");
 const exerciseOverlay = document.getElementById("exercise-overlay");
 const exerciseModal = document.getElementById("exercise-modal");
 const debugLog = document.getElementById("debug-log");
@@ -104,6 +105,11 @@ const state = {
      avec la référence de session (la carte reste identique toute la partie et
      a la reprise), renouvelée seulement a une nouvelle aventure. */
   mapSeed: null,
+  /* Mode hors-ligne (essai libre uniquement) : vrai quand le backend est
+     injoignable et que l'élève s'entraîne sur le tampon local. Miroir pratique
+     de ParcoursOffline.estHorsLigne() pour le rendu ; toute la logique de
+     tampon/bascule vit dans offline.js. */
+  offlineActif: false,
 };
 
 /* Graine 32 bits pour une nouvelle carte. crypto si dispo, sinon Math.random. */
@@ -134,6 +140,12 @@ let lastTick = 0;
 let lastPositionSaveAt = 0;
 let feedbackTimer = null;
 let feedbackLeaveTimer = null;
+/* Minuteries du mode hors-ligne : renouvellement du tampon tant qu'on est en
+   ligne, et sondage de reconnexion tant qu'on est hors-ligne. */
+let prefetchTimer = null;
+let reconnectTimer = null;
+const PREFETCH_INTERVAL_MS = 9000;
+const RECONNECT_INTERVAL_MS = 5000;
 
 function logDebug(entry) {
   if (debugLog) {
@@ -1656,7 +1668,9 @@ function closeExercisePanel() {
    bouton mort. La lecture est declenchee a la main par l'eleve, jamais
    automatiquement (il rouvre souvent le popup, on ne repete pas l'enonce). */
 function listenButtonMarkup(id, label) {
-  if (!window.ParcoursSpeech?.isSupported?.()) {
+  /* La synthèse vocale neurale passe par le backend : indisponible hors-ligne,
+     on masque le bouton plutôt que d'exposer un appel voué à échouer. */
+  if (state.offlineActif || !window.ParcoursSpeech?.isSupported?.()) {
     return "";
   }
   return `
@@ -1760,13 +1774,20 @@ function renderExerciseModal() {
   const isTable = exercise.pattern?.pattern_name === "completer_tableau_proportionnalite";
   const isFigure = exercise.pattern?.pattern_name === "figure_cotee_simple";
   const confidence = isConfidenceExercise();
+  const offline = state.offlineActif;
   const obstacle = activeObstacle();
   const atStop = Boolean(state.reinforcement);
-  const theme = confidence
-    ? { modalClass: "theme-confiance", title: "Petite pause !", intro: CONFIANCE_INTRO }
-    : atStop
-      ? stopTheme()
-      : obstacleTheme(obstacle?.type);
+  const theme = offline
+    ? {
+        modalClass: "theme-camp",
+        title: "Entraînement hors ligne",
+        intro: "Tu es hors ligne : tes réponses sont corrigées ici même, sans connexion.",
+      }
+    : confidence
+      ? { modalClass: "theme-confiance", title: "Petite pause !", intro: CONFIANCE_INTRO }
+      : atStop
+        ? stopTheme()
+        : obstacleTheme(obstacle?.type);
   const mechanic = window.ParcoursMechanics
     ? window.ParcoursMechanics.choose(exercise, state.session.concept_index || 0)
     : "clavier";
@@ -1783,8 +1804,9 @@ function renderExerciseModal() {
   const details = exercise.presentations?.[resolutionKey] || {};
   const steps = (details.etapes_methode || []).map((step) => `<li>${step}</li>`).join("");
   const level = state.session.niveau_resolution_courant || 1;
-  const phaseChip =
-    state.session.phase === "renforcement"
+  const phaseChip = offline
+    ? "Entraînement hors ligne"
+    : state.session.phase === "renforcement"
       ? `Entraînement : encore ${state.session.exercices_renforcement_restants}`
       : "À toi de jouer !";
 
@@ -1793,7 +1815,13 @@ function renderExerciseModal() {
     <button id="close-exercise" class="modal-close" type="button" aria-label="Fermer">&#10005;</button>
     <div class="modal-head">
       <span class="modal-icon">${
-        confidence ? confidenceOwlSvg() : atStop ? stopIconSvg() : obstacleIconSvg(obstacle?.type, "current")
+        offline
+          ? stopIconSvg()
+          : confidence
+            ? confidenceOwlSvg()
+            : atStop
+              ? stopIconSvg()
+              : obstacleIconSvg(obstacle?.type, "current")
       }</span>
       <div>
         <h2 class="modal-title">${theme.title}</h2>
@@ -1867,7 +1895,11 @@ function renderExerciseModal() {
         }
         <div class="exercise-actions">
           <button type="submit" class="btn-primary">Valider</button>
-          <button id="help-button" type="button" class="btn-help">&#129417; Aide</button>
+          ${
+            /* Le tuteur IA exige un vrai appel réseau : masqué proprement
+               hors-ligne (pas d'erreur brute, juste indisponible). */
+            offline ? "" : `<button id="help-button" type="button" class="btn-help">&#129417; Aide</button>`
+          }
         </div>
       </form>
     </div>
@@ -1876,7 +1908,7 @@ function renderExerciseModal() {
 
   const form = document.getElementById("exercise-form");
   form.addEventListener("submit", handleSubmitAnswer);
-  document.getElementById("help-button").addEventListener("click", () => {
+  document.getElementById("help-button")?.addEventListener("click", () => {
     window.ParcoursChat?.open();
     document.getElementById("chat-input")?.focus();
   });
@@ -1895,8 +1927,11 @@ function renderExerciseModal() {
     });
   }
   /* Tuteur proactif : suit l'exercice affiche et le niveau de guidage
-     (seuils plus prudents au niveau 3 autonome). */
-  window.ParcoursProactive?.exerciseShown(exercise.id, level);
+     (seuils plus prudents au niveau 3 autonome). Désactivé hors-ligne : son
+     intervention repose sur un appel IA impossible sans backend. */
+  if (!offline) {
+    window.ParcoursProactive?.exerciseShown(exercise.id, level);
+  }
   if (mechanic === "clavier") {
     /* Reponse a la voix en COMPLEMENT du clavier (retire le bouton si
        l'API Web Speech est absente ou si le micro a ete refuse). */
@@ -1943,6 +1978,179 @@ function applySessionSnapshot(snapshot, exercise = null) {
     saveSessionRef();
   }
   window.dispatchEvent(new CustomEvent("session-updated", { detail: snapshot }));
+}
+
+/* ============================================================
+   MODE HORS-LIGNE PARTIEL (essai libre uniquement)
+   Pré-chargement d'un tampon d'exercices procéduraux, détection de
+   perte/retour de connexion et jeu depuis le tampon quand le backend
+   est injoignable. La logique pure (tampon, évaluation, bascule) vit
+   dans offline.js (ParcoursOffline) ; ici on branche le jeu, l'UI et
+   le réseau. RIEN de tout cela ne s'active pour un élève CONNECTÉ :
+   sa vraie progression serveur ne doit jamais risquer une
+   désynchronisation. Voir [[portee-donnees-compte-vs-invite]].
+   ============================================================ */
+
+/* Essai libre = pas de compte élève connecté. Seul ce mode a droit au
+   hors-ligne ; un élève connecté verra une erreur de connexion classique. */
+function estInvite() {
+  return !window.ParcoursCompte?.estEleve?.();
+}
+
+function afficherBandeauHorsLigne(visible) {
+  offlineBanner?.classList.toggle("hidden", !visible);
+}
+
+/* ---------- Pré-chargement du tampon (tant qu'on est en ligne) ---------- */
+
+/* Complète le tampon avec des exercices procéduraux du niveau/leçon en cours.
+   La source est l'endpoint GET /exercices/{niveau}?pattern=… qui NE touche pas
+   la session (aucune progression avancée) ; les patterns narratifs y répondent
+   404 et sont naturellement écartés par ParcoursOffline.remplir. */
+async function prefetchHorsLigne() {
+  if (!window.ParcoursOffline || !estInvite() || window.ParcoursOffline.estHorsLigne()) {
+    return;
+  }
+  if (!state.session || state.session.terminee) {
+    return;
+  }
+  const niveau = state.selectedLevel || state.session.niveau_scolaire;
+  const patterns = state.session.concepts || [];
+  if (!niveau || !patterns.length) {
+    return;
+  }
+  try {
+    await window.ParcoursOffline.remplir({
+      niveau,
+      patterns,
+      fetchExercice: (pattern) =>
+        request(`/exercices/${niveau}?pattern=${encodeURIComponent(pattern)}`, { method: "GET" }),
+    });
+  } catch (_error) {
+    /* Un échec de pré-chargement n'est pas fatal : le jeu reste en ligne, la
+       détection de perte de connexion se fait sur les appels de jeu (/evaluer). */
+  }
+}
+
+function demarrerPrefetch() {
+  arreterPrefetch();
+  if (!estInvite()) {
+    return;
+  }
+  prefetchHorsLigne();
+  prefetchTimer = window.setInterval(prefetchHorsLigne, PREFETCH_INTERVAL_MS);
+}
+
+function arreterPrefetch() {
+  if (prefetchTimer) {
+    window.clearInterval(prefetchTimer);
+    prefetchTimer = null;
+  }
+}
+
+/* ---------- Sondage de reconnexion (tant qu'on est hors-ligne) ---------- */
+function demarrerReconnexion() {
+  arreterReconnexion();
+  reconnectTimer = window.setInterval(tenterReconnexion, RECONNECT_INTERVAL_MS);
+}
+
+function arreterReconnexion() {
+  if (reconnectTimer) {
+    window.clearInterval(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+async function tenterReconnexion() {
+  try {
+    await request("/health", { method: "GET" });
+    sortirModeHorsLigne();
+  } catch (_error) {
+    /* toujours hors-ligne : on retentera au prochain tick */
+  }
+}
+
+/* ---------- Bascule ---------- */
+function entrerModeHorsLigne() {
+  if (!window.ParcoursOffline || !window.ParcoursOffline.basculerHorsLigne()) {
+    return; /* déjà hors-ligne, ou module absent */
+  }
+  state.offlineActif = true;
+  arreterPrefetch();
+  /* Coupe le tuteur proactif : son intervalle d'inactivité ferait des appels
+     réseau (aide IA) voués à échouer. */
+  window.ParcoursProactive?.panelClosed?.();
+  afficherBandeauHorsLigne(true);
+  setFeedback("Hors ligne — mode entraînement limité.", "warning");
+  /* Si un exercice est ouvert, on le re-rend tout de suite pour retirer le
+     tuteur/la synthèse vocale et afficher l'habillage "hors ligne". */
+  if (state.panelOpen) {
+    renderExerciseModal();
+  }
+  demarrerReconnexion();
+}
+
+function sortirModeHorsLigne() {
+  if (!window.ParcoursOffline || !window.ParcoursOffline.basculerEnLigne()) {
+    return; /* déjà en ligne */
+  }
+  state.offlineActif = false;
+  arreterReconnexion();
+  afficherBandeauHorsLigne(false);
+  /* On quitte l'entraînement local : on ferme un éventuel panneau hors-ligne et
+     on resynchronise la VRAIE session pour reprendre le parcours serveur là où
+     il en était (il n'a pas bougé pendant la coupure). */
+  if (state.panelOpen) {
+    closeExercisePanel();
+  }
+  setFeedback("De retour en ligne ! Reprends ton aventure.", "success");
+  syncSession().catch(() => {
+    /* si la resynchro échoue, on est peut-être de nouveau hors-ligne : le
+       prochain /evaluer le détectera */
+  });
+  demarrerPrefetch();
+}
+
+/* ---------- Jeu depuis le tampon ---------- */
+
+/* Évalue localement la réponse à l'exercice courant (mis en cache, donc
+   porteur de reponse_attendue.valeur) puis enchaîne sur l'exercice suivant du
+   tampon. Aucune progression pédagogique persistante : entraînement local. */
+function evaluerReponseHorsLigne(reponse) {
+  const exercice = state.currentExercise;
+  if (!exercice || !window.ParcoursOffline) {
+    return;
+  }
+  if (window.ParcoursOffline.evaluer(exercice, reponse)) {
+    window.ParcoursAudio?.playCorrect?.();
+    /* Étoiles locales : elles alimentent la garde-robe (déjà en localStorage),
+       jamais une progression serveur. */
+    addScore(5);
+    chargerProchainExerciceHorsLigne();
+  } else {
+    window.ParcoursAudio?.playWrong?.();
+    setFeedback("Presque ! Essaie encore une fois.", "warning");
+    const input = document.getElementById("answer-input");
+    if (input) {
+      input.value = "";
+      input.focus();
+    }
+  }
+}
+
+function chargerProchainExerciceHorsLigne() {
+  const suivant = window.ParcoursOffline?.consommer();
+  if (suivant) {
+    state.currentExercise = suivant;
+    setFeedback("Bravo ! Continue ton entraînement.", "success");
+    if (state.panelOpen) {
+      renderExerciseModal();
+    }
+    /* Renouvellement impossible hors-ligne : quand le tampon fond, on prévient
+       dès qu'il est vide (ci-dessous), pas de blocage silencieux. */
+  } else {
+    setFeedback("Plus d'exercices en réserve, reconnecte-toi pour continuer.", "warning");
+  }
 }
 
 async function request(path, options = {}) {
@@ -2147,6 +2355,9 @@ function enterSession(payload, lesson) {
   showGameScreen();
   clearFeedback();
   window.ParcoursAudio?.setMusicActive(true);
+  /* Essai libre : on commence à pré-charger le tampon hors-ligne en arrière-plan
+     dès l'entrée en jeu, et on le renouvelle tant que la connexion est bonne. */
+  demarrerPrefetch();
 }
 
 async function startSession(level, lessonId) {
@@ -2405,6 +2616,13 @@ async function handleSubmitAnswer(event) {
     return;
   }
 
+  /* Déjà hors-ligne : on évalue localement contre l'exercice mis en cache,
+     sans aucun appel réseau, et on enchaîne sur le tampon. */
+  if (state.offlineActif) {
+    evaluerReponseHorsLigne(reponse);
+    return;
+  }
+
   /* Toute soumission (juste ou fausse) compte comme une interaction pour
      le detecteur d'inactivite du tuteur proactif. */
   window.ParcoursProactive?.activity();
@@ -2439,6 +2657,17 @@ async function handleSubmitAnswer(event) {
     }
     applyEvaluationResult(payload, context);
   } catch (error) {
+    /* Panne réseau (fetch rejeté, timeout) EN ESSAI LIBRE : le backend est
+       injoignable. On bascule en mode hors-ligne et on évalue cette réponse
+       localement contre l'exercice courant (déjà en cache), puis on enchaîne
+       sur le tampon. Un élève CONNECTÉ, lui, ne bascule pas : il verra
+       l'erreur de connexion classique ci-dessous, pour ne jamais risquer une
+       désynchronisation de sa vraie progression serveur. */
+    if (estInvite() && window.ParcoursOffline?.estErreurReseau(error)) {
+      entrerModeHorsLigne();
+      evaluerReponseHorsLigne(reponse);
+      return;
+    }
     /* 503 = generation du prochain exercice indisponible : la session n'a pas
        bouge cote backend, l'eleve peut simplement revalider la meme reponse.
        429 = trop de validations tres rapprochees (limite de debit) : message
@@ -2485,6 +2714,13 @@ function resetSharedState() {
   window.ParcoursChat?.reset();
   window.ParcoursProactive?.panelClosed();
   refreshScenePaused();
+  /* Fin de partie : on arrête les minuteries hors-ligne et on repart d'un état
+     "en ligne" propre (ces chemins de reset passent tous par le réseau). */
+  arreterPrefetch();
+  arreterReconnexion();
+  afficherBandeauHorsLigne(false);
+  state.offlineActif = false;
+  window.ParcoursOffline?.basculerEnLigne();
 }
 
 function resetToStart() {
@@ -2557,6 +2793,9 @@ async function tryResumeSession() {
     applySessionSnapshot(snapshot);
     showGameScreen();
     window.ParcoursAudio?.setMusicActive(true);
+    /* Reprise en essai libre : on (re)lance le pré-chargement du tampon
+       hors-ligne pour cette session comme à une entrée normale. */
+    demarrerPrefetch();
     /* Liste des lecons du niveau rechargee en arriere-plan pour que
        "Changer de lecon" fonctionne aussi apres une reprise. */
     request(`/lecons/${snapshot.niveau_scolaire}`, { method: "GET" })

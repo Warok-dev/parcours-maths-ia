@@ -729,6 +729,54 @@ input {
   transform: translateX(-50%) translateY(-20px);
 }
 
+/* ---------- Bandeau hors-ligne (persistant tant que le backend est injoignable) ----------
+   Discret mais visible : pastille clignotante + libellé, sous la rangée de HUD,
+   au-dessus de l'overlay d'exercice pour rester lisible pendant l'entraînement. */
+.offline-banner {
+  position: absolute;
+  z-index: 61;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 18px;
+  background: var(--cream);
+  border: 3px solid var(--gold-dark);
+  border-radius: 999px;
+  box-shadow: var(--shadow-chip);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #7d5a1c;
+  animation: bannerIn 320ms ease;
+}
+
+.offline-banner.hidden {
+  display: none;
+}
+
+.offline-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--gold-dark);
+  box-shadow: 0 0 0 0 rgba(201, 146, 46, 0.6);
+  animation: offlinePulse 1.6s ease-out infinite;
+}
+
+@keyframes offlinePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(201, 146, 46, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(201, 146, 46, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(201, 146, 46, 0);
+  }
+}
+
 /* ---------- Mascotte hibou + bulle du tuteur ---------- */
 .tutor-dock {
   position: absolute;
