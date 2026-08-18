@@ -1128,8 +1128,12 @@ function obstacleSceneryMarkup(obstacle, status) {
       return `
         ${fenceMarkup(Math.max(40, obstacle.x - 560), obstacle.x - 165, y)}
         ${fenceMarkup(obstacle.x + 165, Math.min(SCENE_WIDTH - 40, obstacle.x + 560), y)}
-        <g transform="translate(${obstacle.x}, ${y})">${ASSETS.castle(done)}</g>
-        <g transform="translate(${obstacle.x + 150}, ${y + 52})">${ASSETS.npc()}</g>
+        <!-- Le chateau est un BATIMENT oriente (porte, tourelles, bannieres) :
+             on le redresse (uprightSuffix) pour qu'il fasse toujours face au
+             joueur, quelle que soit la direction de la carte procedurale. Les
+             barrieres (rails symetriques) restent, elles, dans le pivot du monde. -->
+        <g transform="translate(${obstacle.x}, ${y})${uprightSuffix()}">${ASSETS.castle(done)}</g>
+        <g transform="translate(${obstacle.x + 150}, ${y + 52})${uprightSuffix()}">${ASSETS.npc()}</g>
       `;
     case "blocked_road": {
       /* La cabane (décor) et le villageois se placent du cote de l'obstacle
@@ -1140,7 +1144,8 @@ function obstacleSceneryMarkup(obstacle, status) {
       return `
         ${fenceMarkup(Math.max(40, obstacle.x - 520), obstacle.x - 120, y)}
         ${fenceMarkup(obstacle.x + 120, Math.min(SCENE_WIDTH - 40, obstacle.x + 520), y)}
-        <g transform="translate(${obstacle.x + versCentre * 175}, ${y - 60})">${ASSETS.cabin()}</g>
+        <!-- La cabane a un toit/cheminee asymetriques : redressee comme le chateau. -->
+        <g transform="translate(${obstacle.x + versCentre * 175}, ${y - 60})${uprightSuffix()}">${ASSETS.cabin()}</g>
         ${
           done
             ? `
@@ -1159,7 +1164,7 @@ function obstacleSceneryMarkup(obstacle, status) {
               </g>
             `
         }
-        <g transform="translate(${obstacle.x - versCentre * 110}, ${y + 46})">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x - versCentre * 110}, ${y + 46})${uprightSuffix()}">${ASSETS.npc()}</g>
       `;
     }
     case "broken_bridge":
@@ -1171,7 +1176,7 @@ function obstacleSceneryMarkup(obstacle, status) {
           <path d="M 90 ${y + 26} q 60 -14 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0" class="river-wave"></path>
         </g>
         <g transform="translate(${obstacle.x}, ${y})">${ASSETS.bridge(done)}</g>
-        <g transform="translate(${obstacle.x + 118}, ${y + 108})">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x + 118}, ${y + 108})${uprightSuffix()}">${ASSETS.npc()}</g>
       `;
     case "crossroads":
       return `
@@ -1188,7 +1193,7 @@ function obstacleSceneryMarkup(obstacle, status) {
           <ellipse cx="${obstacle.x + 190}" cy="${y - 74}" rx="72" ry="30" class="mist"></ellipse>
           <ellipse cx="${obstacle.x + 240}" cy="${y - 120}" rx="56" ry="24" class="mist"></ellipse>
         </g>
-        <g transform="translate(${obstacle.x + 116}, ${y + 46})">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x + 116}, ${y + 46})${uprightSuffix()}">${ASSETS.npc()}</g>
       `;
     default:
       return "";
@@ -1240,7 +1245,7 @@ function propsMarkup(scene) {
     ${decor.flowers
       .map((p, index) => `<g transform="translate(${p.x}, ${p.y})">${index % 3 === 0 ? ASSETS.flowerPink() : ASSETS.flower()}</g>`)
       .join("")}
-    ${decor.rocks.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.rock()}</g>`).join("")}
+    ${decor.rocks.map((p) => `<g transform="translate(${p.x}, ${p.y})${uprightSuffix()}">${ASSETS.rock()}</g>`).join("")}
     ${decor.bushes.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.bush()}</g>`).join("")}
     ${decor.trees.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.tree()}</g>`).join("")}
   `;
@@ -2358,6 +2363,11 @@ function enterSession(payload, lesson) {
   state.collectiblesSig = null;
   state.collectibles = [];
   resetScore();
+  /* Nouveau parcours : on remet a zero l'espacement des propositions de
+     mini-jeu (le declencheur est un singleton de module) pour ne pas heriter
+     du compteur du parcours precedent -- sinon une pause pouvait etre proposee
+     des le premier concept. */
+  window.ParcoursMinigames?.reinitialiserParcours?.();
   state.selectedLesson = lesson;
   applySessionSnapshot(payload.progression, payload.exercice);
   showGameScreen();

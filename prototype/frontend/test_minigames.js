@@ -174,8 +174,9 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   const orch = orchestrateurAvec(adapter);
 
   check(orch.getPhase() === "repos", "depart : phase repos");
+  check(orch.conceptDebloque() === false, "1er concept du parcours : jamais de pause");
   const propose = orch.conceptDebloque();
-  check(propose === true, "concept debloque : proposition affichee");
+  check(propose === true, "2e concept debloque : proposition affichee");
   check(orch.getPhase() === "proposition", "phase = proposition");
   check(
     adapter.calls.includes("pauseCarte") && adapter.calls.includes("afficherProposition"),
@@ -213,6 +214,7 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   const adapter = fakeAdapter();
   const orch = orchestrateurAvec(adapter);
 
+  orch.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
   orch.conceptDebloque();
   adapter.refuser();
   check(orch.getPhase() === "repos", "refuser : retour au repos");
@@ -230,6 +232,7 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
 {
   const adapter = fakeAdapter();
   const orch = orchestrateurAvec(adapter);
+  orch.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
   orch.conceptDebloque();
   adapter.accepter();
   adapter.terminer(25);
@@ -241,6 +244,7 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   );
   const adapter0 = fakeAdapter();
   const orch0 = orchestrateurAvec(adapter0);
+  orch0.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
   orch0.conceptDebloque();
   adapter0.accepter();
   adapter0.terminer(0);
@@ -260,8 +264,9 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   orch.refuser();
   check(orch.getPhase() === "repos" && adapter.calls.length === 0, "appels hors phase au repos : ignores");
 
+  orch.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
   orch.conceptDebloque();
-  /* Deuxieme concept pendant une proposition : pas de double proposition. */
+  /* Nouveau concept pendant une proposition : pas de double proposition. */
   const rep = orch.conceptDebloque();
   check(rep === false, "pas de proposition tant qu'une pause est en cours");
   check(
@@ -285,6 +290,20 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   });
   check(orch.conceptDebloque() === false, "registre vide : aucune proposition");
   check(adapter.calls.length === 0, "registre vide : la carte n'est jamais touchee");
+}
+
+/* 5f. Jamais de pause sur le 1er concept d'un parcours, et reset a la nouvelle
+   aventure (le declencheur etant un singleton reporte entre parcours). */
+{
+  const adapter = fakeAdapter();
+  const orch = orchestrateurAvec(adapter); /* probabilite 1, espacementMin 0 */
+  check(orch.conceptDebloque() === false, "1er concept d'un parcours : jamais de pause");
+  check(orch.conceptDebloque() === true, "2e concept : proposition possible");
+  adapter.refuser(); /* retour au repos */
+
+  orch.reinitialiser(); /* nouvelle aventure */
+  check(orch.conceptDebloque() === false, "apres reinitialiser : 1er concept du nouveau parcours sans pause");
+  check(orch.conceptDebloque() === true, "apres reinitialiser : 2e concept propose de nouveau");
 }
 
 /* --- 6. Le placeholder respecte l'interface commune --- */
@@ -546,6 +565,15 @@ function randomSeq(valeurs) {
   const a = minigames.genererPaires(seed());
   const b = minigames.genererPaires(seed());
   check(JSON.stringify(a) === JSON.stringify(b), "genererPaires est deterministe a hasard egal");
+
+  /* Colonnes de la grille adaptees au nombre de cartes : la grille est
+     toujours pleine (pas de "trou"), meme pour 14 cartes (7 paires). */
+  check(minigames.colonnesMemory(12) === 4, "12 cartes -> 4 colonnes (4x3), grille pleine");
+  check(minigames.colonnesMemory(14) === 7, "14 cartes -> 7 colonnes (7x2), plus de cellules vides");
+  check(minigames.colonnesMemory(16) === 4, "16 cartes -> 4 colonnes (4x4), grille pleine");
+  for (const n of [12, 14, 16]) {
+    check(n % minigames.colonnesMemory(n) === 0, `${n} cartes : le nombre de colonnes divise ${n} (aucun trou)`);
+  }
 }
 
 /* Petite fabrique de partie memory a cartes fixes pour les tests. */

@@ -61,6 +61,14 @@
       propositionFaite: false,
     };
     return {
+      /* A appeler au debut d'un NOUVEAU parcours (nouvelle aventure). Sans ce
+         reset, l'espacement etait un singleton reporte d'un parcours a l'autre :
+         un compteur herite eleve pouvait declencher une proposition des le 1er
+         concept du nouveau parcours. */
+      reinitialiser() {
+        state.conceptsDepuisProposition = 0;
+        state.propositionFaite = false;
+      },
       /* Appele a CHAQUE concept debloque. Retourne true si l'on doit
          proposer une pause maintenant. */
       conceptDebloque(random) {
@@ -124,6 +132,10 @@
     let phase = "repos"; /* repos | proposition | enJeu */
     let demonterActif = null;
     let niveauActif = ""; /* niveau scolaire de la session, transmis au mini-jeu */
+    /* Concepts debloques depuis le debut du parcours courant : on ne propose
+       JAMAIS de pause sur le tout premier, pour laisser l'eleve entrer dans
+       l'aventure. Remis a zero par reinitialiser() (nouvelle aventure). */
+    let conceptsVus = 0;
 
     function auRepos() {
       phase = "repos";
@@ -175,6 +187,13 @@
         if (phase !== "repos" || registre.estVide()) {
           return false;
         }
+        conceptsVus += 1;
+        /* Jamais de pause sur le TOUT PREMIER concept d'un parcours (le
+           declencheur n'est meme pas sollicite : son espacement ne compte que
+           les concepts a partir du 2e). */
+        if (conceptsVus <= 1) {
+          return false;
+        }
         if (!declencheur.conceptDebloque(random)) {
           return false;
         }
@@ -196,6 +215,15 @@
       refuser,
       terminer,
       getPhase: () => phase,
+      /* Reset au debut d'un nouveau parcours (sans effet si un mini-jeu est en
+         cours, ce qui n'arrive pas a l'entree d'un parcours) : compteur de
+         concepts du parcours + espacement du declencheur. */
+      reinitialiser() {
+        if (phase === "repos") {
+          conceptsVus = 0;
+          declencheur.reinitialiser?.();
+        }
+      },
     };
   }
 
@@ -759,12 +787,31 @@
     };
   }
 
+  /* Colonnes de la grille adaptees au nombre de cartes, pour qu'elle soit
+     TOUJOURS pleine (aucun "trou" en fin de rangee). 6/7/8 paires -> 12/14/16
+     cartes : 12 et 16 pavent 4 colonnes (4x3, 4x4), mais 14 ne se divise pas
+     par 4 et laissait 2 cellules vides. On prend le plus petit diviseur du
+     nombre de cartes au moins egal a ceil(sqrt(n)) : 12->4, 14->7, 16->4. */
+  function colonnesMemory(nbCartes) {
+    if (nbCartes <= 0) {
+      return 1;
+    }
+    const cible = Math.ceil(Math.sqrt(nbCartes));
+    for (let c = cible; c <= nbCartes; c += 1) {
+      if (nbCartes % c === 0) {
+        return c;
+      }
+    }
+    return nbCartes;
+  }
+
   const MINIGAME_MEMORY = {
     id: "memory-tables",
     nom: "le memory des paires",
     monter(zone, { terminer, niveau }) {
       const config = genererPaires(Math.random, reglagesMemory(niveau));
       const jeu = creerMemory(config);
+      const nbColonnes = colonnesMemory(jeu.cartes().length);
       const consigne = estPetitNiveau(niveau)
         ? "Trouve les 2 cartes qui vont ensemble."
         : "Associe chaque calcul à son résultat.";
@@ -786,7 +833,7 @@
             <div class="memory-consigne">${consigne}</div>
             <div class="memory-compteur" id="memory-compteur">0/${jeu.nbPaires()} paires</div>
           </div>
-          <div class="memory-grille" id="memory-grille">${cartesMarkup}</div>
+          <div class="memory-grille" id="memory-grille" style="--memory-cols:${nbColonnes}">${cartesMarkup}</div>
           <div class="memory-fin hidden" id="memory-fin"></div>
         </div>
       `;
@@ -1049,13 +1096,17 @@
       const cellH = PUZZLE.FRESQUE_H / rows;
       const fresque = window.ParcoursApp?.fresqueMondeMarkup?.() || "";
 
-      /* Image d'une piece = la fresque entiere, cadree (viewBox) sur la
-         cellule de cette piece. Une fois posee, elle s'aligne avec ses
-         voisines pour reformer l'image. */
+      /* La fresque n'est definie QU'UNE fois, dans un <symbol> partage ; chaque
+         piece/emplacement n'est qu'un <svg> viewBox cadre sur sa cellule + un
+         <use> vers ce symbole. Avant, chaque piece re-embarquait la fresque
+         entiere (~70 noeuds) -> jusqu'a ~18 copies (bac + emplacements),
+         plusieurs centaines de noeuds crees et rastérisés d'un coup au montage
+         (gel du thread sur machine modeste). Le <use> partage la meme source. */
+      const FRESQUE_DEF = `<svg class="puzzle-fresque-def" width="0" height="0" aria-hidden="true"><defs><symbol id="puzzle-fresque-src" viewBox="0 0 ${PUZZLE.FRESQUE_W} ${PUZZLE.FRESQUE_H}">${fresque}</symbol></defs></svg>`;
       const pieceImg = (id) => {
         const r = Math.floor(id / cols);
         const c = id % cols;
-        return `<svg class="puzzle-img" viewBox="${(c * cellW).toFixed(2)} ${(r * cellH).toFixed(2)} ${cellW.toFixed(2)} ${cellH.toFixed(2)}" preserveAspectRatio="none" aria-hidden="true">${fresque}</svg>`;
+        return `<svg class="puzzle-img" viewBox="${(c * cellW).toFixed(2)} ${(r * cellH).toFixed(2)} ${cellW.toFixed(2)} ${cellH.toFixed(2)}" preserveAspectRatio="none" aria-hidden="true"><use href="#puzzle-fresque-src" width="${PUZZLE.FRESQUE_W}" height="${PUZZLE.FRESQUE_H}"></use></svg>`;
       };
 
       let slotsHtml = "";
@@ -1081,6 +1132,7 @@
         : `<p class="puzzle-bac-vide">Tout est placé ! Reviens débloquer la pièce suivante.</p>`;
 
       zone.innerHTML = `
+        ${FRESQUE_DEF}
         <div class="puzzle">
           <div class="puzzle-header">
             <div class="puzzle-consigne">${estPetitNiveau(niveau) ? "Place les pièces pour finir l'image." : "Reforme la carte du monde, pièce par pièce"}</div>
@@ -1172,7 +1224,7 @@
         finBox.innerHTML = `
           <div class="puzzle-fin-carte">
             <div class="puzzle-fin-image">
-              <svg viewBox="0 0 ${PUZZLE.FRESQUE_W} ${PUZZLE.FRESQUE_H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${fresque}</svg>
+              <svg viewBox="0 0 ${PUZZLE.FRESQUE_W} ${PUZZLE.FRESQUE_H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><use href="#puzzle-fresque-src" width="${PUZZLE.FRESQUE_W}" height="${PUZZLE.FRESQUE_H}"></use></svg>
             </div>
             <h2 class="puzzle-fin-titre">Carte du monde reconstituée !</h2>
             <p class="puzzle-fin-detail">Tu as replacé toutes les pièces. Un nouveau puzzle t'attend la prochaine fois.</p>
@@ -1586,6 +1638,11 @@
     conceptDebloque(niveau) {
       return orchestrateurReel.conceptDebloque(niveau);
     },
+    /* A appeler par map.js au demarrage d'un nouveau parcours : remet a zero
+       l'espacement des propositions (le declencheur etant un singleton). */
+    reinitialiserParcours() {
+      orchestrateurReel.reinitialiser();
+    },
     /* Permet a d'autres modules (vrais mini-jeux) de s'enregistrer. */
     enregistrer(minigame) {
       registreReel.enregistrer(minigame);
@@ -1605,6 +1662,7 @@
     MINIGAME_MEMORY,
     genererPaires,
     creerMemory,
+    colonnesMemory,
     MEMORY,
     reglagesChasse,
     reglagesMemory,

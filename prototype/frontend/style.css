@@ -4022,7 +4022,10 @@ input {
      (8 paires = 16 cartes), sans jamais deborder a droite ni couper une
      colonne. `minmax(0, ...)` autorise la compression sous la taille du
      contenu ; le plafond evite des cartes geantes sur un conteneur large. */
-  grid-template-columns: repeat(4, minmax(0, 128px));
+  /* Colonnes adaptees au nombre de cartes (--memory-cols pose par minigames.js)
+     pour que la grille soit toujours pleine, sans cellule vide en bout de
+     rangee : 12 cartes -> 4 col, 14 -> 7, 16 -> 4. Repli sur 4. */
+  grid-template-columns: repeat(var(--memory-cols, 4), minmax(0, 128px));
   gap: 12px;
   justify-content: center;
   width: 100%;
