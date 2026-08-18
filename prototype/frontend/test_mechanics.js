@@ -21,6 +21,7 @@ const {
   basketFieldCount,
   BASKET_MAX_COUNT,
   plankCandidates,
+  iconeObjetPour,
 } = require("./mechanics.js");
 
 let failures = 0;
@@ -556,6 +557,22 @@ function narratifExercise(valeur, id = "CE1-narratif-000001") {
      petit : pas plus de la cible + 5 distracteurs. */
   const fcMax = basketFieldCount(narratifExercise(BASKET_MAX_COUNT));
   check(fcMax <= BASKET_MAX_COUNT + 5, "panier : plateau borne (cible + 5 distracteurs max)");
+}
+
+/* --- Icones d'objets contextuelles (le panier n'affiche plus que des pommes) --- */
+{
+  const cas = {
+    ballons: "ballon", maillots: "maillot", oeufs: "oeuf", roses: "fleur",
+    couronnes: "couronne", poissons: "poisson", pommes: "pomme", billes: "bille",
+    perles: "bille", os: "os", cailloux: "caillou", "étoiles": "etoile",
+    feuilles: "feuille",
+  };
+  for (const [mot, cle] of Object.entries(cas)) {
+    check(iconeObjetPour(mot) === cle, `icone objet : "${mot}" -> ${cle}`);
+  }
+  check(iconeObjetPour("trucs bidules") === "jeton", "objet inconnu -> jeton neutre (pas une pomme par defaut)");
+  /* Accents et casse ignores. */
+  check(iconeObjetPour("MÉDAILLES") === "etoile", "matching insensible aux accents/majuscules");
 }
 
 /* --- Planches : unicite de la reserve de distracteurs (BUG 4) --------- */

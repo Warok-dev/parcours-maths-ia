@@ -2576,48 +2576,8 @@ input {
   stroke-dasharray: 3 22;
 }
 
-/* Chemin COURT : direct, dore */
-.path-short-edge {
-  fill: none;
-  stroke: var(--gold-dark);
-  stroke-width: 40;
-  stroke-linecap: round;
-}
-
-.path-short-surface {
-  fill: none;
-  stroke: var(--gold);
-  stroke-width: 30;
-  stroke-linecap: round;
-}
-
-/* Chemin LONG : tres sinueux, brun bois */
-.path-long-edge {
-  fill: none;
-  stroke: var(--wood-dark);
-  stroke-width: 40;
-  stroke-linecap: round;
-}
-
-.path-long-surface {
-  fill: none;
-  stroke: var(--wood-light);
-  stroke-width: 30;
-  stroke-linecap: round;
-}
-
-.path-branch {
-  opacity: 0.88;
-}
-
-.path-branch.active-path {
-  opacity: 1;
-}
-
-.path-short-surface,
-.path-long-surface {
-  stroke-dasharray: 30 14;
-}
+/* (Les variantes visuelles de route courte/moyenne/longue par maitrise ont ete
+   retirees : un seul chemin continu desormais, seul le nombre de haltes varie.) */
 
 /* Points d'arret de renforcement le long des routes */
 .stop-pad {
@@ -2875,6 +2835,111 @@ input {
 
 .deco-rock-small {
   fill: var(--stone-dark);
+}
+
+/* ---------- Decor vivant : papillons + chat (anime, non-interactif) ----------
+   Tout est compose de transforms (GPU) et ne repeint jamais la carte. Le
+   calque entier ignore la souris : purement decoratif. */
+.living-decor-layer,
+.living-decor {
+  pointer-events: none;
+}
+
+/* Papillon */
+.critter-body {
+  fill: var(--wood-dark);
+}
+.critter-antenna {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+.critter-wing {
+  fill: #ffcf4d;
+  stroke: #e0a92e;
+  stroke-width: 0.7;
+}
+.critter-wing.bleu {
+  fill: #7ec4f0;
+  stroke: #4a9bd6;
+}
+/* Battement d'ailes : les ailes droites se replient en miroir (scaleX depuis
+   l'axe du corps -> transform-box sur la boite de chaque aile). */
+.critter-wings {
+  animation: wingFlap 320ms ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes wingFlap {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.62); }
+}
+/* Derive du papillon : petite boucle douce + montee/descente. */
+.critter-flutter {
+  animation: butterflyDrift 6.5s ease-in-out infinite;
+}
+@keyframes butterflyDrift {
+  0% { transform: translate(0, 0) rotate(-6deg); }
+  25% { transform: translate(16px, -10px) rotate(8deg); }
+  50% { transform: translate(4px, -22px) rotate(-4deg); }
+  75% { transform: translate(-14px, -8px) rotate(7deg); }
+  100% { transform: translate(0, 0) rotate(-6deg); }
+}
+
+/* Chat */
+.cat-body {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+}
+.cat-head {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+}
+.cat-eye {
+  fill: #33261a;
+}
+.cat-mouth {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+.cat-tail {
+  fill: none;
+  stroke: var(--wood);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transform-origin: 3px 8px;
+  animation: catTail 1.8s ease-in-out infinite;
+}
+@keyframes catTail {
+  0%, 100% { transform: rotate(-10deg); }
+  50% { transform: rotate(16deg); }
+}
+/* Flanerie du chat : petite boucle lente, il pivote pour suivre son chemin. */
+.cat-stroll {
+  animation: catStroll 18s ease-in-out infinite;
+}
+@keyframes catStroll {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(40px, 14px) rotate(70deg); }
+  50% { transform: translate(18px, 40px) rotate(175deg); }
+  75% { transform: translate(-24px, 18px) rotate(255deg); }
+  100% { transform: translate(0, 0) rotate(360deg); }
+}
+
+/* Machines modestes / accessibilite : on fige tout le decor vivant si l'usager
+   demande a reduire les animations. */
+@media (prefers-reduced-motion: reduce) {
+  .critter-wings,
+  .critter-flutter,
+  .cat-tail,
+  .cat-stroll {
+    animation: none;
+  }
 }
 
 /* ---------- Chateau (pierre grise) ---------- */

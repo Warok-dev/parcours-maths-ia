@@ -184,6 +184,48 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertNotEqual(progression["concept_courant"], concept_initial)
         self.assertEqual(progression["exercices_renforcement_restants"], 0)
 
+    def test_detection_levels_use_fresh_instances_same_concept(self) -> None:
+        """Chaque niveau de detection rejoue le meme concept sur une NOUVELLE
+        instance (valeurs differentes), pas la meme reponse trois fois."""
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+        )
+        self.assertEqual(start.status_code, 200)
+        exercice = start.json()["exercice"]
+
+        instances = [exercice]
+        for _ in range(2):  # deux montees de niveau : 1->2 puis 2->3
+            body = self.client.post(
+                "/evaluer",
+                json={
+                    "session_id": start.json()["session_id"],
+                    "exercice_id": exercice["id"],
+                    "reponse_donnee": _answer_for(exercice),
+                },
+            ).json()
+            self.assertEqual(body["statut"], "correct_niveau_suivant")
+            exercice = body["exercice_suivant"]
+            instances.append(exercice)
+
+        # Meme concept sur les 3 niveaux...
+        patterns = {ex["pattern"]["pattern_name"] for ex in instances}
+        self.assertEqual(len(patterns), 1, "le concept (pattern) reste le meme sur les 3 niveaux")
+        # ...mais 3 instances distinctes (ids differents)...
+        ids = [ex["id"] for ex in instances]
+        self.assertEqual(len(set(ids)), 3, "3 instances distinctes, pas la meme reservie 3 fois")
+        # ...et les valeurs varient (au moins une montee change les variables).
+        variables = [ex.get("variables") for ex in instances]
+        self.assertTrue(
+            variables[0] != variables[1] or variables[1] != variables[2],
+            "les valeurs changent d'un niveau a l'autre",
+        )
+        # La methode 1_guide de chaque instance parle bien de SES valeurs.
+        for ex in instances:
+            etapes = " ".join(ex["presentations"]["1_guide"].get("etapes_methode", []))
+            self.assertIn(str(ex["reponse_attendue"]["valeur"]), etapes,
+                          "la methode guidee cite la reponse de CETTE instance")
+
     def test_generation_failure_on_concept_unlock_keeps_session_state(self) -> None:
         start = self.client.post(
             "/session/demarrer",
@@ -243,6 +285,9 @@ class ApiIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(level_one.status_code, 200)
         self.assertEqual(level_one.json()["statut"], "correct_niveau_suivant")
+        # La montee de niveau sert desormais une NOUVELLE instance : on suit
+        # l'exercice courant (sinon 409 "exercice courant invalide").
+        exercice = level_one.json()["exercice_suivant"]
 
         wrong_level_two = self.client.post(
             "/evaluer",
@@ -329,6 +374,9 @@ class ApiIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(level_one.status_code, 200)
             self.assertEqual(level_one.json()["statut"], "correct_niveau_suivant")
+            # La montee de niveau sert une nouvelle instance : on suit l'exercice
+            # courant pour le tuteur comme pour l'evaluation du niveau 2.
+            exercice = level_one.json()["exercice_suivant"]
 
             tutor = self.client.post(
                 "/tuteur/aide",

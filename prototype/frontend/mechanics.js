@@ -1532,10 +1532,80 @@
     return info.numeric + distractors;
   }
 
+  /* ----- Icones d'objets contextuelles -------------------------
+     Le panier affichait toujours des pommes, meme quand l'enonce parlait de
+     maillots, d'oeufs ou de billes. On associe desormais l'objet mentionne
+     (contexte_narratif.objet des problemes narratifs, ou a defaut un mot-cle
+     repere dans l'enonce) a une icone d'un petit set varie. Coeur pur
+     (mot -> cle d'icone) exporte pour les tests. Couleurs litterales : ces
+     jetons doivent rester vifs et distincts. */
+  const OBJET_SVG = {
+    pomme: `<circle cx="0" cy="1" r="11" fill="#e8564a"></circle><circle cx="-4" cy="-3" r="3.2" fill="#ff9a8f"></circle><path d="M 0 -10 q 1 -5 6 -6 q -1 5 -6 6" fill="#5aa544"></path>`,
+    etoile: `<polygon points="0,-12 3.4,-3.8 12,-3.8 5,2.2 7.4,11 0,5.6 -7.4,11 -5,2.2 -12,-3.8 -3.4,-3.8" fill="#ffcf4d" stroke="#e0a92e" stroke-width="1"></polygon>`,
+    ballon: `<circle cx="0" cy="0" r="11" fill="#fbf7ef" stroke="#3a3a3a" stroke-width="1.4"></circle><polygon points="0,-5.2 5,-1.6 3.1,4.2 -3.1,4.2 -5,-1.6" fill="#3a3a3a"></polygon>`,
+    fleur: `<circle cx="0" cy="-7" r="4.2" fill="#ff7fa8"></circle><circle cx="6.7" cy="-2.2" r="4.2" fill="#ff7fa8"></circle><circle cx="4.1" cy="6" r="4.2" fill="#ff7fa8"></circle><circle cx="-4.1" cy="6" r="4.2" fill="#ff7fa8"></circle><circle cx="-6.7" cy="-2.2" r="4.2" fill="#ff7fa8"></circle><circle cx="0" cy="0" r="3.6" fill="#ffd66b"></circle>`,
+    bille: `<circle cx="0" cy="0" r="11" fill="#4aa3e8"></circle><ellipse cx="-3.6" cy="-3.6" rx="3.8" ry="2.6" fill="#d3ecff" opacity="0.9"></ellipse>`,
+    oeuf: `<ellipse cx="0" cy="1" rx="8.5" ry="11" fill="#fdf3d8" stroke="#e6d3a3" stroke-width="1"></ellipse>`,
+    feuille: `<path d="M 0 11 C -9 4 -9 -8 0 -12 C 9 -8 9 4 0 11 Z" fill="#5aa544"></path><line x1="0" y1="-9" x2="0" y2="9" stroke="#3f7d30" stroke-width="1.2"></line>`,
+    poisson: `<ellipse cx="-1" cy="0" rx="9" ry="6" fill="#ffa94d"></ellipse><polygon points="7,0 13,-5 13,5" fill="#ff8f2e"></polygon><circle cx="-5" cy="-1.5" r="1.5" fill="#33261a"></circle>`,
+    bonbon: `<circle cx="0" cy="0" r="7.5" fill="#e85aa0"></circle><polygon points="7,0 13,-5 13,5" fill="#f79ac8"></polygon><polygon points="-7,0 -13,-5 -13,5" fill="#f79ac8"></polygon>`,
+    livre: `<rect x="-9" y="-9" width="18" height="18" rx="2" fill="#4a7de8"></rect><rect x="-9" y="-9" width="6" height="18" fill="#365fb0"></rect><line x1="1" y1="-5" x2="6" y2="-5" stroke="#fff" stroke-width="1.3"></line><line x1="1" y1="-1" x2="6" y2="-1" stroke="#fff" stroke-width="1.3"></line>`,
+    maillot: `<path d="M -5 -9 L -9 -5 L -6 -1.5 L -6 10 L 6 10 L 6 -1.5 L 9 -5 L 5 -9 L 3 -9 Q 0 -6 -3 -9 Z" fill="#e8564a"></path>`,
+    couronne: `<path d="M -10 8 L -10 -6 L -4 0 L 0 -9 L 4 0 L 10 -6 L 10 8 Z" fill="#ffcf4d" stroke="#e0a92e" stroke-width="1"></path>`,
+    os: `<circle cx="-7" cy="-6" r="3.4" fill="#f3ecd8"></circle><circle cx="-4" cy="-8" r="3.4" fill="#f3ecd8"></circle><circle cx="7" cy="6" r="3.4" fill="#f3ecd8"></circle><circle cx="4" cy="8" r="3.4" fill="#f3ecd8"></circle><rect x="-6" y="-2" width="12" height="4" rx="2" transform="rotate(45)" fill="#f3ecd8"></rect>`,
+    caillou: `<ellipse cx="0" cy="2" rx="11" ry="8" fill="#9aa3ab"></ellipse><ellipse cx="-3" cy="-1" rx="4" ry="2.6" fill="#b7bdc4"></ellipse>`,
+    jeton: `<circle cx="0" cy="0" r="11" fill="#c9922e"></circle><circle cx="0" cy="0" r="7" fill="#f0b84b"></circle>`,
+  };
+
+  /* Mots-cles -> icone (premiere correspondance de sous-chaine gagne). Couvre
+     le vocabulaire des banques d'objets par theme ; tout le reste retombe sur
+     le jeton neutre. */
+  const OBJET_MOTS = [
+    [["pomme", "fruit", "poire", "cerise"], "pomme"],
+    [["etoile", "trophee", "medaille", "coupe"], "etoile"],
+    [["ballon"], "ballon"],
+    [["fleur", "rose", "tulipe"], "fleur"],
+    [["oeuf", "coquille"], "oeuf"],
+    [["poisson"], "poisson"],
+    [["couronne"], "couronne"],
+    [["os"], "os"],
+    [["caillou", "meteorite", "rocher", "pierre", "galet"], "caillou"],
+    [["feuille", "fougere", "branche", "salade", "fossile", "empreinte", "epine"], "feuille"],
+    [["livre", "carte", "vignette", "autocollant", "image", "ticket", "dossard"], "livre"],
+    [["maillot", "chasuble", "gant", "brassard", "fanion", "drapeau", "banderole", "ruban", "gourde"], "maillot"],
+    [["bonbon", "gateau", "biscuit", "noisette", "graine", "baie", "epi", "croquette", "carotte"], "bonbon"],
+    [["bille", "perle", "piece", "jeton", "pastille", "cristal", "rubis", "ecu", "pion", "bouton", "point", "but"], "bille"],
+  ];
+
+  function normaliserMot(texte) {
+    return String(texte || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "");
+  }
+
+  /* Cle d'icone pour un texte (nom d'objet ou enonce entier). "jeton" par
+     defaut : un objet inconnu reste un joli jeton neutre plutot qu'une pomme. */
+  function iconeObjetPour(texte) {
+    const t = normaliserMot(texte);
+    for (const [mots, cle] of OBJET_MOTS) {
+      if (mots.some((m) => t.includes(m))) {
+        return cle;
+      }
+    }
+    return "jeton";
+  }
+
+  function iconeObjetSvg(exercise) {
+    const source = exercise.contexte_narratif?.objet || exercise.enonce || "";
+    return OBJET_SVG[iconeObjetPour(source)] || OBJET_SVG.jeton;
+  }
+
   /* ----- Panier a remplir : denombrer en cliquant -------------- */
   function mountBasket(container, exercise, api) {
     const info = answerInfo(exercise);
     const objectName = exercise.contexte_narratif?.objet || "objets";
+    const objetSvg = iconeObjetSvg(exercise);
     const fieldCount = basketFieldCount(exercise);
     const inBasket = new Set();
 
@@ -1545,12 +1615,8 @@
         ${Array.from({ length: fieldCount })
           .map(
             (_, i) => `
-            <button type="button" class="basket-item" data-item="${i}" aria-label="Objet ${i + 1}">
-              <svg viewBox="-14 -14 28 28" aria-hidden="true">
-                <circle cx="0" cy="1" r="11" class="basket-fruit"></circle>
-                <circle cx="-3.5" cy="-2.5" r="3.4" class="basket-shine"></circle>
-                <path d="M 0 -10 q 1 -5 6 -6 q -1 5 -6 6" class="basket-leaf"></path>
-              </svg>
+            <button type="button" class="basket-item" data-item="${i}" aria-label="${objectName} ${i + 1}">
+              <svg viewBox="-14 -14 28 28" aria-hidden="true">${objetSvg}</svg>
             </button>`,
           )
           .join("")}
@@ -1633,6 +1699,7 @@
     basketFieldCount,
     BASKET_MAX_COUNT,
     plankCandidates,
+    iconeObjetPour,
   };
 
   if (typeof window !== "undefined") {

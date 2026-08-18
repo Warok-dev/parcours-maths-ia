@@ -462,6 +462,38 @@ const ASSETS = {
     `;
   },
 
+  /* Papillon vu du dessus : corps + 2 ailes qui battent (classe CSS). Dessine
+     centre sur (0,0) ; le battement est purement decoratif. */
+  butterfly(variant) {
+    const aile = variant === "bleu" ? "critter-wing bleu" : "critter-wing";
+    return `
+      <g class="critter-wings">
+        <ellipse cx="-4.5" cy="-2.5" rx="4.5" ry="3.6" class="${aile}"></ellipse>
+        <ellipse cx="-4" cy="3" rx="3.6" ry="3" class="${aile}"></ellipse>
+        <ellipse cx="4.5" cy="-2.5" rx="4.5" ry="3.6" class="${aile} droite"></ellipse>
+        <ellipse cx="4" cy="3" rx="3.6" ry="3" class="${aile} droite"></ellipse>
+      </g>
+      <ellipse cx="0" cy="0" rx="1.4" ry="5.5" class="critter-body"></ellipse>
+      <path d="M -0.6 -5.5 q -2 -2.4 -3.2 -1 M 0.6 -5.5 q 2 -2.4 3.2 -1" class="critter-antenna"></path>
+    `;
+  },
+
+  /* Chat vu du dessus : corps + tete + oreilles + queue qui remue (classe CSS).
+     Dessine tete vers le HAUT (-y) ; le groupe exterieur l'oriente/deplace. */
+  cat() {
+    return `
+      <ellipse cx="0" cy="7" rx="12" ry="7" class="tree-shadow"></ellipse>
+      <path d="M 3 8 q 12 2 9 -8" class="cat-tail"></path>
+      <ellipse cx="0" cy="2" rx="8" ry="11" class="cat-body"></ellipse>
+      <path d="M -6 -8 l -1 -6 l 6 3 Z" class="cat-body"></path>
+      <path d="M 6 -8 l 1 -6 l -6 3 Z" class="cat-body"></path>
+      <circle cx="0" cy="-8" r="7" class="cat-head"></circle>
+      <circle cx="-2.4" cy="-9" r="1.1" class="cat-eye"></circle>
+      <circle cx="2.4" cy="-9" r="1.1" class="cat-eye"></circle>
+      <path d="M -1.6 -6 q 1.6 1.4 3.2 0" class="cat-mouth"></path>
+    `;
+  },
+
   /* Chateau : bande de muraille + 2 tours rondes + double porte en bois
      avec cadenas dore. La porte s'ouvre en pivotant (classes CSS). */
   castle(isOpen) {
@@ -764,7 +796,7 @@ function createSceneModel(concepts, seed) {
 }
 
 /* ============================================================
-   ROUTES : chemin principal + variantes courte / longue
+   ROUTES : un chemin principal continu (plus de variantes visuelles)
    (delegue a world.js — meme source de verite que la generation)
    ============================================================ */
 function buildRoadPath(points) {
@@ -775,49 +807,14 @@ function branchGeometry(scene, obstacleIndex) {
   return window.ParcoursWorld.branchGeometry(scene, obstacleIndex);
 }
 
-/* Quelle route pour quelle maitrise : 3 = courte, 2 = moyenne (la route
-   principale), 1 = longue. La table vit dans tresor.js, qui s'en sert pour
-   n'accorder de tresor qu'a la route courte : une seule source de verite. */
-function routeKindForMastery(mastery) {
-  return window.ParcoursTresor?.routePourMaitrise?.(mastery) || "moyenne";
-}
-
-/* Chemin de renforcement effectif selon la maitrise. */
-function reinforcementRouteD(geometry, mastery) {
-  const parcours = { courte: geometry.short, moyenne: geometry.medium, longue: geometry.long };
-  return parcours[routeKindForMastery(mastery)];
-}
-
-function branchMarkup(scene) {
-  /* Seule la route de renforcement ACTIVE est dessinee : le troncon du
-     concept en cours, dans la variante correspondant a la maitrise detectee.
-     Les autres troncons n'affichent que la route principale, pour ne jamais
-     montrer de segments deconnectes du chemin reellement emprunte. */
-  if (!state.session || state.session.phase !== "renforcement") {
-    return "";
-  }
-  const geometry = branchGeometry(scene, state.session.concept_index);
-  if (!geometry) {
-    return "";
-  }
-  const kind = routeKindForMastery(state.session.maitrise_actuelle || 2);
-  if (kind === "courte") {
-    return `
-      <g class="path-branch path-short active-path">
-        <path d="${geometry.short}" class="path-short-edge"></path>
-        <path d="${geometry.short}" class="path-short-surface"></path>
-      </g>
-    `;
-  }
-  if (kind === "longue") {
-    return `
-      <g class="path-branch path-long active-path">
-        <path d="${geometry.long}" class="path-long-edge"></path>
-        <path d="${geometry.long}" class="path-long-surface"></path>
-      </g>
-    `;
-  }
-  return ""; /* route moyenne : la route principale est le chemin de renforcement */
+/* Chemin de renforcement : UN SEUL trace continu, le troncon principal entre
+   l'obstacle courant et le suivant, quelle que soit la maitrise. Il n'y a plus
+   de variantes visuelles courte/moyenne/longue (elles semaient la confusion et
+   causaient des bugs) : seul le NOMBRE de haltes varie selon la maitrise
+   (REINFORCEMENT_TOTALS), pas le trace. Le mastery en 2e argument est ignore,
+   conserve pour ne pas casser les appels existants. */
+function reinforcementRouteD(geometry) {
+  return geometry.medium;
 }
 
 /* ============================================================
@@ -881,10 +878,11 @@ function stopIconSvg() {
 }
 
 /* ============================================================
-   TRESOR DU RACCOURCI
-   Pose sur la route courte uniquement (maitrise 3). La regle
-   d'attribution vit dans tresor.js ; ici on ne fait que la
-   placer sur le trace et la ramasser.
+   TRESOR (recompense d'excellence)
+   Accorde a la maitrise 3 uniquement (regle dans tresor.js) et pose
+   sur l'unique chemin de renforcement -- il n'y a plus de "raccourci"
+   visuel, mais l'excellence reste recompensee. Ici on ne fait que le
+   placer sur le trace et le ramasser.
    ============================================================ */
 function computeTreasure() {
   if (!state.scene || !window.ParcoursTresor?.tresorDisponible(state.session, state.treasuresCollected)) {
@@ -1251,6 +1249,45 @@ function propsMarkup(scene) {
   `;
 }
 
+/* ============================================================
+   DECOR VIVANT : 2 a 4 petits elements animes, non-interactifs, pour donner
+   vie a la scene sans jamais gener le jeu. Positionnes sur des emplacements
+   de decor deja valides (fleurs, buisson) donc jamais sur la route ; animes
+   en CSS (transform composite, GPU) pour rester legers. Redresses comme le
+   reste des marqueurs (uprightSuffix) : un chat ou un papillon ne bascule pas
+   avec la carte. Motif "position dehors / animation dedans" comme le tresor,
+   pour que la transform CSS n'ecrase jamais le placement natif.
+   ============================================================ */
+function livingDecorMarkup(scene) {
+  const decor = scene.decor || {};
+  const flowers = decor.flowers || [];
+  const bushes = decor.bushes || [];
+  const trees = decor.trees || [];
+  const bits = [];
+
+  /* Jusqu'a 2 papillons, poses au-dessus d'une fleur (ils les butinent). */
+  flowers.slice(0, 2).forEach((f, i) => {
+    bits.push(`
+      <g class="living-decor" transform="translate(${f.x.toFixed(1)}, ${(f.y - 24).toFixed(1)})${uprightSuffix()}">
+        <g class="critter-flutter" style="animation-delay: ${(i * -1.9).toFixed(1)}s">
+          ${ASSETS.butterfly(i % 2 === 0 ? "orange" : "bleu")}
+        </g>
+      </g>
+    `);
+  });
+
+  /* 1 chat qui flane pres d'un buisson (a defaut d'un arbre) : zone degagee. */
+  const perchoir = bushes[0] || trees[0] || null;
+  if (perchoir) {
+    bits.push(`
+      <g class="living-decor" transform="translate(${(perchoir.x + 34).toFixed(1)}, ${(perchoir.y + 20).toFixed(1)})${uprightSuffix()}">
+        <g class="cat-stroll">${ASSETS.cat()}</g>
+      </g>
+    `);
+  }
+  return bits.join("");
+}
+
 function sceneMarkup(scene) {
   const roadPath = buildRoadPath(scene.routePoints);
   /* Tout le contenu de la scene est genere en coordonnees NATIVES puis pivote
@@ -1260,7 +1297,6 @@ function sceneMarkup(scene) {
   return `<g id="world-root" transform="${orientTransform()}">
     <rect x="0" y="0" width="${scene.width}" height="${scene.height}" class="ground"></rect>
     <g class="patch-layer">${decorMarkup(scene)}</g>
-    <g class="branch-layer">${branchMarkup(scene)}</g>
     <g class="road-layer">
       <path d="${roadPath}" class="road-edge"></path>
       <path d="${roadPath}" class="road-surface"></path>
@@ -1269,6 +1305,7 @@ function sceneMarkup(scene) {
       <path d="${roadPath}" class="road-paving offset" transform="translate(-14, -8)"></path>
     </g>
     <g class="props-layer">${propsMarkup(scene)}</g>
+    <g class="living-decor-layer">${livingDecorMarkup(scene)}</g>
     <g class="treasure-layer">${treasureMarkup()}</g>
     <g class="collectible-layer">${collectiblesMarkup()}</g>
     <g class="stops-layer">${stopsMarkup()}</g>

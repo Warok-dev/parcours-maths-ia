@@ -740,9 +740,16 @@ def _handle_detection_success(session: dict) -> tuple[str, dict | None]:
         return "correct_nouveau_renforcement", exercice
 
     if current_level < 3:
+        # Chaque niveau de detection (1_guide -> 2_semi_guide -> 3_autonome)
+        # rejoue le MEME concept, mais sur une NOUVELLE instance (valeurs
+        # differentes) : l'eleve ne retape plus trois fois la meme reponse, et
+        # la methode du 1_guide reste coherente avec les valeurs de son niveau.
+        # Generation d'abord (peut lever 503) : on ne mute la session qu'apres.
+        exercice = _generate_next_exercise(session, session["concept_courant"])
         session["maitrise_actuelle"] = current_level
         _advance_to_next_level(session)
-        return "correct_niveau_suivant", EXERCICE_CACHE[session["exercice_id_courant"]]
+        session["exercice_id_courant"] = exercice["id"]
+        return "correct_niveau_suivant", exercice
 
     exercice = _start_reinforcement(session, 3)
     return "correct_nouveau_renforcement", exercice
