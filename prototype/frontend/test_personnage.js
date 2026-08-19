@@ -20,10 +20,14 @@ function check(cond, label) {
   if (!cond) failures += 1;
 }
 
-const COULEUR_40 = "vert";
-const COULEUR_320 = "framboise";
-const ACC_60 = "chapeau";
-const ACC_420 = "badge";
+/* Elements repere : une couleur/accessoire BON MARCHE (debloque tot) et un
+   CHER (debloque tard). Referencer par role plutot que par cout figé garde le
+   test valable si les seuils sont rééquilibres (les couts exacts sont lus via
+   item.cout). */
+const COULEUR_BON_MARCHE = "vert"; /* 1re couleur payante */
+const COULEUR_CHERE = "framboise"; /* couleur la plus chere */
+const ACC_BON_MARCHE = "chapeau"; /* 1er accessoire payant */
+const ACC_CHER = "badge"; /* accessoire le plus cher */
 
 /* --- 1. Catalogue : couts croissants et defauts gratuits --- */
 {
@@ -50,7 +54,7 @@ const ACC_420 = "badge";
 
 /* --- 2. Seuils de deblocage --- */
 {
-  const vert = perso.trouver("couleur", COULEUR_40);
+  const vert = perso.trouver("couleur", COULEUR_BON_MARCHE);
   check(!perso.estDebloque(vert, vert.cout - 1), `verrouille a ${vert.cout - 1} etoiles`);
   check(perso.estDebloque(vert, vert.cout), `debloque pile a ${vert.cout} etoiles`);
   check(perso.estDebloque(vert, vert.cout + 500), "reste debloque au-dela du seuil");
@@ -69,16 +73,16 @@ const ACC_420 = "badge";
     "a 0 etoile : aucun accessoire",
   );
   const a175 = perso.elementsDebloques(175, "couleur");
-  check(a175.includes(COULEUR_40) && !a175.includes(COULEUR_320), "a 175 etoiles : vert oui, framboise non");
+  check(a175.includes(COULEUR_BON_MARCHE) && !a175.includes(COULEUR_CHERE), "a 175 etoiles : vert oui, framboise non");
 }
 
 /* --- 3. Annonce des nouveaux deblocages --- */
 {
-  const vert = perso.trouver("couleur", COULEUR_40);
+  const vert = perso.trouver("couleur", COULEUR_BON_MARCHE);
   const nouveaux = perso.nouveauxDeblocages(vert.cout - 5, vert.cout + 1);
-  check(nouveaux.some((item) => item.id === COULEUR_40), "franchir le seuil annonce la couleur");
+  check(nouveaux.some((item) => item.id === COULEUR_BON_MARCHE), "franchir le seuil annonce la couleur");
   check(
-    perso.nouveauxDeblocages(vert.cout, vert.cout + 50).every((item) => item.id !== COULEUR_40),
+    perso.nouveauxDeblocages(vert.cout, vert.cout + 50).every((item) => item.id !== COULEUR_BON_MARCHE),
     "un element deja debloque n'est pas re-annonce",
   );
   check(perso.nouveauxDeblocages(0, 0).length === 0, "aucun gain : aucune annonce");
@@ -90,18 +94,20 @@ const ACC_420 = "badge";
 
 /* --- 4. Selection : impossible sur un element verrouille --- */
 {
-  const base = { etoiles_totales: 100, couleur: "bleu", accessoire: "aucun" };
+  /* Total choisi entre le 1er accessoire payant (chapeau) et les plus chers
+     (cape/badge) : de quoi porter le bon marche, pas le cher. */
+  const base = { etoiles_totales: 200, couleur: "bleu", accessoire: "aucun" };
 
-  const okCouleur = perso.appliquerSelection(base, "couleur", COULEUR_40);
-  check(okCouleur.couleur === COULEUR_40, "couleur debloquee : selection acceptee");
+  const okCouleur = perso.appliquerSelection(base, "couleur", COULEUR_BON_MARCHE);
+  check(okCouleur.couleur === COULEUR_BON_MARCHE, "couleur debloquee : selection acceptee");
 
-  const okAcc = perso.appliquerSelection(base, "accessoire", ACC_60);
-  check(okAcc.accessoire === ACC_60, "accessoire debloque : selection acceptee");
+  const okAcc = perso.appliquerSelection(base, "accessoire", ACC_BON_MARCHE);
+  check(okAcc.accessoire === ACC_BON_MARCHE, "accessoire debloque : selection acceptee");
 
-  const refusCouleur = perso.appliquerSelection(base, "couleur", COULEUR_320);
+  const refusCouleur = perso.appliquerSelection(base, "couleur", COULEUR_CHERE);
   check(refusCouleur.couleur === "bleu", "couleur verrouillee : selection refusee");
 
-  const refusAcc = perso.appliquerSelection(base, "accessoire", ACC_420);
+  const refusAcc = perso.appliquerSelection(base, "accessoire", ACC_CHER);
   check(refusAcc.accessoire === "aucun", "accessoire verrouille : selection refusee");
 
   const inconnu = perso.appliquerSelection(base, "couleur", "arc-en-ciel");
@@ -123,7 +129,7 @@ const ACC_420 = "badge";
     "total non numerique ramene a 0",
   );
   /* Stockage bricole a la main : une tenue non gagnee ne doit pas passer. */
-  const triche = perso.etatNormalise({ etoiles_totales: 10, couleur: COULEUR_320, accessoire: ACC_420 });
+  const triche = perso.etatNormalise({ etoiles_totales: 10, couleur: COULEUR_CHERE, accessoire: ACC_CHER });
   check(
     triche.couleur === "bleu" && triche.accessoire === "aucun",
     "selection non debloquee dans le stockage : retour au defaut",
@@ -139,7 +145,7 @@ const ACC_420 = "badge";
   check(perso.ajouterEtoilesA(etat, -10).etoiles_totales === 75, "un gain negatif est ignore");
   check(perso.ajouterEtoilesA(etat, undefined).etoiles_totales === 75, "un gain absent est ignore");
   check(
-    perso.appliquerSelection(etat, "couleur", COULEUR_40).etoiles_totales === 75,
+    perso.appliquerSelection(etat, "couleur", COULEUR_BON_MARCHE).etoiles_totales === 75,
     "choisir une tenue ne coute pas d'etoiles (deblocage, pas achat)",
   );
 }
@@ -156,28 +162,28 @@ const ACC_420 = "badge";
 
   const annonces = perso.ajouterEtoiles(100);
   check(
-    annonces.some((item) => item.id === COULEUR_320) === false && annonces.length > 0,
+    annonces.some((item) => item.id === COULEUR_CHERE) === false && annonces.length > 0,
     `passage a 220 etoiles : ${annonces.map((a) => a.id).join(", ")} annonces, pas framboise`,
   );
 
-  perso.selectionner("couleur", COULEUR_40);
-  perso.selectionner("accessoire", ACC_60);
+  perso.selectionner("couleur", COULEUR_BON_MARCHE);
+  perso.selectionner("accessoire", ACC_BON_MARCHE);
   check(
-    JSON.parse(localStorage.getItem(perso.STORAGE_KEY)).couleur === COULEUR_40,
+    JSON.parse(localStorage.getItem(perso.STORAGE_KEY)).couleur === COULEUR_BON_MARCHE,
     "le choix de couleur est persiste",
   );
   check(
-    JSON.parse(localStorage.getItem(perso.STORAGE_KEY)).accessoire === ACC_60,
+    JSON.parse(localStorage.getItem(perso.STORAGE_KEY)).accessoire === ACC_BON_MARCHE,
     "le choix d'accessoire est persiste",
   );
 
-  perso.selectionner("accessoire", ACC_420);
-  check(perso.getEtat().accessoire === ACC_60, "selection verrouillee ignoree, le choix precedent reste");
+  perso.selectionner("accessoire", ACC_CHER);
+  check(perso.getEtat().accessoire === ACC_BON_MARCHE, "selection verrouillee ignoree, le choix precedent reste");
 
   /* Rechargement de la page : le choix revient tel quel. */
   const recharge = perso.charger();
   check(
-    recharge.couleur === COULEUR_40 && recharge.accessoire === ACC_60 && recharge.etoiles_totales === 220,
+    recharge.couleur === COULEUR_BON_MARCHE && recharge.accessoire === ACC_BON_MARCHE && recharge.etoiles_totales === 220,
     "apres rechargement : meme tenue, meme total",
   );
 
@@ -188,8 +194,8 @@ const ACC_420 = "badge";
 /* --- 8. Markup injecte dans le dessin du personnage --- */
 {
   localStorage.clear();
-  perso.ajouterEtoiles(500);
-  perso.selectionner("accessoire", ACC_60);
+  perso.ajouterEtoiles(800); /* de quoi debloquer chapeau (140) ET cape (700) */
+  perso.selectionner("accessoire", ACC_BON_MARCHE);
   check(perso.markupAccessoire("avant").includes("acc-chapeau"), "le chapeau se dessine devant");
   check(perso.markupAccessoire("arriere") === "", "le chapeau n'a rien derriere le corps");
 

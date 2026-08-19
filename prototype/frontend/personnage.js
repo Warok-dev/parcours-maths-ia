@@ -23,12 +23,20 @@
      `teinte` reprend la valeur de la variable CSS (miroir de :root, comme
      REINFORCEMENT_TOTALS l'est du backend dans map.js) : elle sert au calcul
      de contraste avec le decor, qui doit rester pur et testable. */
+  /* Seuils d'etoiles CUMULEES (jamais une depense) pour debloquer chaque
+     couleur. Calibres pour que completer TOUT le catalogue (couleurs +
+     accessoires + deco du jardin) demande l'equivalent de ~8-10 parties
+     completes, pas 3 : la couleur la plus chere (framboise 900) et surtout le
+     badge (1100, accessoires) et la lanterne (1200, deco) etalent la
+     progression. La 1re couleur payante (vert 60) reste atteignable des la 1re
+     partie pour la motivation immediate. Miroir d'esprit avec DECO.CATALOGUE
+     (minigames.js) : memes ordres de grandeur, meme regle de seuil. */
   const COULEURS = [
     { id: "bleu", nom: "Bleu du matin", cout: 0, shirt: "var(--player-bleu)", shirtDark: "var(--player-bleu-dark)", teinte: "#4a7bc4" },
-    { id: "vert", nom: "Vert prairie", cout: 40, shirt: "var(--grass)", shirtDark: "var(--grass-dark)", teinte: "#6fbe53" },
-    { id: "orange", nom: "Orange soleil", cout: 100, shirt: "var(--road)", shirtDark: "var(--road-dark)", teinte: "#e8703a" },
-    { id: "jaune", nom: "Jaune trésor", cout: 200, shirt: "var(--gold)", shirtDark: "var(--gold-dark)", teinte: "#ffc23e" },
-    { id: "framboise", nom: "Rouge framboise", cout: 320, shirt: "var(--npc-body)", shirtDark: "var(--npc-body-dark)", teinte: "#a64d5f" },
+    { id: "vert", nom: "Vert prairie", cout: 60, shirt: "var(--grass)", shirtDark: "var(--grass-dark)", teinte: "#6fbe53" },
+    { id: "orange", nom: "Orange soleil", cout: 250, shirt: "var(--road)", shirtDark: "var(--road-dark)", teinte: "#e8703a" },
+    { id: "jaune", nom: "Jaune trésor", cout: 600, shirt: "var(--gold)", shirtDark: "var(--gold-dark)", teinte: "#ffc23e" },
+    { id: "framboise", nom: "Rouge framboise", cout: 900, shirt: "var(--npc-body)", shirtDark: "var(--npc-body-dark)", teinte: "#a64d5f" },
   ];
 
   /* Ce que l'eleve traverse sur la carte : herbe et routes. Un personnage de
@@ -53,7 +61,7 @@
     {
       id: "chapeau",
       nom: "Chapeau d'explorateur",
-      cout: 60,
+      cout: 140,
       arriere: "",
       avant: `
         <circle cx="0" cy="-3" r="13.5" class="acc-chapeau-bord"></circle>
@@ -63,7 +71,7 @@
     {
       id: "lunettes",
       nom: "Lunettes rondes",
-      cout: 150,
+      cout: 350,
       arriere: "",
       avant: `
         <line x1="-4.4" y1="1.5" x2="4.4" y2="1.5" class="acc-lunettes-pont"></line>
@@ -74,7 +82,7 @@
     {
       id: "cape",
       nom: "Cape courte",
-      cout: 260,
+      cout: 700,
       arriere: `
         <path d="M -18 -4 q 18 -8 36 0 q 4 16 -4 24 q -14 5 -28 0 q -8 -8 -4 -24 Z" class="acc-cape"></path>
       `,
@@ -85,7 +93,7 @@
     {
       id: "badge",
       nom: "Badge étoile",
-      cout: 420,
+      cout: 1100,
       arriere: "",
       avant: `
         <circle cx="-14.5" cy="7" r="4.6" class="acc-badge-fond"></circle>

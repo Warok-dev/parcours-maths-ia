@@ -60,8 +60,27 @@
      - phase  : décalage de rythme / cote de depart
      Les obstacles sont echantillonnes SUR cette epine (donc toujours sur le
      chemin), la sortie aussi (terminaison variable, plus jamais verticale). */
-  const GAP_MIN = 300; /* espacement vertical mini entre obstacles */
-  const GAP_MAX = 470; /* espacement vertical maxi (proportion de carte variable) */
+  /* Espacement vertical entre obstacles. Le troncon entre deux obstacles porte
+     les FANIONS de renforcement (2, 3 ou 4 selon la maitrise detectee EN JEU,
+     donc inconnue a la generation). map.js les etale sur la fraction
+     STOP_SPREAD (0.18..0.85) du troncon ; pour que meme le palier a 4 fanions
+     (maitrise 1) reste bien espace, le troncon doit etre assez long pour
+     accueillir le MAXIMUM de fanions. On dimensionne donc GAP_MIN a partir de
+     ce maximum : longueur mini = (maxFanions-1) * espacement_vise / STOP_SPREAD,
+     + les retraits haut/bas appliques a la branche par branchGeometry (56 + 72).
+     Ainsi "plus de fanions possibles -> troncon plus long", sans jamais
+     entasser. Les bornes du monde (hauteur) sont derivees (exitY+120), donc
+     elles s'elargissent automatiquement ; les autres garde-fous (auto-
+     intersection, MIN_OBSTACLE_DIST, MAX_STEP_X) ne portent que sur x/la forme
+     et restent respectes puisque seul l'ecart vertical augmente. */
+  const MAX_REINFORCEMENT_STOPS = 4; /* miroir de max(REINFORCEMENT_TOTALS) cote map.js */
+  const STOP_SPREAD = 0.67; /* fraction du troncon utilisee (0.85 - 0.18), miroir map.js */
+  const STOP_TARGET_SPACING = 150; /* espacement vise entre 2 fanions au palier max */
+  const BRANCH_TRIM = 128; /* retraits verticaux de branchGeometry : 56 (haut) + 72 (bas) */
+  const GAP_MIN = Math.round(
+    ((MAX_REINFORCEMENT_STOPS - 1) * STOP_TARGET_SPACING) / STOP_SPREAD + BRANCH_TRIM,
+  ); /* ~800 : troncon assez long pour 4 fanions bien espaces */
+  const GAP_MAX = GAP_MIN + 180; /* variation de proportion, comme avant */
   const AMP_MIN = 150; /* amplitude mini (tracé resserré) */
   const AMP_MAX = 540; /* amplitude maxi (tracé tres ample) */
   const FREQ_MIN = 1.0; /* 1 = une simple courbe en C (peu de virages) */

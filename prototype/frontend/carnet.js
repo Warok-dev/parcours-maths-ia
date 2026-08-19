@@ -178,9 +178,19 @@
         recordCompletion(snapshot);
       }
       /* Bilan de session juste apres le bandeau de felicitations, en plus
-         du comportement existant (le bandeau reste affiche derriere). */
+         du comportement existant (le bandeau reste affiche derriere). Si une
+         pause detente (mini-jeu) est proposee en fin de carte, on ATTEND
+         qu'elle soit finie : sans quoi le bilan s'empilerait par-dessus
+         l'ecran du mini-jeu. */
       window.clearTimeout(bilanTimer);
-      bilanTimer = window.setTimeout(() => showBilan(snapshot), 1600);
+      const afficherBilanQuandLibre = () => {
+        if (window.ParcoursMinigames?.estActif?.()) {
+          bilanTimer = window.setTimeout(afficherBilanQuandLibre, 800);
+          return;
+        }
+        showBilan(snapshot);
+      };
+      bilanTimer = window.setTimeout(afficherBilanQuandLibre, 1600);
     }
   });
 

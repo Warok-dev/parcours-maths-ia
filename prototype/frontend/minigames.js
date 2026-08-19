@@ -181,17 +181,23 @@
     }
 
     return {
-      /* Appele par la carte apres un concept debloque, avec le niveau scolaire
-         de la session. Retourne true si une proposition a ete affichee. */
-      conceptDebloque(niveau) {
+      /* Appele par la carte apres un concept debloque (ou en fin de carte),
+         avec le niveau scolaire et le NOMBRE TOTAL de concepts de la carte.
+         Retourne true si une proposition a ete affichee. */
+      conceptDebloque(niveau, totalConcepts) {
         if (phase !== "repos" || registre.estVide()) {
           return false;
         }
         conceptsVus += 1;
-        /* Jamais de pause sur le TOUT PREMIER concept d'un parcours (le
-           declencheur n'est meme pas sollicite : son espacement ne compte que
-           les concepts a partir du 2e). */
-        if (conceptsVus <= 1) {
+        /* On ne saute le TOUT PREMIER concept que si la carte est assez longue
+           pour qu'il reste des occasions ensuite (>= 3 concepts). Sur une carte
+           COURTE (1-2 concepts), bloquer le premier eteindrait toute pause -- le
+           dernier concept, lui, arrive en "carte_terminee" et propose aussi
+           desormais, mais un blocage systematique du 1er laissait les cartes a 2
+           concepts sans aucune occasion. totalConcepts inconnu -> prudence
+           d'origine (on bloque le 1er). */
+        const carteAssezLongue = !Number.isFinite(totalConcepts) || totalConcepts >= 3;
+        if (conceptsVus <= 1 && carteAssezLongue) {
           return false;
         }
         if (!declencheur.conceptDebloque(random)) {
@@ -215,14 +221,23 @@
       refuser,
       terminer,
       getPhase: () => phase,
-      /* Reset au debut d'un nouveau parcours (sans effet si un mini-jeu est en
-         cours, ce qui n'arrive pas a l'entree d'un parcours) : compteur de
-         concepts du parcours + espacement du declencheur. */
+      /* Reset au debut d'un nouveau parcours : compteur de concepts + espacement
+         du declencheur. Sort proprement de N'IMPORTE QUELLE phase : une nouvelle
+         partie peut demarrer alors qu'une proposition ou un mini-jeu etait encore
+         a l'ecran (l'eleve a quitte sans repondre). Sans ce nettoyage,
+         l'orchestrateur restait bloque hors "repos" et ne proposait plus jamais
+         de pause (mini-jeux eteints jusqu'au rechargement de la page). */
       reinitialiser() {
-        if (phase === "repos") {
-          conceptsVus = 0;
-          declencheur.reinitialiser?.();
+        if (phase !== "repos") {
+          if (typeof demonterActif === "function") {
+            demonterActif();
+          }
+          adapter.cacherProposition?.();
+          adapter.cacherMinigame?.();
         }
+        auRepos();
+        conceptsVus = 0;
+        declencheur.reinitialiser?.();
       },
     };
   }
@@ -1269,16 +1284,20 @@
   const DECO = {
     STORAGE_KEY: "parcours-deco-v1",
     NB_SPOTS: 6,
-    /* Memes paliers d'esprit que le personnage (10, 25, 50, 100...). Le cout
-       est un SEUIL d'etoiles cumulees, jamais une depense : gagner ne retire
-       rien, exactement comme pour les couleurs et accessoires. */
+    /* Memes paliers d'esprit que le personnage (personnage.js). Le cout est un
+       SEUIL d'etoiles cumulees, jamais une depense : gagner ne retire rien,
+       exactement comme pour les couleurs et accessoires. Seuils rehausses pour
+       que completer TOUT le catalogue (deco + couleurs + accessoires) demande
+       ~8-10 parties completes, pas 3 : la lanterne (1200) est l'objet le plus
+       cher de tout le jeu, le parterre de fleurs (30) reste debloque des la 1re
+       partie pour la motivation immediate. */
     CATALOGUE: [
-      { id: "fleurs", nom: "Parterre de fleurs", cout: 10 },
-      { id: "buisson", nom: "Buisson rond", cout: 25 },
-      { id: "arbre", nom: "Petit arbre", cout: 50 },
-      { id: "banc", nom: "Banc en bois", cout: 75 },
-      { id: "fontaine", nom: "Fontaine", cout: 100 },
-      { id: "lanterne", nom: "Lanterne dorée", cout: 150 },
+      { id: "fleurs", nom: "Parterre de fleurs", cout: 30 },
+      { id: "buisson", nom: "Buisson rond", cout: 180 },
+      { id: "arbre", nom: "Petit arbre", cout: 450 },
+      { id: "banc", nom: "Banc en bois", cout: 800 },
+      { id: "fontaine", nom: "Fontaine", cout: 1000 },
+      { id: "lanterne", nom: "Lanterne dorée", cout: 1200 },
     ],
   };
 
@@ -1633,10 +1652,18 @@
   });
 
   const api = {
-    /* Appele par map.js apres un correct_concept_debloque, avec le niveau
-       scolaire de la session (pour l'eligibilite et l'adaptation par age). */
-    conceptDebloque(niveau) {
-      return orchestrateurReel.conceptDebloque(niveau);
+    /* Appele par map.js apres un correct_concept_debloque OU en fin de carte
+       (carte_terminee), avec le niveau scolaire et le nombre total de concepts
+       de la carte (pour l'eligibilite, l'adaptation par age et l'assouplissement
+       de la garde sur les cartes courtes). */
+    conceptDebloque(niveau, totalConcepts) {
+      return orchestrateurReel.conceptDebloque(niveau, totalConcepts);
+    },
+    /* Vrai tant qu'une proposition ou un mini-jeu occupe l'ecran : le bilan de
+       fin de carte (carnet.js) attend que la pause detente soit finie avant de
+       s'afficher, pour ne pas empiler deux overlays. */
+    estActif() {
+      return orchestrateurReel.getPhase() !== "repos";
     },
     /* A appeler par map.js au demarrage d'un nouveau parcours : remet a zero
        l'espacement des propositions (le declencheur etant un singleton). */

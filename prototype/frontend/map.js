@@ -908,9 +908,11 @@ function treasureMarkup() {
   }
   /* Position portee par le groupe exterieur, flottement par le groupe
      interieur : la transformation CSS de l'animation n'ecrase ainsi jamais
-     les coordonnees sur la carte. */
+     les coordonnees sur la carte. Le coffre est un objet ORIENTE (couvercle en
+     haut, ombre en bas) : on le redresse (uprightSuffix) comme les fanions et
+     le texte de bonus, sinon il apparait a l'envers sur une carte pivotee. */
   return `
-    <g id="treasure-token" transform="translate(${state.treasure.x}, ${state.treasure.y})">
+    <g id="treasure-token" transform="translate(${state.treasure.x}, ${state.treasure.y})${uprightSuffix()}">
       <g class="treasure-token">${ASSETS.treasure()}</g>
     </g>
   `;
@@ -1118,21 +1120,53 @@ function obstacleMarkerMarkup(obstacle, status) {
   `;
 }
 
+/* Angle (deg) dont il faut tourner le chateau pour que sa PORTE (ouverture le
+   long de l'axe vertical local) s'aligne sur la tangente du chemin a cet
+   endroit -- ainsi la route TRAVERSE toujours le portail, quelle que soit la
+   direction de la carte. On mesure la tangente en espace d'AFFICHAGE (la ou le
+   joueur la voit) via la corde entre le point de chemin avant et apres
+   l'obstacle. Comme uprightSuffix() redresse deja le groupe (frame local =
+   frame ecran pour les directions), il suffit d'ajouter cette rotation apres.
+   Ramenee dans [-90, 90] : le chateau tourne pour faire face a la route sans
+   jamais se renverser (il reste droit face au joueur). */
+function castleGateAngle(obstacle) {
+  const scene = state.scene;
+  if (!scene || !Array.isArray(scene.routePoints)) {
+    return 0;
+  }
+  const rp = scene.routePoints; /* [depart, obstacle0, obstacle1, ..., sortie] */
+  const i = obstacle.index;
+  const before = rp[i] || rp[0];
+  const after = rp[i + 2] || rp[rp.length - 1];
+  const a = toDisplay(before);
+  const b = toDisplay(after);
+  const tangente = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  /* La porte (axe vertical local) pointe ecran-bas = 90°. On l'aligne sur la
+     tangente, puis on redresse dans [-90, 90] pour garder le chateau debout. */
+  let angle = tangente - 90;
+  if (angle > 90) angle -= 180;
+  if (angle < -90) angle += 180;
+  return angle;
+}
+
 function obstacleSceneryMarkup(obstacle, status) {
   const done = status === "done";
   const y = obstacle.barrierY;
   switch (obstacle.type) {
-    case "castle_gate":
+    case "castle_gate": {
+      /* Le chateau reste debout (uprightSuffix) MAIS pivote de castleGateAngle
+         pour que sa porte s'ouvre dans l'axe du chemin : la route traverse le
+         portail sur toutes les directions de carte. Les bannieres/tourelles
+         suivent ce leger pivot (elles n'ont pas de haut/bas textuel) ; la
+         plaque du nom et le PNJ, eux, gardent leur redressement propre. */
+      const gateAngle = castleGateAngle(obstacle);
       return `
         ${fenceMarkup(Math.max(40, obstacle.x - 560), obstacle.x - 165, y)}
         ${fenceMarkup(obstacle.x + 165, Math.min(SCENE_WIDTH - 40, obstacle.x + 560), y)}
-        <!-- Le chateau est un BATIMENT oriente (porte, tourelles, bannieres) :
-             on le redresse (uprightSuffix) pour qu'il fasse toujours face au
-             joueur, quelle que soit la direction de la carte procedurale. Les
-             barrieres (rails symetriques) restent, elles, dans le pivot du monde. -->
-        <g transform="translate(${obstacle.x}, ${y})${uprightSuffix()}">${ASSETS.castle(done)}</g>
+        <g transform="translate(${obstacle.x}, ${y})${uprightSuffix()} rotate(${gateAngle.toFixed(1)})">${ASSETS.castle(done)}</g>
         <g transform="translate(${obstacle.x + 150}, ${y + 52})${uprightSuffix()}">${ASSETS.npc()}</g>
       `;
+    }
     case "blocked_road": {
       /* La cabane (décor) et le villageois se placent du cote de l'obstacle
          tourné vers le CENTRE du monde : sur une carte procédurale l'obstacle
@@ -2590,12 +2624,16 @@ function applyEvaluationResult(payload, context) {
     clearFeedback();
   }
 
-  /* Pause detente : apres un concept debloque, on PROPOSE parfois un
-     mini-jeu (jamais impose, sans aucun enjeu pedagogique). Le module
-     decide seul de la frequence et de l'espacement, et gere sa propre
-     bascule/retour ; la progression sur la carte n'est jamais touchee. */
-  if (unlocked) {
-    window.ParcoursMinigames?.conceptDebloque?.(levelLabel());
+  /* Pause detente : apres un concept debloque ET en fin de carte
+     (carte_terminee, qui est la seule "occasion" des cartes a 1 concept et la
+     2e des cartes a 2 concepts), on PROPOSE parfois un mini-jeu (jamais impose,
+     sans aucun enjeu pedagogique). On transmet le nombre total de concepts pour
+     que le module assouplisse sa garde sur les cartes courtes. Le module decide
+     seul de la frequence et de l'espacement, gere sa propre bascule/retour ; la
+     progression sur la carte n'est jamais touchee. Le bilan de fin de carte
+     (carnet.js) attend la fin de la pause avant de s'afficher. */
+  if (unlocked || finished) {
+    window.ParcoursMinigames?.conceptDebloque?.(levelLabel(), state.session?.concepts?.length);
   }
 
   if (state.panelOpen) {

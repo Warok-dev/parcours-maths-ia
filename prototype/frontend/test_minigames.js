@@ -306,6 +306,51 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   check(orch.conceptDebloque() === true, "apres reinitialiser : 2e concept propose de nouveau");
 }
 
+/* 5g. Carte COURTE : la garde du 1er concept est assouplie. Une carte a 2
+   concepts (le 2e arrive en fin de carte) doit pouvoir proposer une pause des
+   le 1er concept, sinon elle n'en propose jamais. */
+{
+  const orchLongue = orchestrateurAvec(fakeAdapter());
+  check(orchLongue.conceptDebloque("CE2", 5) === false, "carte longue (5 concepts) : 1er concept toujours saute");
+
+  const orchCourte = orchestrateurAvec(fakeAdapter());
+  check(orchCourte.conceptDebloque("CE2", 2) === true, "carte courte (2 concepts) : 1er concept peut proposer");
+
+  const orchUnique = orchestrateurAvec(fakeAdapter());
+  check(orchUnique.conceptDebloque("CE2", 1) === true, "carte a 1 concept (fin de carte) : peut proposer");
+
+  const orchInconnu = orchestrateurAvec(fakeAdapter());
+  check(orchInconnu.conceptDebloque("CE2") === false, "total inconnu : prudence, 1er concept saute");
+}
+
+/* 5h. Robustesse : reinitialiser sort proprement de N'IMPORTE QUELLE phase.
+   Une nouvelle partie peut demarrer alors qu'une proposition (ou un mini-jeu)
+   est encore a l'ecran ; sans nettoyage, l'orchestrateur restait bloque. */
+{
+  /* Depuis "proposition" (l'eleve n'a ni accepte ni refuse). */
+  const adapter = fakeAdapter();
+  const orch = orchestrateurAvec(adapter);
+  orch.conceptDebloque("CE2", 5); /* 1er saute */
+  orch.conceptDebloque("CE2", 5); /* propose -> phase proposition */
+  check(orch.getPhase() === "proposition", "une proposition est a l'ecran");
+  orch.reinitialiser(); /* nouvelle partie pendant la proposition */
+  check(orch.getPhase() === "repos", "reinitialiser depuis 'proposition' : retour au repos");
+  check(adapter.calls.includes("cacherProposition"), "la proposition restee a l'ecran est bien cachee");
+  /* Et l'orchestrateur reproposera : plus de blocage definitif. */
+  orch.conceptDebloque("CE2", 2);
+  check(orch.getPhase() === "proposition", "apres reset : les pauses redeviennent possibles");
+
+  /* Depuis "enJeu" (mini-jeu en cours). */
+  const adapter2 = fakeAdapter();
+  const orch2 = orchestrateurAvec(adapter2);
+  orch2.conceptDebloque("CE2", 2); /* propose */
+  adapter2.accepter(); /* -> enJeu, mini-jeu monte */
+  check(orch2.getPhase() === "enJeu", "un mini-jeu est en cours");
+  orch2.reinitialiser();
+  check(orch2.getPhase() === "repos", "reinitialiser depuis 'enJeu' : retour au repos");
+  check(adapter2.demonte === true, "le mini-jeu en cours est demonte (nettoyage)");
+}
+
 /* --- 6. Le placeholder respecte l'interface commune --- */
 {
   const jeu = minigames.MINIGAME_A_VENIR;
@@ -792,22 +837,27 @@ function memoryFixe() {
 
 /* --- 10a. Deblocage des objets selon le seuil d'etoiles cumulees --- */
 {
-  /* Meme regle que le personnage : total >= cout. */
-  const fleurs = minigames.objetDeco("fleurs"); /* cout 10 */
-  const fontaine = minigames.objetDeco("fontaine"); /* cout 100 */
-  check(minigames.estDebloqueDeco(fleurs, 10) === true, "seuil atteint (10>=10) : objet debloque");
-  check(minigames.estDebloqueDeco(fleurs, 9) === false, "sous le seuil (9<10) : objet verrouille");
-  check(minigames.estDebloqueDeco(fontaine, 100) === true, "fontaine debloquee a 100 etoiles");
-  check(minigames.estDebloqueDeco(fontaine, 99) === false, "fontaine verrouillee a 99 etoiles");
+  /* Meme regle que le personnage : total >= cout. Les couts exacts sont lus
+     via item.cout pour que le test survive a un reequilibrage des seuils. */
+  const fleurs = minigames.objetDeco("fleurs"); /* objet le moins cher */
+  const fontaine = minigames.objetDeco("fontaine");
+  const arbre = minigames.objetDeco("arbre");
+  const coutMax = Math.max(...minigames.DECO.CATALOGUE.map((o) => o.cout));
+  check(minigames.estDebloqueDeco(fleurs, fleurs.cout) === true, "seuil atteint (>=cout) : objet debloque");
+  check(minigames.estDebloqueDeco(fleurs, fleurs.cout - 1) === false, "sous le seuil (<cout) : objet verrouille");
+  check(minigames.estDebloqueDeco(fontaine, fontaine.cout) === true, "fontaine debloquee pile a son cout");
+  check(minigames.estDebloqueDeco(fontaine, fontaine.cout - 1) === false, "fontaine verrouillee juste sous son cout");
 
-  check(minigames.etoilesRestantesDeco(fontaine, 60) === 40, "etoiles restantes = cout - total (40)");
-  check(minigames.etoilesRestantesDeco(fleurs, 999) === 0, "objet deja debloque : 0 etoile restante");
+  check(minigames.etoilesRestantesDeco(fontaine, fontaine.cout - 40) === 40, "etoiles restantes = cout - total (40)");
+  check(minigames.etoilesRestantesDeco(fleurs, fleurs.cout + 999) === 0, "objet deja debloque : 0 etoile restante");
 
-  const debloques = minigames.objetsDebloquesDeco(30); /* fleurs(10), buisson(25) */
-  check(debloques.includes("fleurs") && debloques.includes("buisson"), "a 30 etoiles : fleurs et buisson debloques");
-  check(!debloques.includes("arbre") && !debloques.includes("fontaine"), "a 30 etoiles : arbre (50) et fontaine (100) verrouilles");
-  check(minigames.objetsDebloquesDeco(0).length === 0, "a 0 etoile : aucun objet (le moins cher coute 10)");
-  check(minigames.objetsDebloquesDeco(1000).length === minigames.DECO.CATALOGUE.length, "avec beaucoup d'etoiles : tout est debloque");
+  /* Total entre buisson (2e moins cher) et arbre (3e) : fleurs+buisson oui, pas au-dela. */
+  const seuilIntermediaire = arbre.cout - 1;
+  const debloques = minigames.objetsDebloquesDeco(seuilIntermediaire);
+  check(debloques.includes("fleurs") && debloques.includes("buisson"), "au-dela de buisson : fleurs et buisson debloques");
+  check(!debloques.includes("arbre") && !debloques.includes("fontaine"), "sous le cout de l'arbre : arbre et fontaine verrouilles");
+  check(minigames.objetsDebloquesDeco(0).length === 0, "a 0 etoile : aucun objet (le moins cher coute > 0)");
+  check(minigames.objetsDebloquesDeco(coutMax).length === minigames.DECO.CATALOGUE.length, "au cout max : tout est debloque");
 }
 
 /* --- 10b. Placement d'un objet (uniquement si debloque, sur un slot valide) --- */
@@ -815,18 +865,19 @@ function memoryFixe() {
   const deco = minigames.creerDeco({});
   check(deco.estVide(), "jardin neuf : vide");
 
-  check(deco.placer(0, "fleurs", 10) === true, "place fleurs (debloque) sur l'emplacement 0");
+  /* 200 etoiles : debloque fleurs et buisson (les 2 moins chers), pas fontaine. */
+  check(deco.placer(0, "fleurs", 200) === true, "place fleurs (debloque) sur l'emplacement 0");
   check(deco.objetSur(0) === "fleurs", "l'emplacement 0 porte bien les fleurs");
   check(deco.nbPlaces() === 1, "un objet place");
 
-  check(deco.placer(1, "fontaine", 30) === false, "refuse un objet verrouille (fontaine a 30 etoiles)");
+  check(deco.placer(1, "fontaine", 200) === false, "refuse un objet verrouille (fontaine a 200 etoiles)");
   check(deco.objetSur(1) === null, "l'emplacement reste vide apres un refus");
 
-  check(deco.placer(99, "fleurs", 999) === false, "refuse un emplacement hors grille");
-  check(deco.placer(0, "inconnu", 999) === false, "refuse un objet inconnu");
+  check(deco.placer(99, "fleurs", 9999) === false, "refuse un emplacement hors grille");
+  check(deco.placer(0, "inconnu", 9999) === false, "refuse un objet inconnu");
 
   /* Reposer sur un emplacement occupe : remplace (amenagement libre). */
-  check(deco.placer(0, "buisson", 30) === true, "remplace l'objet d'un emplacement occupe");
+  check(deco.placer(0, "buisson", 200) === true, "remplace l'objet d'un emplacement occupe");
   check(deco.objetSur(0) === "buisson", "l'emplacement 0 porte maintenant le buisson");
   check(deco.nbPlaces() === 1, "toujours un seul objet sur cet emplacement");
 }
@@ -844,8 +895,9 @@ function memoryFixe() {
 /* --- 10d. Persistance de la disposition (round-trip serialisation) --- */
 {
   const deco = minigames.creerDeco({});
-  deco.placer(0, "fleurs", 200);
-  deco.placer(4, "fontaine", 200);
+  const assezPourTout = Math.max(...minigames.DECO.CATALOGUE.map((o) => o.cout));
+  deco.placer(0, "fleurs", assezPourTout);
+  deco.placer(4, "fontaine", assezPourTout);
   const sauvegarde = JSON.parse(JSON.stringify({ disposition: deco.disposition() })); /* == localStorage */
 
   const recharge = minigames.creerDeco(sauvegarde.disposition);
