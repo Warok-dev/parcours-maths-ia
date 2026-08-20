@@ -12,27 +12,38 @@
   const STEP_INTERVAL_MS = 280;
   const STORAGE_KEY = "parcours-audio-muted";
 
-  const music = new Audio("audio/musique_fond.ogg");
-  music.loop = true;
-  music.volume = MUSIC_VOLUME;
-  music.preload = "auto";
-
-  const stepSounds = ["audio/pas_00.ogg", "audio/pas_01.ogg"].map((src) => {
-    const audio = new Audio(src);
-    audio.volume = STEP_VOLUME;
-    audio.preload = "auto";
-    return audio;
-  });
-
-  const sfx = {
-    correct: new Audio("audio/bonne_reponse.ogg"),
-    wrong: new Audio("audio/mauvaise_reponse.ogg"),
-    unlock: new Audio("audio/deblocage.ogg"),
-  };
-  for (const audio of Object.values(sfx)) {
-    audio.volume = SFX_VOLUME;
-    audio.preload = "auto";
+  /* Choix du format selon le navigateur. Chromium et Firefox lisent l'OGG
+     Vorbis ; WebKit/Safari NE le lit PAS et ne joue que le MP3 (chaque son
+     existe dans les deux formats dans audio/). canPlayType tranche a l'execution.
+     Si AUCUN format n'est jouable (moteur exotique), EXT vaut null : on ne cree
+     aucun element Audio -> degradation propre et silencieuse, sans requetes en
+     echec ni exception (le jeu reste entierement jouable, juste sans son). */
+  const probe = typeof Audio !== "undefined" ? new Audio() : null;
+  function canPlay(type) {
+    return Boolean(probe && typeof probe.canPlayType === "function" && probe.canPlayType(type) !== "");
   }
+  const EXT = canPlay("audio/ogg; codecs=vorbis") ? "ogg" : canPlay("audio/mpeg") ? "mp3" : null;
+
+  function makeAudio(base, volume, loop) {
+    if (!EXT || typeof Audio === "undefined") {
+      return null;
+    }
+    const audio = new Audio(`audio/${base}.${EXT}`);
+    audio.volume = volume;
+    audio.preload = "auto";
+    if (loop) {
+      audio.loop = true;
+    }
+    return audio;
+  }
+
+  const music = makeAudio("musique_fond", MUSIC_VOLUME, true);
+  const stepSounds = ["pas_00", "pas_01"].map((base) => makeAudio(base, STEP_VOLUME));
+  const sfx = {
+    correct: makeAudio("bonne_reponse", SFX_VOLUME),
+    wrong: makeAudio("mauvaise_reponse", SFX_VOLUME),
+    unlock: makeAudio("deblocage", SFX_VOLUME),
+  };
 
   let unlocked = false; /* une interaction utilisateur a eu lieu */
   let musicWanted = false; /* une session de jeu est en cours */
@@ -46,7 +57,7 @@
   let stepToggle = 0;
 
   function refreshMusic() {
-    if (!unlocked) {
+    if (!unlocked || !music) {
       return;
     }
     if (musicWanted && !muted) {
@@ -60,7 +71,7 @@
 
   function onUserGesture() {
     unlocked = true;
-    if (music.paused) {
+    if (music && music.paused) {
       refreshMusic();
     }
   }
@@ -68,7 +79,7 @@
   window.addEventListener("keydown", onUserGesture);
 
   function playOne(audio) {
-    if (muted || !unlocked) {
+    if (muted || !unlocked || !audio) {
       return;
     }
     audio.currentTime = 0;
@@ -104,10 +115,14 @@
       lastStepAt = now;
       stepToggle = 1 - stepToggle;
       const audio = stepSounds[stepToggle];
+      if (!audio) {
+        return;
+      }
       audio.currentTime = 0;
       audio.play().catch(() => {});
     },
     /* Etat interne expose pour l'outillage et le bouton mute. */
-    musicState: () => ({ paused: music.paused, currentTime: music.currentTime }),
+    musicState: () =>
+      music ? { paused: music.paused, currentTime: music.currentTime } : { paused: true, currentTime: 0 },
   };
 })();
