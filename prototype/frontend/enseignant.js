@@ -17,7 +17,7 @@
    en Node pour les tests (test_enseignant.js).
    ============================================================ */
 (function () {
-  const API_BASE = "http://127.0.0.1:8000";
+  const API_BASE = "https://parcours-maths-ia.onrender.com";
   const STORAGE_KEY = "parcours_enseignant_v1";
   const NIVEAUX = ["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"];
   /* Mot exact a taper pour armer une suppression definitive d'eleve (miroir de

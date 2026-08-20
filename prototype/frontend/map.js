@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = "https://parcours-maths-ia.onrender.com";
 /* Reference de session persistee : permet de reprendre l'aventure apres un
    rafraichissement de page (position et score inclus, le reste de l'etat
    vit cote backend et se recharge via GET /session/{id}). */
