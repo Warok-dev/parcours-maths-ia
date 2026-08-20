@@ -59,8 +59,6 @@ const menuDropdown = document.getElementById("menu-dropdown");
 const mapElement = document.getElementById("map");
 const scoreChip = document.getElementById("score-chip");
 const scoreValue = document.getElementById("score-value");
-const minimapButton = document.getElementById("minimap");
-const minimapSvg = document.getElementById("minimap-svg");
 const feedback = document.getElementById("feedback");
 const offlineBanner = document.getElementById("offline-banner");
 const exerciseOverlay = document.getElementById("exercise-overlay");
@@ -722,7 +720,7 @@ function obstacleIconSvg(type, status) {
    La scene est generee/jouee en espace NATIF (progression vers +y) ; la
    direction tiree par la graine (world.js) est une rotation d'affichage
    d'un multiple de 90°. Ces helpers relaient la transformation de world.js
-   au rendu, a la camera, a la mini-carte et au clavier. La logique de jeu
+   au rendu, a la camera et au clavier. La logique de jeu
    (position joueur, obstacles, collisions) reste, elle, en natif.
    ============================================================ */
 function orientTransform() {
@@ -1363,59 +1361,6 @@ function sceneMarkup(scene) {
   </g>`;
 }
 
-/* ============================================================
-   MINI-MAP : structure simplifiee du parcours en coin d'ecran.
-   Vert = traverse, orange = courant, gris = a venir.
-   ============================================================ */
-function minimapStatus(index) {
-  const currentIndex = currentConceptIndex();
-  if (!state.session || currentIndex < 0) {
-    return "locked";
-  }
-  if (state.session.terminee || index < currentIndex) {
-    return "done";
-  }
-  return index === currentIndex ? "current" : "locked";
-}
-
-function renderMinimap() {
-  if (!minimapSvg) {
-    return;
-  }
-  if (!state.scene) {
-    minimapSvg.innerHTML = "";
-    return;
-  }
-  const scene = state.scene;
-  /* La mini-carte doit refleter la VRAIE direction de progression : on la
-     cadre en dimensions d'affichage et on pivote son contenu (genere en
-     natif) par la meme matrice que la carte principale. */
-  minimapSvg.setAttribute("viewBox", `0 0 ${displayWidth()} ${displayHeight()}`);
-  minimapSvg.innerHTML = `
-    <g transform="${orientTransform()}">
-    <path d="${buildRoadPath(scene.routePoints)}" class="mini-road"></path>
-    ${
-      state.reinforcement
-        ? state.reinforcement.stops
-            .map(
-              (stop, i) =>
-                `<circle cx="${stop.x}" cy="${stop.y}" r="34" class="mini-stop ${i < state.reinforcement.nextStopIndex ? "done" : ""}"></circle>`,
-            )
-            .join("")
-        : ""
-    }
-    ${scene.obstacles
-      .map(
-        (obstacle) =>
-          `<circle cx="${obstacle.x}" cy="${obstacle.barrierY}" r="64" class="mini-obstacle mini-${minimapStatus(obstacle.index)}"></circle>`,
-      )
-      .join("")}
-    <circle id="minimap-player" r="46" class="mini-player"></circle>
-    </g>
-  `;
-  updateMinimapPlayer();
-}
-
 /* Dernieres valeurs ecrites dans le DOM par la boucle de jeu : evite de
    reecrire des attributs identiques a chaque frame (chaque setAttribute
    invalide le rendu du SVG). Invalide apres chaque re-rendu de la scene. */
@@ -1425,7 +1370,6 @@ const dynamicsCache = {
   hintTransform: null,
   hintVisible: null,
   hintText: null,
-  minimapTransform: null,
 };
 
 function invalidateDynamicsCache() {
@@ -1449,17 +1393,6 @@ function refreshScenePaused() {
   ];
   const overlayOpen = overlays.some((node) => node && !node.classList.contains("hidden"));
   mapElement.classList.toggle("scene-paused", overlayOpen);
-}
-
-function updateMinimapPlayer() {
-  const node = document.getElementById("minimap-player");
-  if (node) {
-    const transform = `translate(${state.playerPosition.x.toFixed(1)}, ${state.playerPosition.y.toFixed(1)})`;
-    if (transform !== dynamicsCache.minimapTransform) {
-      dynamicsCache.minimapTransform = transform;
-      node.setAttribute("transform", transform);
-    }
-  }
 }
 
 /* ============================================================
@@ -1527,7 +1460,6 @@ function renderScene() {
   applyVisualVariant();
   if (!state.session) {
     mapElement.innerHTML = "";
-    renderMinimap();
     return;
   }
   state.scene = createSceneModel(state.session.concepts || [], state.mapSeed);
@@ -1548,7 +1480,6 @@ function renderScene() {
   const markup = sceneMarkup(state.scene);
   mapElement.innerHTML = varianteMature() ? durcirAnglesRects(markup) : markup;
   invalidateDynamicsCache();
-  renderMinimap();
   updateSceneDynamics();
   applyCameraViewBox();
 }
@@ -1671,7 +1602,6 @@ function updateSceneDynamics() {
     /* Le bouton d'action tactile suit la meme proximite que la bulle "!". */
     majControlesTactiles();
   }
-  updateMinimapPlayer();
 }
 
 /* ============================================================
@@ -2808,9 +2738,6 @@ function resetSharedState() {
   resetScore();
   window.ParcoursAudio?.setMusicActive(false);
   mapElement.innerHTML = "";
-  if (minimapSvg) {
-    minimapSvg.innerHTML = "";
-  }
   exerciseOverlay.classList.add("hidden");
   exerciseModal.innerHTML = "";
   clearFeedback();
@@ -3056,11 +2983,6 @@ muteButton.addEventListener("click", () => {
   const muted = window.ParcoursAudio?.toggleMute() ?? false;
   muteButton.classList.toggle("muted", muted);
   muteButton.setAttribute("aria-pressed", String(muted));
-});
-
-minimapButton.addEventListener("click", () => {
-  const expanded = minimapButton.classList.toggle("expanded");
-  minimapButton.setAttribute("aria-expanded", String(expanded));
 });
 
 menuButton.addEventListener("click", (event) => {

@@ -476,79 +476,6 @@ input {
   100% { transform: scale(1); }
 }
 
-/* ---------- Mini-map ---------- */
-.hud-bottom-left {
-  left: 18px;
-  bottom: 18px;
-  z-index: 30;
-}
-
-.minimap {
-  display: block;
-  width: 148px;
-  height: 118px;
-  padding: 8px;
-  background: rgba(251, 243, 231, 0.92);
-  border: 3px solid var(--wood);
-  border-radius: 14px;
-  box-shadow: var(--shadow-chip);
-  cursor: pointer;
-  transition: width 220ms ease, height 220ms ease, transform 120ms ease;
-}
-
-.minimap:hover {
-  transform: scale(1.03);
-}
-
-.minimap.expanded {
-  width: 330px;
-  height: 262px;
-}
-
-.minimap svg {
-  width: 100%;
-  height: 100%;
-}
-
-.mini-road {
-  fill: none;
-  stroke: var(--road);
-  stroke-width: 80;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-
-.mini-obstacle {
-  stroke: var(--cream);
-  stroke-width: 18;
-}
-
-.mini-obstacle.mini-done {
-  fill: var(--success);
-}
-
-.mini-obstacle.mini-current {
-  fill: var(--road-dark);
-}
-
-.mini-obstacle.mini-locked {
-  fill: var(--stone-dark);
-}
-
-.mini-stop {
-  fill: var(--gold-dark);
-}
-
-.mini-stop.done {
-  fill: var(--success);
-}
-
-.mini-player {
-  fill: var(--player-shirt);
-  stroke: var(--cream);
-  stroke-width: 16;
-}
-
 .hud-top-right {
   top: 14px;
   right: 14px;
@@ -3210,13 +3137,6 @@ input {
     drop-shadow(0 0 9px rgba(61, 44, 30, 0.45));
 }
 
-/* Meme raison pour le point de la mini-carte : son contour creme suffit sur
-   fond clair, moins quand le point prend la couleur du decor. */
-:root.player-halo-fort .mini-player {
-  stroke: var(--cream);
-  stroke-width: 24;
-}
-
 .player-shadow {
   fill: rgba(61, 44, 30, 0.22);
 }
@@ -4939,12 +4859,6 @@ code {
   50% { transform: scale(1.08); }
 }
 
-/* Sur appareil tactile, on remonte la mini-carte pour qu'elle ne chevauche pas
-   le pave directionnel (place dans le meme coin bas-gauche). */
-body.touch-active .hud-bottom-left {
-  bottom: 244px;
-}
-
 /* ============================================================
    CIBLES TACTILES : agrandissement pour le doigt (public enfant)
    Sur body.touch-active, on porte les petites cibles au-dela de 44x44 px.
@@ -5038,9 +4952,6 @@ body.touch-active .balance-remove {
     height: 186px;
     left: 14px;
     bottom: 14px;
-  }
-  body.touch-active .hud-bottom-left {
-    bottom: 214px;
   }
   .hud-chip {
     font-size: 0.9rem;

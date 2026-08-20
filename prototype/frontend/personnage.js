@@ -6,8 +6,8 @@
    personnage_v1, comme le carnet et les faiblesses.
 
    Les couleurs ne touchent QUE deux variables CSS
-   (--player-shirt / --player-shirt-dark) : le jeton sur la carte,
-   la mini-carte et l'apercu de cet ecran suivent automatiquement.
+   (--player-shirt / --player-shirt-dark) : le jeton sur la carte
+   et l'apercu de cet ecran suivent automatiquement.
    Les accessoires sont injectes dans le dessin du personnage
    (ASSETS.player de map.js) en deux couches : derriere le corps
    (cape) et devant (chapeau, lunettes, badge).
