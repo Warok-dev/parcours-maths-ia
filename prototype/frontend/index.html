@@ -2,7 +2,10 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>Parcours Maths - Le Petit Monde</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -218,6 +221,31 @@
         </div>
       </div>
 
+      <!-- ===== Contrôles tactiles (tablette/mobile uniquement) =====
+           Pavé directionnel : chaque bouton porte data-dir = touche fléchée
+           équivalente ; map.js les câble sur state.keysPressed (comportement
+           identique au clavier). Masqués par défaut (.hidden), affichés par
+           map.js si ParcoursTouch.estTactile(). -->
+      <div id="touch-dpad" class="touch-dpad hidden" role="group" aria-label="Déplacement">
+        <button class="dpad-btn dpad-up" type="button" data-dir="ArrowUp" aria-label="Aller en haut">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6 L20 17 H4 Z" /></svg>
+        </button>
+        <button class="dpad-btn dpad-left" type="button" data-dir="ArrowLeft" aria-label="Aller à gauche">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12 L17 4 V20 Z" /></svg>
+        </button>
+        <button class="dpad-btn dpad-right" type="button" data-dir="ArrowRight" aria-label="Aller à droite">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 12 L7 4 V20 Z" /></svg>
+        </button>
+        <button class="dpad-btn dpad-down" type="button" data-dir="ArrowDown" aria-label="Aller en bas">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18 L20 7 H4 Z" /></svg>
+        </button>
+      </div>
+      <!-- Bouton d'action tactile : ouvre l'exercice quand on est près d'un
+           obstacle/fanion (équivalent tactile de la touche Entrée). -->
+      <button id="touch-action" class="touch-action hidden" type="button" aria-label="Aider / s'entraîner">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 16 l6 6 l12 -13" /></svg>
+      </button>
+
       <!-- Bandeau persistant : partie jouee hors-ligne (mode entrainement local) -->
       <div id="offline-banner" class="offline-banner hidden" role="status" aria-live="polite">
         <span class="offline-dot" aria-hidden="true"></span>
@@ -327,6 +355,7 @@
     <script src="parent.js"></script>
     <script src="world.js"></script>
     <script src="offline.js"></script>
+    <script src="touch.js"></script>
     <script src="map.js"></script>
     <script src="minigames.js"></script>
     <script src="carnet.js"></script>

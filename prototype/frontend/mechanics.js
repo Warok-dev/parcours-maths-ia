@@ -863,9 +863,15 @@
     const elements = melange.map((valeur, i) => ({ id: i, valeur }));
     const placement = creerPlacementOrdre({ elements, ordreAttendu });
 
+    /* Au doigt, le glisser-deposer HTML5 n'est pas disponible : la consigne met
+       alors en avant le tap-tap (etiquette puis emplacement), qui, lui, marche
+       partout. A la souris, on mentionne aussi le glissement. */
+    const tactile = Boolean(window.ParcoursTouch?.estTactile?.());
     const hint = estPetitNiveau(exercise.niveau_scolaire)
       ? "Range les étiquettes du plus petit au plus grand."
-      : "Glisse (ou clique l'étiquette puis l'emplacement) pour remettre la suite dans l'ordre.";
+      : tactile
+        ? "Touche une étiquette puis l'emplacement pour remettre la suite dans l'ordre."
+        : "Glisse (ou clique l'étiquette puis l'emplacement) pour remettre la suite dans l'ordre.";
     container.innerHTML = `
       <p class="mech-hint">${hint}</p>
       <div class="order-slots" role="group" aria-label="Emplacements ordonnés">

@@ -66,6 +66,11 @@ const offlineBanner = document.getElementById("offline-banner");
 const exerciseOverlay = document.getElementById("exercise-overlay");
 const exerciseModal = document.getElementById("exercise-modal");
 const debugLog = document.getElementById("debug-log");
+const touchDpad = document.getElementById("touch-dpad");
+const touchActionButton = document.getElementById("touch-action");
+/* Appareil tactile : le pave directionnel remplace le clavier (indisponible).
+   Fige au chargement (le type de pointeur ne change pas en cours de session). */
+const estAppareilTactile = Boolean(window.ParcoursTouch?.estTactile?.());
 
 const state = {
   sessionId: null,
@@ -1350,7 +1355,7 @@ function sceneMarkup(scene) {
     <g id="interaction-hint" class="interaction-hint">
       <rect x="-118" y="-30" width="236" height="46" rx="20" class="hint-bubble"></rect>
       <rect x="-104" y="-21" width="64" height="28" rx="8" class="hint-key"></rect>
-      <text x="-72" y="0" text-anchor="middle" class="hint-text">Entrée</text>
+      <text x="-72" y="0" text-anchor="middle" class="hint-text">${estAppareilTactile ? "Touche" : "Entrée"}</text>
       <text x="30" y="0" text-anchor="middle" class="hint-text" id="hint-action-text">pour aider !</text>
     </g>
     <g id="fx-layer"></g>
@@ -1570,6 +1575,7 @@ function showGameScreen() {
   startScreen.classList.add("hidden");
   lessonScreen.classList.add("hidden");
   gameScreen.classList.remove("hidden");
+  majControlesTactiles();
 }
 
 /* ============================================================
@@ -1662,6 +1668,8 @@ function updateSceneDynamics() {
     dynamicsCache.hintVisible = hintVisible;
     hintNode?.classList.toggle("visible", hintVisible);
     mapElement.classList.toggle("hint-visible", hintVisible);
+    /* Le bouton d'action tactile suit la meme proximite que la bulle "!". */
+    majControlesTactiles();
   }
   updateMinimapPlayer();
 }
@@ -1730,6 +1738,7 @@ function openExercisePanel() {
   renderExerciseModal();
   updateSceneDynamics();
   refreshScenePaused();
+  majControlesTactiles();
 }
 
 function closeExercisePanel() {
@@ -1745,6 +1754,7 @@ function closeExercisePanel() {
   updateNearObstacle();
   updateSceneDynamics();
   refreshScenePaused();
+  majControlesTactiles();
 }
 
 /* Bouton "ecouter" (haut-parleur) pour lire un texte du popup a voix haute.
@@ -3108,6 +3118,55 @@ backToLevelsButton.addEventListener("click", resetToStart);
 window.addEventListener("keydown", handleKeyDown);
 window.addEventListener("keyup", handleKeyUp);
 
+/* ============================================================
+   CONTROLES TACTILES : pave directionnel + bouton d'action
+   Sur appareil tactile uniquement (pas de clavier). Les fleches ecrivent dans
+   le MEME state.keysPressed que le clavier, donc movementVector()/tick() sont
+   inchanges : maintien = deplacement continu, relachement = arret. Le bouton
+   d'action ouvre l'exercice quand on est pres d'un obstacle/fanion (equivalent
+   tactile de la touche Entree). Voir touch.js (coeur teste).
+   ============================================================ */
+if (estAppareilTactile) {
+  document.body.classList.add("touch-active");
+  window.ParcoursTouch.brancherDpad(touchDpad, {
+    presser: (dir) => {
+      if (!state.panelOpen) {
+        state.keysPressed.add(dir);
+      }
+    },
+    relacher: (dir) => state.keysPressed.delete(dir),
+  });
+  /* pointerup plutot que click : reponse immediate au doigt, sans le delai ni
+     le risque de double-declenchement du click synthetique. */
+  touchActionButton?.addEventListener("pointerup", (event) => {
+    event.preventDefault();
+    if (state.nearObstacle && !state.panelOpen) {
+      openExercisePanel();
+    }
+  });
+  touchActionButton?.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
+/* Affiche/masque le pave et le bouton d'action selon l'etat courant (en jeu,
+   popup ouverte, proximite d'un obstacle). Appelee aux transitions d'etat :
+   entree en jeu, ouverture/fermeture d'exercice, changement de proximite. */
+function majControlesTactiles() {
+  if (!estAppareilTactile || !window.ParcoursTouch) {
+    return;
+  }
+  const enJeu = Boolean(state.session) && !gameScreen.classList.contains("hidden");
+  const contexte = { actif: true, enJeu, panneauOuvert: state.panelOpen };
+  window.ParcoursTouch.appliquerVisibilite(touchDpad, window.ParcoursTouch.dpadVisible(contexte));
+  window.ParcoursTouch.appliquerVisibilite(
+    touchActionButton,
+    window.ParcoursTouch.actionVisible({ ...contexte, presObstacle: state.nearObstacle }),
+  );
+  /* Une fleche relachee par le masquage ne doit pas rester "enfoncee". */
+  if (!enJeu || state.panelOpen) {
+    ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].forEach((k) => state.keysPressed.delete(k));
+  }
+}
+
 /* Fresque du monde : une scene fixe (ciel, herbe, route, chateau, arbres)
    composee a partir des memes briques SVG que la carte (ASSETS.castle,
    tree, bush, flower, rock) et des couleurs du jeu. Sert d'image de base au
@@ -3158,10 +3217,12 @@ window.ParcoursApp = {
   mettreEnPausePourMinigame: () => {
     state.panelOpen = true;
     refreshScenePaused();
+    majControlesTactiles();
   },
   reprendreApresMinigame: () => {
     state.panelOpen = false;
     refreshScenePaused();
+    majControlesTactiles();
   },
   /* Bonus purement cosmetique d'un mini-jeu : alimente les memes etoiles
      que le tresor du raccourci (garde-robe), jamais la maitrise ni la
