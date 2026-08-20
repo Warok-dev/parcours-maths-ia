@@ -45,9 +45,32 @@ from sqlalchemy.pool import StaticPool
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "parcours.db"
-# PARCOURS_DATABASE_URL permet de pointer ailleurs (deploiement, verification
-# manuelle sur une base jetable) sans toucher au fichier reel par defaut.
-DATABASE_URL = os.environ.get("PARCOURS_DATABASE_URL", f"sqlite:///{DB_PATH}")
+
+
+def _normaliser_url(url: str) -> str:
+    """Corrige le schema des URLs PostgreSQL heritees.
+
+    SQLAlchemy 2.0 exige le prefixe "postgresql://" ; or plusieurs hebergeurs
+    (Neon, Render, Heroku) livrent encore l'ancien alias "postgres://" que le
+    driver refuse net. On le reecrit de maniere transparente pour que l'URL
+    copiee-collee telle quelle depuis leur tableau de bord fonctionne."""
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://") :]
+    return url
+
+
+# URL de connexion, resolue dans cet ordre :
+#   1. DATABASE_URL  -> variable STANDARD des hebergeurs (Render, Neon...) ;
+#      c'est elle qu'on renseigne en production pour pointer sur PostgreSQL.
+#   2. PARCOURS_DATABASE_URL -> ancien nom, conserve pour ne rien casser
+#      (verification manuelle sur une base jetable, scripts existants).
+#   3. Repli SQLite local -> aucune des deux n'est definie : on developpe et on
+#      teste hors-ligne sur le fichier reel, sans dependre d'une base distante.
+DATABASE_URL = _normaliser_url(
+    os.environ.get("DATABASE_URL")
+    or os.environ.get("PARCOURS_DATABASE_URL")
+    or f"sqlite:///{DB_PATH}"
+)
 
 NIVEAUX_SCOLAIRES = ("CE1", "CE2", "CE3", "CE4", "CE5", "CE6")
 
@@ -398,7 +421,12 @@ def create_db_engine(url: str = DATABASE_URL, echo: bool = False) -> Engine:
     elif url.startswith("sqlite"):
         engine = create_engine(url, echo=echo, connect_args={"check_same_thread": False})
     else:
-        engine = create_engine(url, echo=echo)
+        # PostgreSQL (Neon) & co. : pool_pre_ping teste la connexion avant de la
+        # servir. Neon ferme les connexions restees inactives (et le service
+        # Render peut s'endormir) ; sans ce ping, la 1re requete apres une pause
+        # ramasserait une connexion morte -> erreur 500. pool_recycle force en
+        # plus le renouvellement des connexions vieilles de 5 min.
+        engine = create_engine(url, echo=echo, pool_pre_ping=True, pool_recycle=300)
     if url.startswith("sqlite"):
         _enable_sqlite_foreign_keys(engine)
     return engine
@@ -414,7 +442,13 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
     """Micro-migration sans outil dedie : ajoute les colonnes apparues apres la
     creation initiale de la base (ici pin_hash sur eleve). create_all ne modifie
     pas une table existante, donc une base deja creee resterait sans la colonne.
-    Idempotent : on n'ajoute que ce qui manque."""
+    Idempotent : on n'ajoute que ce qui manque.
+
+    Note PostgreSQL : ces ALTER ecrivent du SQL a la main pense pour SQLite (les
+    bases locales deja creees). Sur une base PostgreSQL NEUVE (Neon), create_all
+    cree d'emblee toutes les colonnes : aucun de ces blocs ne se declenche donc,
+    ils sont sans effet la-bas. Il n'y a pas de base PostgreSQL preexistante a
+    rattraper, donc pas de migration a rejouer -> compatibilite assuree."""
     inspector = inspect(eng)
     tables = set(inspector.get_table_names())
     if "ecole" in tables:
