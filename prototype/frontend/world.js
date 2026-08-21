@@ -23,7 +23,7 @@
    validee en natif (axe de progression = y), puis on attache une
    ROTATION d'un multiple de 90° (isometrie) qui envoie l'espace natif
    vers l'espace d'AFFICHAGE. map.js applique cette rotation au rendu, a
-   la camera, a la mini-carte et au vecteur clavier ; la logique de jeu
+   la camera et au vecteur clavier ; la logique de jeu
    (position joueur, obstacles, collisions) reste en natif. La rotation
    etant une isometrie, tous les garde-fous verifies en natif (pas
    d'auto-intersection, distances mini, bornes) restent vrais apres
@@ -349,8 +349,17 @@
     }
 
     /* Densité de base identique a l'existant, avec ±15% de variation par
-       graine pour que la quantité change aussi d'une carte a l'autre. */
-    const density = height / 300;
+       graine pour que la quantité change aussi d'une carte a l'autre.
+       PLAFOND : sur les cartes longues (beaucoup de concepts), height/300
+       faisait exploser le nombre de groupes de décor (>400) — autant de
+       calques que le compositeur doit gerer. On borne la densité : au-dela,
+       on cesse de densifier. La somme des coefficients ci-dessous ≈ 17, donc
+       avec MAX_DECOR_DENSITY = 7.6 et le jitter (max 1.15) le total plafonne
+       vers ~110-150 groupes, indépendamment du nombre de concepts. placeMany
+       disperse uniformément sur tout l'axe y -> répartition homogène sur
+       toute la longueur, juste moins dense sur les très longues cartes. */
+    const MAX_DECOR_DENSITY = 7.6;
+    const density = Math.min(height / 300, MAX_DECOR_DENSITY);
     const jitter = () => 0.85 + rand() * 0.3;
     const trees = placeMany(Math.round(density * 3.4 * jitter()), 110, 95, []);
     const bushes = placeMany(Math.round(density * 2.6 * jitter()), 82, 70, trees);

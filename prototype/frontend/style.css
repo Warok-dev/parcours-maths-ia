@@ -3271,6 +3271,23 @@ input {
   animation-play-state: paused;
 }
 
+/* Joueur immobile depuis un court instant (classe posee par map.js) : on fige
+   les seules animations d'AMBIANCE (papillons, chat, ramassables, marqueur).
+   Elles tournent en continu meme sans repeindre le DOM, mais tiennent le
+   compositeur eveille -> ~60 frames/s dessinees en permanence, coteux sur
+   machines modestes. On les reprend des que le joueur rebouge (retrait de la
+   classe). Contrairement a scene-paused, on ne fige que le decoratif : la
+   marche, la camera et les FX de reussite ne sont jamais concernes. */
+#map.scene-idle .critter-wings,
+#map.scene-idle .critter-flutter,
+#map.scene-idle .cat-tail,
+#map.scene-idle .cat-stroll,
+#map.scene-idle .collectible-float,
+#map.scene-idle .collectible-glow,
+#map.scene-idle .obstacle-marker {
+  animation-play-state: paused;
+}
+
 /* Pastille "ici !" au-dessus de l'obstacle actif */
 .obstacle-marker {
   animation: markerBounce 1.4s ease-in-out infinite;

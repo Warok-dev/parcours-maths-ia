@@ -14,6 +14,10 @@ const CAMERA_WIDTH = 560;
 const CAMERA_HEIGHT = 390;
 const CAMERA_EASE = 5.2;
 const INTERACTION_DISTANCE = 118;
+/* Delai d'immobilite avant de figer les animations d'ambiance (Fix perf) :
+   assez court pour endormir vite le compositeur au repos, assez long pour ne
+   pas clignoter entre deux pas. */
+const SCENE_IDLE_DELAY_MS = 700;
 /* Positions/ordre des obstacles et tracé du chemin : desormais procéduraux,
    generes par world.js a partir de la graine de session (state.mapSeed). */
 const RIVER_HALF_HEIGHT = 62;
@@ -141,6 +145,7 @@ function graineDepuisSessionId(sessionId) {
 let animationFrameId = null;
 let lastTick = 0;
 let lastPositionSaveAt = 0;
+let lastMoveAt = 0; /* horodatage du dernier deplacement (detection du repos) */
 let feedbackTimer = null;
 let feedbackLeaveTimer = null;
 /* Minuteries du mode hors-ligne : renouvellement du tampon tant qu'on est en
@@ -1370,6 +1375,7 @@ const dynamicsCache = {
   hintTransform: null,
   hintVisible: null,
   hintText: null,
+  sceneIdle: null,
 };
 
 function invalidateDynamicsCache() {
@@ -1557,6 +1563,21 @@ function updateNearObstacle() {
   const target = interactionTarget();
   state.nearObstacle =
     Boolean(target) && distance(state.playerPosition, target) <= INTERACTION_DISTANCE;
+}
+
+/* Pose/retire #map.scene-idle selon l'immobilite du joueur : quand il ne bouge
+   plus depuis SCENE_IDLE_DELAY_MS, on fige les animations d'ambiance (la CSS
+   #map.scene-idle) pour laisser le compositeur s'endormir ; on les relance des
+   le premier deplacement. Le cache evite tout toggle a chaque frame. */
+function updateSceneIdle(timestamp) {
+  if (state.playerMoving) {
+    lastMoveAt = timestamp;
+  }
+  const idle = !state.playerMoving && timestamp - lastMoveAt >= SCENE_IDLE_DELAY_MS;
+  if (idle !== dynamicsCache.sceneIdle) {
+    dynamicsCache.sceneIdle = idle;
+    mapElement.classList.toggle("scene-idle", idle);
+  }
 }
 
 function updateSceneDynamics() {
@@ -2941,6 +2962,7 @@ function tick(timestamp) {
   } else {
     state.playerMoving = false;
   }
+  updateSceneIdle(timestamp);
 
   /* Suivi de camera avec easing doux (jamais de recentrage brutal). Sous un
      dixieme de pixel, la camera s'aimante sur la cible : l'easing s'arrete
