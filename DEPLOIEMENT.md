@@ -259,9 +259,44 @@ pas nécessaire pour que ça marche, seulement pour limiter qui peut appeler l'A
 Ces points ne bloquent pas le déploiement mais sont bons à connaître :
 
 - **Mise en veille (Render Free)** : le service s'endort après ~15 min d'inactivité.
-  La première requête suivante prend quelques secondes à réveiller le service.
-  Le code prévoit ce cas côté base (`pool_pre_ping` + `pool_recycle`) pour éviter
-  les connexions PostgreSQL mortes après une pause.
+  La première requête suivante prend **~50 s** à réveiller le service (c'est le
+  freeze le plus visible pour l'utilisateur au premier accès après une pause).
+  De même, **Neon** suspend sa compute après ~5 min d'inactivité (réveil ~0,5–qq s
+  au premier accès base). Le code prévoit ces cas côté base (`pool_pre_ping` +
+  `pool_recycle`) pour éviter les connexions PostgreSQL mortes après une pause,
+  **mais le temps de réveil reste**. Pour le supprimer, voir la section
+  **« Garder le service éveillé (keep-alive) »** juste après ce paragraphe.
+  > À noter : une fois chaud, le service est rapide (mesuré : `/session/demarrer`
+  > et `/evaluer` ~0,3 s). La lenteur perçue vient donc du réveil à froid, pas des
+  > requêtes elles-mêmes.
+
+### Garder le service éveillé (keep-alive) — supprime le freeze de ~50 s
+
+Le plan gratuit Render endort le service après ~15 min sans trafic. Un **ping
+périodique** de l'endpoint `/health` (léger, sans base) maintient Render — et par
+ricochet la connexion Neon — éveillés, ce qui **élimine le cold start de ~50 s** au
+premier accès après une pause. C'est une configuration **externe** (aucun code à
+changer), à faire une fois :
+
+1. Créer un compte gratuit sur un service de monitoring, par ex.
+   **[UptimeRobot](https://uptimerobot.com)** (ou Cron-Job.org, BetterStack…).
+2. Ajouter un **monitor de type HTTP(s)** :
+   - **URL** : `https://<votre-service>.onrender.com/health`
+   - **Intervalle** : **toutes les 10 minutes** (< 15 min, la limite d'endormissement Render).
+   - Méthode `GET` ; un code `200` avec `{"status":"ok"}` est attendu.
+3. Enregistrer. Le monitor pinge désormais `/health` en continu ; le service reste
+   chaud et répond immédiatement aux vrais utilisateurs.
+
+> Remarques :
+> - `/health` ne touche **pas** la base et ne consomme quasiment aucune ressource :
+>   c'est l'endpoint prévu pour ça.
+> - Ce keep-alive garde Render éveillé ; il maintient aussi indirectement l'activité
+>   suffisante pour limiter la suspension Neon. Si vous voulez être certain que Neon
+>   reste chaud, un second monitor sur un endpoint qui lit la base (ex. une page du
+>   frontend qui déclenche un appel authentifié) peut compléter, mais ce n'est en
+>   général pas nécessaire pour l'expérience élève.
+> - Cela consomme des heures d'instance Render (le service ne dort plus). Sur le
+>   plan gratuit, garder un œil sur le quota mensuel d'heures.
 - **Données vraiment persistantes = uniquement PostgreSQL/Neon.** Le disque de
   Render est **éphémère** : il est remis à zéro à chaque redéploiement/réveil.
   Concrètement :

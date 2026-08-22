@@ -298,6 +298,27 @@ input {
   border-color: var(--gold);
 }
 
+/* P3 : demarrage de session en cours. On neutralise les clics et on grise les
+   cartes, la carte choisie porte un spinner (l'attente reseau devient lisible). */
+.lesson-actions.is-loading {
+  pointer-events: none;
+  opacity: 0.72;
+}
+.lesson-card.is-loading {
+  border-color: var(--gold);
+}
+.lesson-card.is-loading::after {
+  content: "";
+  flex: none;
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--cream-dark, #d9cfc0);
+  border-top-color: var(--road, #8b5e3c);
+  border-radius: 50%;
+  animation: rapportSpin 0.7s linear infinite;
+}
+
 .lesson-card-icon {
   flex: none;
   display: grid;
@@ -1007,6 +1028,27 @@ input {
   to { transform: scale(1) translateY(0); opacity: 1; }
 }
 
+/* P2 : coquille instantanee du popup d'exercice. Le popup apparait tout de
+   suite avec ce spinner centre, puis son contenu lourd (icones SVG, figures,
+   formulaire, mecanique) se monte au frame suivant sans bloquer le tap. */
+.exercise-modal.is-preparing {
+  min-height: 220px;
+}
+.modal-preparing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+.modal-spinner {
+  width: 34px;
+  height: 34px;
+  border: 4px solid var(--cream-dark, #d9cfc0);
+  border-top-color: var(--road, #8b5e3c);
+  border-radius: 50%;
+  animation: rapportSpin 0.8s linear infinite;
+}
+
 .modal-close {
   position: absolute;
   z-index: 2;
@@ -1361,6 +1403,30 @@ input {
 .btn-primary:active,
 .btn-help:active {
   transform: translateY(1px);
+}
+
+/* P3 : bouton "Valider" en attente pendant l'appel /evaluer (spinner a cote
+   du libelle). Rend l'attente reseau lisible plutot que muette (surtout un
+   cold start de plusieurs secondes). Le bouton est aussi disabled cote JS. */
+.btn-primary.is-loading {
+  cursor: default;
+  color: rgba(255, 255, 255, 0.78);
+}
+.btn-primary.is-loading:hover {
+  transform: none;
+  filter: none;
+}
+.btn-primary.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-left: 9px;
+  vertical-align: -2px;
+  border: 2.5px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rapportSpin 0.7s linear infinite;
 }
 
 /* ----- Theme CHATEAU : parchemin deroule ----- */
@@ -3286,6 +3352,22 @@ input {
 #map.scene-idle .collectible-glow,
 #map.scene-idle .obstacle-marker {
   animation-play-state: paused;
+}
+
+/* Allegement PERMANENT sur appareil tactile (mobile) : contrairement a
+   scene-idle (repos uniquement), on coupe ici les animations d'ambiance les
+   plus couteuses TOUT LE TEMPS, y compris en mouvement. En mouvement la carte
+   se repeint entierement a chaque frame (la camera suit le joueur en reecrivant
+   le viewBox) : chaque sous-arbre anime coute alors a chaque frame, et la marge
+   GPU d'un mobile d'entree de gamme est mince. On fige le battement d'ailes et
+   le chat, et on coupe la lueur des pieces (opacite + scale = recomposition) ;
+   le desktop, lui, garde l'ambiance complete et vivante (body sans .touch-active).
+   Le nombre de papillons est deja reduit a 1 sur tactile (voir livingDecorMarkup). */
+body.touch-active #map .critter-wings,
+body.touch-active #map .cat-tail,
+body.touch-active #map .cat-stroll,
+body.touch-active #map .collectible-glow {
+  animation: none;
 }
 
 /* Pastille "ici !" au-dessus de l'obstacle actif */

@@ -1307,8 +1307,13 @@ function livingDecorMarkup(scene) {
   const trees = decor.trees || [];
   const bits = [];
 
-  /* Jusqu'a 2 papillons, poses au-dessus d'une fleur (ils les butinent). */
-  flowers.slice(0, 2).forEach((f, i) => {
+  /* Jusqu'a 2 papillons, poses au-dessus d'une fleur (ils les butinent). Sur
+     appareil tactile (mobile), on n'en garde qu'UN : la marge GPU y est plus
+     mince et chaque sous-arbre anime est repeint a chaque frame en mouvement
+     (la carte se repeint entierement quand la camera suit le joueur). Le
+     desktop garde les deux, son GPU absorbe sans peine. */
+  const maxPapillons = estAppareilTactile ? 1 : 2;
+  flowers.slice(0, maxPapillons).forEach((f, i) => {
     bits.push(`
       <g class="living-decor" transform="translate(${f.x.toFixed(1)}, ${(f.y - 24).toFixed(1)})${uprightSuffix()}">
         <g class="critter-flutter" style="animation-delay: ${(i * -1.9).toFixed(1)}s">
@@ -1855,8 +1860,30 @@ function renderExerciseModal() {
       ? `Entraînement : encore ${state.session.exercices_renforcement_restants}`
       : "À toi de jouer !";
 
-  exerciseModal.className = `exercise-modal ${theme.modalClass}`;
+  /* P2 : coquille instantanee. Monter tout le popup d'un coup est une tache
+     longue (~140 ms sur mobile : icones SVG, figures, formulaire, mecanique)
+     qui fige le thread au moment du tap et ressemble a un gel. On affiche donc
+     d'abord une coquille legere (bouton fermer + spinner), puis on remplit le
+     contenu lourd au frame SUIVANT, apres que le navigateur a peint la coquille :
+     le popup apparait instantanement, le montage lourd ne bloque plus le geste. */
+  exerciseModal.className = `exercise-modal ${theme.modalClass} is-preparing`;
   exerciseModal.innerHTML = `
+    <button id="close-exercise-shell" class="modal-close" type="button" aria-label="Fermer">&#10005;</button>
+    <div class="modal-preparing" role="status" aria-label="Préparation de l'exercice">
+      <span class="modal-spinner" aria-hidden="true"></span>
+    </div>
+  `;
+  exerciseOverlay.classList.remove("hidden");
+  document.getElementById("close-exercise-shell")?.addEventListener("click", closeExercisePanel);
+
+  const remplirCorps = () => {
+    /* Fermeture ou changement d'exercice entre-temps : on abandonne le remplissage
+       (la coquille a deja ete retiree/remplacee). */
+    if (!state.panelOpen || state.currentExercise !== exercise) {
+      return;
+    }
+    exerciseModal.className = `exercise-modal ${theme.modalClass}`;
+    exerciseModal.innerHTML = `
     <button id="close-exercise" class="modal-close" type="button" aria-label="Fermer">&#10005;</button>
     <div class="modal-head">
       <span class="modal-icon">${
@@ -1995,6 +2022,11 @@ function renderExerciseModal() {
      durcissement d'angles que la carte et les mini-jeux. La palette suit deja
      par cascade. Fait apres le montage de la mecanique pour couvrir son SVG. */
   durcirAnglesRectsDom(exerciseModal);
+  };
+  /* Double rAF : le 1er laisse le navigateur PEINDRE la coquille, le 2nd
+     execute le remplissage lourd juste apres cette peinture (sinon les deux
+     seraient regroupes dans la meme frame et le gain disparaitrait). */
+  requestAnimationFrame(() => requestAnimationFrame(remplirCorps));
 }
 
 /* ============================================================
@@ -2267,10 +2299,20 @@ function renderLessonChoices() {
 
   lessonActions.querySelectorAll(".lesson-card").forEach((button) => {
     button.addEventListener("click", async () => {
+      /* P3 : demarrer une session appelle le backend (/session/demarrer) ; on
+         rend l'attente visible (surtout un cold start de plusieurs secondes)
+         plutot que de laisser l'ecran fige. On grise les cartes et on annonce
+         le chargement ; on restaure en cas d'echec (sinon la carte de jeu prend
+         le relais). */
+      button.classList.add("is-loading");
+      lessonActions.classList.add("is-loading");
+      lessonStatus.textContent = "Démarrage de l'aventure...";
       try {
         await startSession(state.selectedLevel, button.dataset.lessonId);
       } catch (error) {
         lessonStatus.textContent = `Impossible de démarrer la session : ${error.message}`;
+        button.classList.remove("is-loading");
+        lessonActions.classList.remove("is-loading");
       }
     });
   });
@@ -2681,6 +2723,22 @@ async function handleSubmitAnswer(event) {
      le detecteur d'inactivite du tuteur proactif. */
   window.ParcoursProactive?.activity();
 
+  /* P3 : indicateur de chargement pendant l'appel reseau /evaluer. Sans lui,
+     le temps de reponse (jusqu'a un cold start de plusieurs secondes) ressemble
+     a un gel silencieux : on desactive le bouton et on affiche un spinner
+     dessus. Restaure via finally (branches d'erreur ou le popup reste ouvert) ;
+     sur succes le popup est remplace, restaurer un bouton detache est sans effet. */
+  const submitBtn = event.currentTarget.querySelector('button[type="submit"]');
+  const setPending = (on) => {
+    if (!submitBtn) {
+      return;
+    }
+    submitBtn.disabled = on;
+    submitBtn.classList.toggle("is-loading", on);
+    submitBtn.setAttribute("aria-busy", on ? "true" : "false");
+  };
+  setPending(true);
+
   const context = {
     previousConceptIndex: currentConceptIndex(),
     previousObstacle: activeObstacle(),
@@ -2734,6 +2792,8 @@ async function handleSubmitAnswer(event) {
     } else {
       setFeedback(error.message, "warning");
     }
+  } finally {
+    setPending(false);
   }
 }
 
