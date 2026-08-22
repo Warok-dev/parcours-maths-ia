@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from diagnostic import diagnostiquer_erreur
@@ -980,7 +980,18 @@ def _enregistrer_evaluation_bd(db: Session, session: dict, statut: str | None) -
 
 
 @app.get("/health")
-def health() -> dict:
+def health(db: Annotated[Session, Depends(get_db)]) -> dict:
+    """Sonde de vivacite. Execute EN PLUS une requete SQL minimale (SELECT 1)
+    afin que le ping externe configure sur cet endpoint garde eveilles a la fois
+    Render (par le trafic) ET la base Neon (qui suspend sa compute apres ~5 min
+    d'inactivite). Le format de reponse est inchange ({"status": "ok"}) pour ne
+    rien casser cote appelants. Si la base est injoignable, on renvoie 503 plutot
+    qu'un faux "ok" qui masquerait un vrai probleme de connexion."""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as exc:  # toute panne DB (connexion, timeout...) -> 503 clair
+        logging.warning("Health : base de donnees injoignable : %s", exc)
+        raise HTTPException(status_code=503, detail="Base de donnees injoignable.") from exc
     return {"status": "ok"}
 
 
