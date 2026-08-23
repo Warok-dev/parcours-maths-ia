@@ -979,20 +979,33 @@ def _enregistrer_evaluation_bd(db: Session, session: dict, statut: str | None) -
         logging.warning("Progression BD non enregistree : %s", exc)
 
 
-@app.get("/health")
-def health(db: Annotated[Session, Depends(get_db)]) -> dict:
-    """Sonde de vivacite. Execute EN PLUS une requete SQL minimale (SELECT 1)
-    afin que le ping externe configure sur cet endpoint garde eveilles a la fois
-    Render (par le trafic) ET la base Neon (qui suspend sa compute apres ~5 min
-    d'inactivite). Le format de reponse est inchange ({"status": "ok"}) pour ne
-    rien casser cote appelants. Si la base est injoignable, on renvoie 503 plutot
-    qu'un faux "ok" qui masquerait un vrai probleme de connexion."""
+def _verifier_sante(db: Session) -> dict:
+    """Logique partagee de la sonde de vivacite (GET et HEAD). Execute EN PLUS
+    une requete SQL minimale (SELECT 1) afin que le ping externe configure sur
+    cet endpoint garde eveilles a la fois Render (par le trafic) ET la base Neon
+    (qui suspend sa compute apres ~5 min d'inactivite). Le format de reponse est
+    inchange ({"status": "ok"}) pour ne rien casser cote appelants. Si la base
+    est injoignable, on renvoie 503 plutot qu'un faux "ok" qui masquerait un vrai
+    probleme de connexion."""
     try:
         db.execute(text("SELECT 1"))
     except Exception as exc:  # toute panne DB (connexion, timeout...) -> 503 clair
         logging.warning("Health : base de donnees injoignable : %s", exc)
         raise HTTPException(status_code=503, detail="Base de donnees injoignable.") from exc
     return {"status": "ok"}
+
+
+# GET et HEAD partagent la meme logique (SELECT 1 inclus) : FastAPI n'ajoute pas
+# HEAD automatiquement pour une route GET, et les sondes d'uptime (UptimeRobot...)
+# emettent souvent un HEAD. On expose donc les deux, sans dupliquer le corps.
+@app.get("/health")
+def health(db: Annotated[Session, Depends(get_db)]) -> dict:
+    return _verifier_sante(db)
+
+
+@app.head("/health")
+def health_head(db: Annotated[Session, Depends(get_db)]) -> dict:
+    return _verifier_sante(db)
 
 
 @app.post("/session/demarrer")
