@@ -456,13 +456,17 @@ input {
    ============================================================ */
 .game-screen {
   background: var(--grass);
+  /* P5 : la carte est une couche plus grande que l'ecran (zone visible +
+     marge) translatee en GPU ; l'ecran de jeu la recadre. */
+  overflow: hidden;
 }
 
+/* P5 : taille (width/height) et transform posees par map.js (setupMapLayer /
+   applyCamera). On garde seulement le placement ; plus de 100%/100%. */
 #map {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  top: 0;
+  left: 0;
   display: block;
 }
 

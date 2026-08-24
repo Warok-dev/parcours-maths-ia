@@ -14,6 +14,15 @@ const CAMERA_WIDTH = 560;
 const CAMERA_HEIGHT = 390;
 const CAMERA_EASE = 5.2;
 const INTERACTION_DISTANCE = 118;
+/* ------------------------------------------------------------
+   P5 : couche carte composite (viewBox statique + translate3d).
+   Le viewBox devient une SUPER-FENETRE (zone visible + marge) reecrite
+   rarement ; le suivi camera image par image se fait par translate3d GPU
+   (0 repaint). Voir le bloc CAMERA plus bas. Independant de P1 (budget
+   d'ambiance reduit sur mobile), qui reste actif en parallele. */
+const SUPER_MARGIN_TARGET_PX = 600; /* marge visee autour du viewport (px CSS) */
+const MAX_LAYER_TEXTURE_PX = 4096;  /* borne conservatrice de texture GPU (px device) */
+const RECENTER_PAD = 0.12;          /* fraction de marge gardee en securite */
 /* Delai d'immobilite avant de figer les animations d'ambiance (Fix perf) :
    assez court pour endormir vite le compositeur au repos, assez long pour ne
    pas clignoter entre deux pas. */
@@ -775,19 +784,98 @@ function clampCamera(cameraTarget) {
   };
 }
 
-/* Reecrire le viewBox repeint TOUTE la scene SVG, meme quand la camera n'a
-   pas bouge. On arrondit au dixieme d'unite et on n'ecrit que si la valeur
-   change reellement : camera immobile => plus aucun repaint de la carte. */
-let lastViewBox = "";
+/* ------------------------------------------------------------
+   Couche carte composite (P5). Etat geometrique de la super-fenetre : le
+   viewBox couvre "zone visible + marge" et n'est reecrit (1 repaint) que
+   lorsque la camera approche du bord de la marge ; entre-temps le suivi se
+   fait par translate3d (composite GPU, 0 repaint). Au repos : ni pan ni
+   repaint (le cache lastTransform + l'aimant camera coupent tout). */
+const mapLayer = {
+  ready: false,
+  s: 1,                 /* px CSS par unite d'affichage (echelle "slice" courante) */
+  viewW: 0, viewH: 0,   /* taille visible reelle (px CSS = #game-screen) */
+  marginX: 0, marginY: 0, /* marge de part et d'autre (px CSS) */
+  superW: CAMERA_WIDTH, superH: CAMERA_HEIGHT, /* super-fenetre (unites d'affichage) */
+  originX: 0, originY: 0, /* coin haut-gauche de la super-fenetre (unites d'affichage) */
+  lastTransform: "",
+};
 
-function applyCameraViewBox() {
-  const clamped = clampCamera(state.camera);
-  const viewBox = `${(clamped.x - CAMERA_WIDTH / 2).toFixed(1)} ${(clamped.y - CAMERA_HEIGHT / 2).toFixed(1)} ${CAMERA_WIDTH} ${CAMERA_HEIGHT}`;
-  if (viewBox === lastViewBox) {
+/* (Re)calcule la geometrie de la couche depuis la taille reelle du viewport.
+   A appeler quand #game-screen est visible (init de scene, resize/rotation).
+   Ne touche NI a la camera NI aux coordonnees monde : pur rendu. */
+function setupMapLayer() {
+  const rect = gameScreen.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return; /* ecran encore masque : setupMapLayer sera rappele a l'affichage */
+  }
+  const dpr = window.devicePixelRatio || 1;
+  /* Echelle d'affichage = celle du slice actuel (l'image couvre le viewport). */
+  const s = Math.max(rect.width / CAMERA_WIDTH, rect.height / CAMERA_HEIGHT);
+  /* Plus grande marge tenant sous la limite de texture GPU, au DPR reel de
+     l'appareil : borne la couche composite meme sur mobile haute densite. */
+  const maxSuperCss = MAX_LAYER_TEXTURE_PX / dpr;
+  const marginX = Math.min(SUPER_MARGIN_TARGET_PX, Math.max(0, (maxSuperCss - rect.width) / 2));
+  const marginY = Math.min(SUPER_MARGIN_TARGET_PX, Math.max(0, (maxSuperCss - rect.height) / 2));
+  mapLayer.s = s;
+  mapLayer.viewW = rect.width;
+  mapLayer.viewH = rect.height;
+  mapLayer.marginX = marginX;
+  mapLayer.marginY = marginY;
+  mapLayer.superW = (rect.width + 2 * marginX) / s;
+  mapLayer.superH = (rect.height + 2 * marginY) / s;
+  /* Taille px explicite de la couche (aspect identique au viewBox => aucun
+     recadrage interne ; le recadrage vient de #game-screen overflow:hidden). */
+  mapElement.style.width = `${rect.width + 2 * marginX}px`;
+  mapElement.style.height = `${rect.height + 2 * marginY}px`;
+  mapElement.style.transformOrigin = "0 0";
+  mapElement.style.willChange = "transform";
+  mapLayer.ready = true;
+  mapLayer.lastTransform = "";
+  recenterSuperWindow(state.camera || { x: mapLayer.superW / 2, y: mapLayer.superH / 2 });
+  applyCamera();
+}
+
+/* Recentre la super-fenetre sur la camera et reecrit le viewBox (le seul
+   repaint complet). Appele a l'init, au resize, et au franchissement du seuil
+   de marge. */
+function recenterSuperWindow(camera) {
+  mapLayer.originX = camera.x - mapLayer.superW / 2;
+  mapLayer.originY = camera.y - mapLayer.superH / 2;
+  mapElement.setAttribute(
+    "viewBox",
+    `${mapLayer.originX.toFixed(1)} ${mapLayer.originY.toFixed(1)} ${mapLayer.superW.toFixed(1)} ${mapLayer.superH.toFixed(1)}`,
+  );
+  mapLayer.lastTransform = ""; /* le pan doit etre reapplique apres recentrage */
+}
+
+/* Suivi camera image par image. Meme camera (clampCamera) qu'avant : seul le
+   MECANISME de rendu change (translate3d au lieu de reecrire le viewBox). */
+function applyCamera() {
+  if (!mapLayer.ready) {
     return;
   }
-  lastViewBox = viewBox;
-  mapElement.setAttribute("viewBox", viewBox);
+  const clamped = clampCamera(state.camera);
+  const s = mapLayer.s;
+  /* Recentrage si la camera approche du bord de la marge (avant que la zone
+     visible n'atteigne le bord peint). Marge disponible de chaque cote =
+     marginX/s unites ; on garde RECENTER_PAD en securite. */
+  const superCx = mapLayer.originX + mapLayer.superW / 2;
+  const superCy = mapLayer.originY + mapLayer.superH / 2;
+  const slackX = (mapLayer.marginX / s) * (1 - RECENTER_PAD);
+  const slackY = (mapLayer.marginY / s) * (1 - RECENTER_PAD);
+  if (Math.abs(clamped.x - superCx) > slackX || Math.abs(clamped.y - superCy) > slackY) {
+    recenterSuperWindow(clamped);
+  }
+  /* Place le point monde "clamped" au centre de la zone visible via translate3d
+     (transform-origin 0 0, pas d'echelle) : screen = translate + (P-origin)*s. */
+  const tx = mapLayer.viewW / 2 - (clamped.x - mapLayer.originX) * s;
+  const ty = mapLayer.viewH / 2 - (clamped.y - mapLayer.originY) * s;
+  const transform = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0)`;
+  if (transform === mapLayer.lastTransform) {
+    return; /* camera immobile => aucun travail (equivalent de l'ancien cache) */
+  }
+  mapLayer.lastTransform = transform;
+  mapElement.style.transform = transform;
 }
 
 /* ============================================================
@@ -1492,7 +1580,7 @@ function renderScene() {
   mapElement.innerHTML = varianteMature() ? durcirAnglesRects(markup) : markup;
   invalidateDynamicsCache();
   updateSceneDynamics();
-  applyCameraViewBox();
+  applyCamera();
 }
 
 /* ============================================================
@@ -1517,6 +1605,9 @@ function showGameScreen() {
   startScreen.classList.add("hidden");
   lessonScreen.classList.add("hidden");
   gameScreen.classList.remove("hidden");
+  /* L'ecran est desormais visible : la couche carte peut mesurer le viewport
+     et poser sa geometrie (taille px + super-fenetre + 1er pan). */
+  setupMapLayer();
   majControlesTactiles();
 }
 
@@ -3026,7 +3117,7 @@ function tick(timestamp) {
 
   /* Suivi de camera avec easing doux (jamais de recentrage brutal). Sous un
      dixieme de pixel, la camera s'aimante sur la cible : l'easing s'arrete
-     vraiment et applyCameraViewBox cesse d'ecrire (donc de repeindre). */
+     vraiment et applyCamera cesse d'ecrire le transform (donc aucun travail). */
   if (state.scene) {
     /* La camera vit en espace d'affichage : on suit la PROJECTION de la
        position joueur (natif -> affichage). */
@@ -3036,7 +3127,7 @@ function tick(timestamp) {
     state.camera.y += (target.y - state.camera.y) * factor;
     if (Math.abs(target.x - state.camera.x) < 0.1) state.camera.x = target.x;
     if (Math.abs(target.y - state.camera.y) < 0.1) state.camera.y = target.y;
-    applyCameraViewBox();
+    applyCamera();
   }
 
   /* Position sauvegardee regulierement (le beforeunload couvre le reste). */
@@ -3121,6 +3212,16 @@ changeLessonButton.addEventListener("click", () => {
 backToLevelsButton.addEventListener("click", resetToStart);
 window.addEventListener("keydown", handleKeyDown);
 window.addEventListener("keyup", handleKeyUp);
+/* La couche carte (P5) epingle des px : au redimensionnement/rotation, on
+   recalcule son echelle, sa taille et la super-fenetre (sans toucher a la
+   camera ni au monde). Ignore si le jeu n'est pas a l'ecran. */
+function handleViewportResize() {
+  if (!gameScreen.classList.contains("hidden")) {
+    setupMapLayer();
+  }
+}
+window.addEventListener("resize", handleViewportResize);
+window.addEventListener("orientationchange", handleViewportResize);
 
 /* ============================================================
    CONTROLES TACTILES : pave directionnel + bouton d'action
