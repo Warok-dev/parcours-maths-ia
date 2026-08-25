@@ -2435,6 +2435,19 @@ input {
   stroke: none;
 }
 
+/* Angle : demi-droites (traits pleins) + arc/marque d'angle droit (plus fin). */
+.figure-ray {
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.figure-arc {
+  stroke: var(--road-dark);
+  stroke-width: 2.2;
+}
+
 /* ----- Panier a remplir ----- */
 .basket-field {
   display: flex;

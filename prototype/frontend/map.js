@@ -47,6 +47,8 @@ const LESSON_ICONS = {
   proportionnalite: "⚖",
   geometrie_figures: "△",
   cercle: "◯",
+  triangles: "▲",
+  angles: "∠",
   echelle: "🗺",
   nombres_decimaux: "0,5",
   durees: "🕒",
@@ -1966,6 +1968,89 @@ function cercleSvg(exercise) {
   `;
 }
 
+/* Triangle : figure SCHEMATIQUE (forme fixe, non a l'echelle). L'info est
+   portee par les etiquettes — longueurs des cotes (classer par cotes) ou
+   mesures des angles aux sommets (classer par angles). Choix produit : on
+   classe par les valeurs affichees, pas par la forme dessinee. */
+function triangleSvg(exercise) {
+  const v = exercise.variables || {};
+  const label = (x, y, text, anchor = "middle") =>
+    `<text x="${(+x).toFixed(1)}" y="${(+y).toFixed(1)}" text-anchor="${anchor}" class="figure-label">${text}</text>`;
+  const A = [0, -42];
+  const B = [-50, 34];
+  const C = [50, 34];
+  const poly = `<polygon points="${A[0]},${A[1]} ${B[0]},${B[1]} ${C[0]},${C[1]}" class="figure-shape"></polygon>`;
+  const mid = (P, Q) => [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2];
+
+  if (v.forme === "triangle_angles") {
+    const [a, b, c] = v.angles;
+    // Etiquette d'angle poussee vers l'INTERIEUR depuis chaque sommet.
+    const inner = (P, k = 0.26) => [P[0] * (1 - k), P[1] * (1 - k)];
+    const pa = inner(A);
+    const pb = inner(B);
+    const pc = inner(C);
+    return `
+      ${poly}
+      ${label(pa[0], pa[1] + 12, `${a}°`)}
+      ${label(pb[0] + 6, pb[1] - 4, `${b}°`, "start")}
+      ${label(pc[0] - 6, pc[1] - 4, `${c}°`, "end")}
+    `;
+  }
+  // triangle_cotes : longueur sur chaque cote.
+  const [a, b, c] = v.cotes;
+  const mAB = mid(A, B);
+  const mAC = mid(A, C);
+  const mBC = mid(B, C);
+  return `
+    ${poly}
+    ${label(mAB[0] - 12, mAB[1], `${a}`, "end")}
+    ${label(mAC[0] + 12, mAC[1], `${b}`, "start")}
+    ${label(mBC[0], mBC[1] + 17, `${c}`)}
+  `;
+}
+
+/* Angle : SEUL rendu geometriquement exact de la vague — deux demi-droites
+   depuis un sommet, la seconde tournee de 'mesure' degres (trigonometrie). La
+   mesure n'est PAS affichee : l'eleve juge le type a l'oeil. Marque d'angle
+   droit pour 90 degres. */
+function angleSvg(exercise) {
+  const v = exercise.variables || {};
+  const V = [-38, 30];
+  const L = 82;
+  const rad = ((v.mesure || 0) * Math.PI) / 180;
+  const p1 = [V[0] + L, V[1]]; // demi-droite horizontale
+  const p2 = [V[0] + L * Math.cos(rad), V[1] - L * Math.sin(rad)]; // tournee vers le haut
+  const seg = (x1, y1, x2, y2) =>
+    `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="figure-ray"></line>`;
+  const dot = `<circle cx="${V[0]}" cy="${V[1]}" r="2.8" class="figure-point"></circle>`;
+
+  let marque;
+  if (v.droit) {
+    // Petit carre d'angle droit au sommet.
+    const d = 15;
+    const s = [
+      [V[0] + d, V[1]],
+      [V[0] + d, V[1] - d],
+      [V[0], V[1] - d],
+    ];
+    marque = `<polyline points="${s.map((p) => `${p[0]},${p[1]}`).join(" ")}" class="figure-ray" fill="none"></polyline>`;
+  } else {
+    // Arc entre les deux demi-droites.
+    const r = 22;
+    const ax = V[0] + r;
+    const ay = V[1];
+    const bx = V[0] + r * Math.cos(rad);
+    const by = V[1] - r * Math.sin(rad);
+    marque = `<path d="M ${ax.toFixed(1)} ${ay.toFixed(1)} A ${r} ${r} 0 0 0 ${bx.toFixed(1)} ${by.toFixed(1)}" class="figure-arc" fill="none"></path>`;
+  }
+  return `
+    ${seg(V[0], V[1], p1[0], p1[1])}
+    ${seg(V[0], V[1], p2[0], p2[1])}
+    ${marque}
+    ${dot}
+  `;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -1978,6 +2063,10 @@ function renderExerciseModal() {
   const isCercle = ["cercle_identifier_elements", "circonference_cercle", "aire_disque"].includes(
     exercise.pattern?.pattern_name,
   );
+  const isTriangle = ["triangle_classer_cotes", "triangle_classer_angles"].includes(
+    exercise.pattern?.pattern_name,
+  );
+  const isAngle = exercise.pattern?.pattern_name === "angle_type";
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2089,6 +2178,20 @@ function renderExerciseModal() {
         isCercle
           ? `<div class="figure-figure">
                <svg viewBox="-64 -64 128 128" role="img" aria-label="Figure de cercle">${cercleSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isTriangle
+          ? `<div class="figure-figure">
+               <svg viewBox="-64 -60 128 116" role="img" aria-label="Triangle">${triangleSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isAngle
+          ? `<div class="figure-figure">
+               <svg viewBox="-56 -40 112 90" role="img" aria-label="Angle">${angleSvg(exercise)}</svg>
              </div>`
           : ""
       }

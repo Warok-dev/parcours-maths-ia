@@ -1029,6 +1029,120 @@ def generer_aire_disque(niveau: str = "CE5") -> dict:
 
 
 # ============================================================
+#  TRIANGLES & ANGLES (N3 -> classification des triangles ; N4 -> type d'angle)
+#  Decision produit : on CLASSE par les VALEURS affichees (longueurs de cotes,
+#  mesures d'angles), pas par la forme dessinee a l'oeil -> le dessin reste
+#  schematique (comme figure_cotee_simple). Seul l'angle (G6) est reellement
+#  dessine a la bonne ouverture, car l'eleve juge son type a l'oeil ; aucune
+#  lecture au rapporteur. Corpus : N3 S1 S1 (cotes : equilateral / isocele),
+#  N3 S1 S3 (angles : rectangle / acutangle / obtusangle), N4 S1 (type d'angle).
+# ============================================================
+def generer_triangle_classer_cotes(niveau: str = "CE3") -> dict:
+    nature = random.choice(["équilatéral", "isocèle", "scalène"])
+    if nature == "équilatéral":
+        c = random.randint(3, 12)
+        cotes = [c, c, c]
+    elif nature == "isocèle":
+        leg = random.randint(4, 12)
+        base = random.randint(2, 2 * leg - 1)
+        while base == leg:  # sinon ce serait un equilateral
+            base = random.randint(2, 2 * leg - 1)
+        cotes = [leg, leg, base]
+        random.shuffle(cotes)
+    else:  # scalène : 3 cotes distincts respectant l'inegalite triangulaire
+        while True:
+            cotes = sorted(random.sample(range(3, 15), 3))
+            if len(set(cotes)) == 3 and cotes[0] + cotes[1] > cotes[2]:
+                break
+        random.shuffle(cotes)
+
+    options = ["équilatéral", "isocèle", "scalène"]
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="triangle_classer_cotes",
+        enonce="Quelle est la nature de ce triangle ? (regarde ses côtés)",
+        variables={"forme": "triangle_cotes", "cotes": cotes, "options": options},
+        valeur=nature,
+        format_reponse="choix_multiple",
+        equivalences=[nature],
+        steps=[
+            "3 côtés égaux → équilatéral ; exactement 2 côtés égaux → isocèle ; "
+            "3 côtés différents → scalène.",
+            f"Ici, les côtés sont {cotes[0]}, {cotes[1]} et {cotes[2]} cm : c'est un triangle {nature}.",
+        ],
+    )
+
+
+def generer_triangle_classer_angles(niveau: str = "CE3") -> dict:
+    nature = random.choice(["rectangle", "acutangle", "obtusangle"])
+    if nature == "rectangle":
+        x = random.randint(25, 65)
+        angles = [90, x, 90 - x]
+    elif nature == "obtusangle":
+        obtus = random.randint(100, 150)
+        reste = 180 - obtus
+        a = random.randint(10, reste - 10)
+        angles = [obtus, a, reste - a]
+    else:  # acutangle : les trois angles < 90
+        while True:
+            a = random.randint(50, 80)
+            b = random.randint(50, 80)
+            c = 180 - a - b
+            if 40 <= c <= 89 and a < 90 and b < 90:
+                angles = [a, b, c]
+                break
+    random.shuffle(angles)
+
+    options = ["rectangle", "acutangle", "obtusangle"]
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="triangle_classer_angles",
+        enonce="Quelle est la nature de ce triangle ? (regarde ses angles)",
+        variables={"forme": "triangle_angles", "angles": angles, "options": options},
+        valeur=nature,
+        format_reponse="choix_multiple",
+        equivalences=[nature],
+        steps=[
+            "Un angle droit (90°) → rectangle ; un angle obtus (plus de 90°) → "
+            "obtusangle ; trois angles aigus (moins de 90°) → acutangle.",
+            f"Ici, les angles sont {angles[0]}°, {angles[1]}° et {angles[2]}° : "
+            f"c'est un triangle {nature}.",
+        ],
+    )
+
+
+def generer_angle_type(niveau: str = "CE4") -> dict:
+    nature = random.choice(["aigu", "droit", "obtus"])
+    if nature == "aigu":
+        mesure = random.randint(20, 75)
+    elif nature == "droit":
+        mesure = 90
+    else:  # obtus
+        mesure = random.randint(105, 160)
+
+    options = ["aigu", "droit", "obtus"]
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="angle_type",
+        enonce="Quel est le type de cet angle ?",
+        # La mesure sert au DESSIN (ouverture reelle) mais n'est pas annoncee :
+        # l'eleve juge le type a l'oeil (aucune lecture au rapporteur).
+        variables={"forme": "angle", "mesure": mesure, "droit": nature == "droit", "options": options},
+        valeur=nature,
+        format_reponse="choix_multiple",
+        equivalences=[nature],
+        steps=[
+            "Un angle droit forme un coin carré (90°). Plus fermé qu'un angle "
+            "droit → aigu ; plus ouvert → obtus.",
+            f"Ici, l'angle est {nature}.",
+        ],
+    )
+
+
+# ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
 #  manipulees en CENTIEMES (entiers) pour eviter toute erreur de virgule
@@ -1238,6 +1352,9 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "cercle_identifier_elements": generer_cercle_identifier_elements,
     "circonference_cercle": generer_circonference_cercle,
     "aire_disque": generer_aire_disque,
+    "triangle_classer_cotes": generer_triangle_classer_cotes,
+    "triangle_classer_angles": generer_triangle_classer_angles,
+    "angle_type": generer_angle_type,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

@@ -104,6 +104,21 @@
       ]
     },
     {
+      "lecon_id": "triangles",
+      "nom": "Les triangles",
+      "patterns": [
+        "triangle_classer_cotes",
+        "triangle_classer_angles"
+      ]
+    },
+    {
+      "lecon_id": "angles",
+      "nom": "Les angles",
+      "patterns": [
+        "angle_type"
+      ]
+    },
+    {
       "lecon_id": "echelle",
       "nom": "Échelle et plan",
       "patterns": [

@@ -263,6 +263,58 @@
       ]
     },
     {
+      "pattern_name": "triangle_classer_cotes",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Classer un triangle selon ses cotes (longueurs donnees) : equilateral / isocele / scalene (QCM)",
+      "constraints": {
+        "rule_type": "classification par les VALEURS des cotes affichees, pas par la forme dessinee",
+        "generation_rules": [
+          "3 cotes egaux -> equilateral ; exactement 2 egaux -> isocele ; 3 differents -> scalene",
+          "inegalite triangulaire respectee ; reponse choix_multiple",
+          "figure schematique cotee (comme figure_cotee_simple), aucun trace de l'eleve"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM1_S1.pptx", "question": "اكتبوا نوع المثلث (متساوي الساقين/متساوي الأضلاع)", "correction": "isocele / equilateral selon les cotes marques"}
+      ]
+    },
+    {
+      "pattern_name": "triangle_classer_angles",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Classer un triangle selon ses angles (mesures donnees) : rectangle / acutangle / obtusangle (QCM)",
+      "constraints": {
+        "rule_type": "classification par les VALEURS des angles affichees, pas par la forme dessinee",
+        "generation_rules": [
+          "un angle de 90 -> rectangle ; un angle > 90 -> obtusangle ; 3 angles < 90 -> acutangle",
+          "somme des 3 angles = 180 ; reponse choix_multiple"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM1_S3.pptx", "question": "اكتبوا نوع المثلث حسب زواياه (قائم/حاد/منفرج)", "correction": "rectangle / acutangle / obtusangle"}
+      ]
+    },
+    {
+      "pattern_name": "angle_type",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Reconnaitre le type d'un angle DESSINE a la bonne ouverture : aigu / droit / obtus (QCM)",
+      "constraints": {
+        "rule_type": "identification du type d'angle a l'oeil sur un angle deja dessine ; PAS de lecture au rapporteur",
+        "generation_rules": [
+          "aigu : ouverture 20-75 ; droit : 90 (marque d'angle droit) ; obtus : 105-160",
+          "la mesure sert au dessin mais n'est PAS annoncee ; reponse choix_multiple"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM1_S1.pptx", "question": "اكتبوا نوع الزاوية", "correction": "زاوية قائمة (droit) / حادة (aigu) / منفرجة (obtus)"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",

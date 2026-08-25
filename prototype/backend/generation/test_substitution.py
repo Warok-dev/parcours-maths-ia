@@ -164,6 +164,8 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "addition_durees_min",
                 "lecture_heure_analogique",
                 "cercle_identifier_elements",
+                "triangle_classer_cotes",
+                "triangle_classer_angles",
             },
         )
 
@@ -415,6 +417,90 @@ class SubstitutionGenerationTests(unittest.TestCase):
             self.assertIn(pattern, substitution.patterns_disponibles_pour_niveau("CE5"))
             for niveau in ("CE1", "CE2", "CE3", "CE4", "CE6"):
                 self.assertNotIn(pattern, substitution.patterns_disponibles_pour_niveau(niveau))
+
+    # ---------- Triangles : classer par cotes (CE3) ----------
+    def test_triangle_classer_cotes(self) -> None:
+        natures_vues = set()
+        for ex in self._generate_many("triangle_classer_cotes", "CE3", count=300):
+            v = ex["variables"]
+            nature = _exercise_value(ex)
+            natures_vues.add(nature)
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            self.assertIn(nature, v["options"])
+            self.assertEqual(set(v["options"]), {"équilatéral", "isocèle", "scalène"})
+            cotes = v["cotes"]
+            self.assertEqual(len(cotes), 3)
+            distincts = len(set(cotes))
+            # La nature annoncee correspond bien aux longueurs affichees.
+            if nature == "équilatéral":
+                self.assertEqual(distincts, 1)
+            elif nature == "isocèle":
+                self.assertEqual(distincts, 2)
+            else:
+                self.assertEqual(nature, "scalène")
+                self.assertEqual(distincts, 3)
+                # Inegalite triangulaire respectee.
+                c = sorted(cotes)
+                self.assertGreater(c[0] + c[1], c[2])
+        self.assertEqual(natures_vues, {"équilatéral", "isocèle", "scalène"})
+
+    # ---------- Triangles : classer par angles (CE3) ----------
+    def test_triangle_classer_angles(self) -> None:
+        natures_vues = set()
+        for ex in self._generate_many("triangle_classer_angles", "CE3", count=300):
+            v = ex["variables"]
+            nature = _exercise_value(ex)
+            natures_vues.add(nature)
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            self.assertIn(nature, v["options"])
+            self.assertEqual(set(v["options"]), {"rectangle", "acutangle", "obtusangle"})
+            angles = v["angles"]
+            self.assertEqual(len(angles), 3)
+            self.assertEqual(sum(angles), 180)  # somme des angles d'un triangle
+            self.assertTrue(all(a > 0 for a in angles))
+            if nature == "rectangle":
+                self.assertIn(90, angles)
+            elif nature == "obtusangle":
+                self.assertTrue(any(a > 90 for a in angles))
+            else:
+                self.assertEqual(nature, "acutangle")
+                self.assertTrue(all(a < 90 for a in angles))
+        self.assertEqual(natures_vues, {"rectangle", "acutangle", "obtusangle"})
+
+    def test_triangles_disponibles_ce3_seulement(self) -> None:
+        for pattern in ("triangle_classer_cotes", "triangle_classer_angles"):
+            self.assertIn(pattern, substitution.patterns_disponibles_pour_niveau("CE3"))
+            for niveau in ("CE1", "CE2", "CE4", "CE5", "CE6"):
+                self.assertNotIn(pattern, substitution.patterns_disponibles_pour_niveau(niveau))
+
+    # ---------- Type d'angle (CE4) ----------
+    def test_angle_type(self) -> None:
+        natures_vues = set()
+        for ex in self._generate_many("angle_type", "CE4", count=300):
+            v = ex["variables"]
+            nature = _exercise_value(ex)
+            natures_vues.add(nature)
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            self.assertIn(nature, v["options"])
+            self.assertEqual(set(v["options"]), {"aigu", "droit", "obtus"})
+            mesure = v["mesure"]
+            # La mesure (qui sert au dessin) correspond bien au type annonce, avec
+            # une marge nette pour rester lisible a l'oeil.
+            if nature == "aigu":
+                self.assertLess(mesure, 90)
+                self.assertFalse(v["droit"])
+            elif nature == "droit":
+                self.assertEqual(mesure, 90)
+                self.assertTrue(v["droit"])
+            else:
+                self.assertEqual(nature, "obtus")
+                self.assertGreater(mesure, 90)
+        self.assertEqual(natures_vues, {"aigu", "droit", "obtus"})
+
+    def test_angle_type_disponible_ce4_seulement(self) -> None:
+        self.assertIn("angle_type", substitution.patterns_disponibles_pour_niveau("CE4"))
+        for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
+            self.assertNotIn("angle_type", substitution.patterns_disponibles_pour_niveau(niveau))
 
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:
