@@ -3707,6 +3707,67 @@ body.touch-active #map .collectible-glow {
   text-align: center;
 }
 
+/* --- Ecran de fin de parcours : celebration + recap rapide --- */
+.bilan-celebration {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.bilan-lesson {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--road-dark);
+  text-align: center;
+}
+
+.bilan-recap {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.bilan-recap-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 2px solid var(--cream-dark);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.bilan-recap-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--wood-dark);
+  line-height: 1.1;
+}
+
+.bilan-recap-unit {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
+.bilan-recap-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--road-dark);
+}
+
 .bilan-concepts {
   list-style: none;
   display: grid;
@@ -4838,6 +4899,22 @@ body.touch-active #map .collectible-glow {
 }
 
 .bilan-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* Bouton principal de fin de parcours : bien plus visible que les options
+   secondaires (pleine largeur, un cran plus grand). */
+.bilan-primary {
+  width: 100%;
+  font-size: 1.08rem;
+  padding: 14px 22px;
+}
+
+/* Options secondaires, volontairement en retrait sous le bouton principal. */
+.bilan-actions-secondary {
   display: flex;
   align-items: center;
   justify-content: center;

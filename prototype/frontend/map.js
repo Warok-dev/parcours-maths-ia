@@ -3315,6 +3315,14 @@ window.ParcoursApp = {
   getInteractionTarget: () => interactionTarget(),
   openExercisePanel,
   refreshScenePaused,
+  /* Fin de parcours (bilan carnet.js) : le bouton principal ramene au choix
+     de lecon du meme niveau (assignations rafraichies + priorisees), les
+     options secondaires vers le choix de niveau. "Changer de niveau" n'a pas
+     de sens pour un eleve connecte (niveau fige par sa classe) : le bilan le
+     masque via estEleveConnecte. */
+  returnToLessonChoice,
+  resetToStart,
+  estEleveConnecte: () => Boolean(niveauImposeEleve()),
   /* Pause mini-jeu : on reutilise panelOpen (qui fige deja le mouvement et
      les interactions dans la boucle de jeu) pour immobiliser la carte le
      temps de l'aparte detente. La position et la camera ne bougent pas :

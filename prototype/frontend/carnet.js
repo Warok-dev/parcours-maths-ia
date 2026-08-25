@@ -304,14 +304,38 @@
         `,
       )
       .join("");
+    /* Recap rapide : concepts entierement maitrises (3 etoiles) et total
+       d'etoiles gagnees sur la lecon, calcules depuis la meme source que le
+       carnet (totalStars). */
+    const mastered = concepts.filter((item) => item.maitrise === 3).length;
+    const stars = totalStars(concepts);
+    const starsMax = concepts.length * 3;
+    /* Eleve connecte : son niveau est fige par sa classe, "Changer de niveau"
+       n'a aucun sens (il ne verra jamais le choix CE1-CE6). On masque cette
+       option secondaire, comme l'ecran de lecons masque son bouton equivalent. */
+    const estEleveConnecte = Boolean(window.ParcoursApp?.estEleveConnecte?.());
     bilanCard.innerHTML = `
-      <p class="bilan-eyebrow">Bilan de session</p>
-      <h2 class="bilan-title">${snapshot.lecon_nom || snapshot.lecon_id} <span class="hud-level">${snapshot.niveau_scolaire}</span></h2>
+      <p class="bilan-eyebrow">Aventure terminée</p>
+      <h2 class="bilan-celebration">&#127881; Bravo ! Tu as terminé cette aventure&nbsp;!</h2>
+      <p class="bilan-lesson">${snapshot.lecon_nom || snapshot.lecon_id} <span class="hud-level">${snapshot.niveau_scolaire}</span></p>
+      <div class="bilan-recap">
+        <div class="bilan-recap-item">
+          <span class="bilan-recap-value">${mastered}<span class="bilan-recap-unit">/${concepts.length}</span></span>
+          <span class="bilan-recap-label">concept${concepts.length > 1 ? "s" : ""} maîtrisé${mastered > 1 ? "s" : ""}</span>
+        </div>
+        <div class="bilan-recap-item">
+          <span class="bilan-recap-value">&#9733; ${stars}<span class="bilan-recap-unit">/${starsMax}</span></span>
+          <span class="bilan-recap-label">étoile${stars > 1 ? "s" : ""} gagnée${stars > 1 ? "s" : ""}</span>
+        </div>
+      </div>
       <ul class="bilan-concepts">${rows}</ul>
       ${synthesisMarkup(concepts)}
       <div class="bilan-actions">
-        <button id="bilan-continue" class="btn-primary" type="button">Continuer</button>
-        <button id="bilan-open-carnet" class="ghost-button" type="button">&#128212; Voir le carnet</button>
+        <button id="bilan-new-lesson" class="btn-primary bilan-primary" type="button">Choisir une nouvelle leçon</button>
+        <div class="bilan-actions-secondary">
+          <button id="bilan-open-carnet" class="ghost-button" type="button">&#128212; Voir mon carnet d'aventurier</button>
+          ${estEleveConnecte ? "" : '<button id="bilan-change-level" class="ghost-button" type="button">&#127891; Changer de niveau</button>'}
+        </div>
       </div>
     `;
     bilanOpen = true;
@@ -327,8 +351,18 @@
   }
 
   bilanOverlay.addEventListener("click", (event) => {
-    if (event.target === bilanOverlay || event.target.closest("#bilan-continue")) {
+    if (event.target === bilanOverlay) {
+      /* Clic sur le fond : on laisse l'eleve contempler sa carte terminee.
+         Les chemins de suite restent accessibles via le menu en jeu. */
       closeBilan();
+    } else if (event.target.closest("#bilan-new-lesson")) {
+      /* Suite naturelle : retour au choix de lecon du meme niveau. Ce chemin
+         rafraichit et priorise les travaux assignes (eleve connecte). */
+      closeBilan();
+      window.ParcoursApp?.returnToLessonChoice?.();
+    } else if (event.target.closest("#bilan-change-level")) {
+      closeBilan();
+      window.ParcoursApp?.resetToStart?.();
     } else if (event.target.closest("#bilan-open-carnet")) {
       closeBilan();
       openCarnet();
