@@ -2634,10 +2634,10 @@ function feedbackFromStatus(status, context) {
     case "confiance_reussie":
       return { message: CONFIANCE_REUSSITE, tone: "success" };
     case "carte_terminee":
-      return {
-        message: "Félicitations, tout le parcours est terminé !",
-        tone: "success",
-      };
+      /* Pas de bandeau ici : l'ecran de fin de parcours (bilan, carnet.js)
+         porte desormais seul la celebration. Deux messages "termine !" en
+         meme temps feraient doublon. */
+      return null;
     default:
       return { message: status, tone: "info" };
   }
