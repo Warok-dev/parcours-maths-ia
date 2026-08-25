@@ -2418,6 +2418,23 @@ input {
   font-variant-numeric: tabular-nums;
 }
 
+/* Cercle : disque legerement rempli, segments (rayon/diametre/corde) et points
+   nommes. Meme langage visuel que la figure cotee (bois + creme). */
+.figure-disk {
+  fill: rgba(111, 194, 236, 0.28);
+}
+
+.figure-segment {
+  stroke: var(--wood-dark);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.figure-point {
+  fill: var(--wood-dark);
+  stroke: none;
+}
+
 /* ----- Panier a remplir ----- */
 .basket-field {
   display: flex;

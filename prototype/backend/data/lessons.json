@@ -95,6 +95,15 @@
       ]
     },
     {
+      "lecon_id": "cercle",
+      "nom": "Le cercle",
+      "patterns": [
+        "cercle_identifier_elements",
+        "circonference_cercle",
+        "aire_disque"
+      ]
+    },
+    {
       "lecon_id": "echelle",
       "nom": "Échelle et plan",
       "patterns": [

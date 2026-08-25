@@ -46,6 +46,7 @@ const LESSON_ICONS = {
   lecture_heure: "🕐",
   proportionnalite: "⚖",
   geometrie_figures: "△",
+  cercle: "◯",
   echelle: "🗺",
   nombres_decimaux: "0,5",
   durees: "🕒",
@@ -1905,6 +1906,66 @@ function figureCoteeSvg(exercise) {
   `;
 }
 
+/* Cercle : composant SVG pour les 3 patterns cercle. Comme figureCoteeSvg, le
+   dessin est schematique et ce sont les valeurs/noms affiches qui portent
+   l'info. Trois formes :
+   - cercle_elements : cercle DEJA trace, centre O + points nommes + segments
+     candidats (le geometrie est exacte : points diametralement opposes pour le
+     diametre) -> l'eleve identifie (QCM), aucun trace de sa part.
+   - cercle_cote / disque_cote : cercle avec rayon (ou diametre) cote pour le
+     calcul de circonference / aire. */
+function cercleSvg(exercise) {
+  const v = exercise.variables || {};
+  const R = 46;
+  const u = v.unite || "cm";
+  const label = (x, y, text, anchor = "middle") =>
+    `<text x="${(+x).toFixed(1)}" y="${(+y).toFixed(1)}" text-anchor="${anchor}" class="figure-label">${text}</text>`;
+  const pt = (deg) => [R * Math.cos((deg * Math.PI) / 180), R * Math.sin((deg * Math.PI) / 180)];
+  const dot = (x, y) =>
+    `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" class="figure-point"></circle>`;
+  const line = (x1, y1, x2, y2) =>
+    `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="figure-segment"></line>`;
+
+  if (v.forme === "cercle_elements") {
+    const coords = { [v.centre]: [0, 0] };
+    (v.points || []).forEach((p) => (coords[p.nom] = pt(p.angle)));
+    const segs = (v.segments || [])
+      .map(([p, q]) => line(coords[p][0], coords[p][1], coords[q][0], coords[q][1]))
+      .join("");
+    const points = (v.points || [])
+      .map((p) => {
+        const [x, y] = coords[p.nom];
+        return dot(x, y) + label(x * 1.22, y * 1.22 + 4, p.nom);
+      })
+      .join("");
+    return `
+      <circle cx="0" cy="0" r="${R}" class="figure-shape"></circle>
+      ${segs}
+      ${dot(0, 0)}${label(-9, 4, v.centre, "end")}
+      ${points}
+    `;
+  }
+
+  // cercle_cote (circonference) / disque_cote (aire) : la cote (rayon ou
+  // diametre) est tracee a l'HORIZONTALE et son etiquette posee juste au-dessus
+  // du trait, pour ne jamais chevaucher la ligne.
+  const disque = v.forme === "disque_cote";
+  if (v.mesure === "diametre") {
+    return `
+      <circle cx="0" cy="0" r="${R}" class="figure-shape${disque ? " figure-disk" : ""}"></circle>
+      ${line(-R, 0, R, 0)}
+      ${dot(0, 0)}
+      ${label(0, -7, `d = ${v.valeur_mesure} ${u}`)}
+    `;
+  }
+  return `
+    <circle cx="0" cy="0" r="${R}" class="figure-shape${disque ? " figure-disk" : ""}"></circle>
+    ${line(0, 0, R, 0)}
+    ${dot(0, 0)}
+    ${label(R / 2, -7, `r = ${v.valeur_mesure} ${u}`)}
+  `;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -1914,6 +1975,9 @@ function renderExerciseModal() {
   const isClock = exercise.pattern?.pattern_name === "lecture_heure_analogique";
   const isTable = exercise.pattern?.pattern_name === "completer_tableau_proportionnalite";
   const isFigure = exercise.pattern?.pattern_name === "figure_cotee_simple";
+  const isCercle = ["cercle_identifier_elements", "circonference_cercle", "aire_disque"].includes(
+    exercise.pattern?.pattern_name,
+  );
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2018,6 +2082,13 @@ function renderExerciseModal() {
         isFigure
           ? `<div class="figure-figure">
                <svg viewBox="-64 -72 128 130" role="img" aria-label="Figure géométrique cotée">${figureCoteeSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isCercle
+          ? `<div class="figure-figure">
+               <svg viewBox="-64 -64 128 128" role="img" aria-label="Figure de cercle">${cercleSvg(exercise)}</svg>
              </div>`
           : ""
       }

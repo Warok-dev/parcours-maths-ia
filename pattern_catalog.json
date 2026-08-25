@@ -211,6 +211,58 @@
       ]
     },
     {
+      "pattern_name": "cercle_identifier_elements",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Sur une figure de cercle deja tracee (centre O, points nommes), identifier le centre / un rayon / un diametre (QCM)",
+      "constraints": {
+        "rule_type": "identification d'elements sur un cercle DEJA dessine (aucun trace, aucun compas)",
+        "generation_rules": [
+          "centre O + points nommes sur le cercle ; deux points diametralement opposes pour le diametre",
+          "reponse au format choix_multiple : nom de point (centre) ou nom de segment (rayon/diametre)",
+          "le trace au compas est un AUTRE sujet (N3 S2 S2), exclu ici"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM2_S1.pptx", "question": "حددوا مركز/شعاع/قطر هذه الدائرة", "correction": "المركز F ; الشعاع BF ; القطر AC"}
+      ]
+    },
+    {
+      "pattern_name": "circonference_cercle",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Circonference d'un cercle : P = diametre x 3,14 (rayon ou diametre donne)",
+      "constraints": {
+        "rule_type": "calcul de la circonference d'un cercle (pi ~ 3,14) sur une figure cotee",
+        "generation_rules": [
+          "rayon ou diametre entier donne (2 a 12 cm) ; P = (2 x rayon) x 3,14",
+          "reponse au format decimal francais (virgule) ; equivalence avec le point"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM3_S2.pptx", "question": "احسبوا محيط دائرة شعاعها 1 cm", "correction": "P = 2 x 3,14 = 6,28 cm ; (d=10 -> 31,4 ; d=6 -> 18,84)"}
+      ]
+    },
+    {
+      "pattern_name": "aire_disque",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Aire d'un disque : A = rayon x rayon x 3,14",
+      "constraints": {
+        "rule_type": "calcul de l'aire d'un disque (pi ~ 3,14) sur une figure cotee",
+        "generation_rules": [
+          "rayon entier donne (2 a 12 cm) ; A = rayon x rayon x 3,14",
+          "reponse au format decimal francais (virgule) ; equivalence avec le point"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM3_S3.pptx", "question": "احسبوا مساحة قرص شعاعه 5 cm", "correction": "5 x 5 x 3,14 = 78,5 cm2 ; (r=10 -> 314 ; r=7 -> 153,86)"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",

@@ -163,6 +163,7 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "conversion_kg_g",
                 "addition_durees_min",
                 "lecture_heure_analogique",
+                "cercle_identifier_elements",
             },
         )
 
@@ -345,6 +346,75 @@ class SubstitutionGenerationTests(unittest.TestCase):
         for niveau in ("CE4", "CE5"):
             self.assertIn("figure_cotee_simple", substitution.patterns_disponibles_pour_niveau(niveau))
         self.assertNotIn("figure_cotee_simple", substitution.patterns_disponibles_pour_niveau("CE6"))
+
+    # ---------- Cercle : elements (CE3) ----------
+    def test_cercle_identifier_elements(self) -> None:
+        elements_vus = set()
+        for ex in self._generate_many("cercle_identifier_elements", "CE3", count=200):
+            v = ex["variables"]
+            element = v["element"]
+            elements_vus.add(element)
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            valeur = _exercise_value(ex)
+            # La bonne reponse fait toujours partie des options proposees.
+            self.assertIn(valeur, v["options"])
+            self.assertEqual(len(v["options"]), 3)
+            self.assertEqual(len(set(v["options"])), 3)  # pas de doublon
+            self.assertEqual(v["centre"], "O")
+            # Deux points diametralement opposes (pour le diametre).
+            angles = {p["nom"]: p["angle"] for p in v["points"]}
+            self.assertEqual(len(v["points"]), 3)
+            if element == "centre":
+                self.assertEqual(valeur, "O")
+                self.assertEqual(v["segments"], [])
+            elif element == "rayon":
+                # Un rayon relie le centre O a un point : [O?].
+                self.assertTrue(valeur.startswith("[O"))
+            else:  # diametre : segment entre deux points opposes (pas via O).
+                self.assertEqual(element, "diametre")
+                inner = valeur.strip("[]")
+                self.assertNotIn("O", inner)
+                a, b = inner[0], inner[1]
+                self.assertEqual((angles[a] - angles[b]) % 360, 180)
+        self.assertEqual(elements_vus, {"centre", "rayon", "diametre"})
+
+    def test_cercle_elements_disponible_ce3_seulement(self) -> None:
+        self.assertIn(
+            "cercle_identifier_elements", substitution.patterns_disponibles_pour_niveau("CE3")
+        )
+        for niveau in ("CE1", "CE2", "CE4", "CE5", "CE6"):
+            self.assertNotIn(
+                "cercle_identifier_elements",
+                substitution.patterns_disponibles_pour_niveau(niveau),
+            )
+
+    # ---------- Cercle : circonference & aire du disque (CE5) ----------
+    def test_circonference_cercle(self) -> None:
+        for ex in self._generate_many("circonference_cercle", "CE5", count=200):
+            v = ex["variables"]
+            self.assertEqual(ex["reponse_attendue"]["format"], "decimal")
+            self.assertEqual(v["diametre"], 2 * v["rayon"])
+            # P = diametre x 3,14 (calcule en centiemes pour eviter le flottant).
+            attendu = substitution._fmt_dec(v["diametre"] * 314)
+            self.assertEqual(_exercise_value(ex), attendu)
+            # Equivalence avec le point decimal pour la saisie.
+            self.assertIn(attendu.replace(",", "."), ex["reponse_attendue"]["tolerance"]["equivalences_acceptees"])
+            self.assertIn(v["mesure"], ("rayon", "diametre"))
+
+    def test_aire_disque(self) -> None:
+        for ex in self._generate_many("aire_disque", "CE5", count=200):
+            v = ex["variables"]
+            self.assertEqual(ex["reponse_attendue"]["format"], "decimal")
+            # A = rayon x rayon x 3,14.
+            attendu = substitution._fmt_dec(v["rayon"] * v["rayon"] * 314)
+            self.assertEqual(_exercise_value(ex), attendu)
+            self.assertIn(attendu.replace(",", "."), ex["reponse_attendue"]["tolerance"]["equivalences_acceptees"])
+
+    def test_cercle_calcul_disponible_ce5_seulement(self) -> None:
+        for pattern in ("circonference_cercle", "aire_disque"):
+            self.assertIn(pattern, substitution.patterns_disponibles_pour_niveau("CE5"))
+            for niveau in ("CE1", "CE2", "CE3", "CE4", "CE6"):
+                self.assertNotIn(pattern, substitution.patterns_disponibles_pour_niveau(niveau))
 
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:

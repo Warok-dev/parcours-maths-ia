@@ -882,6 +882,153 @@ def generer_echelle_plan(niveau: str = "CE6") -> dict:
 
 
 # ============================================================
+#  CERCLE (N3 -> elements ; N5 -> circonference / aire du disque)
+#  Le corpus N3 S2 S1 fait IDENTIFIER les elements (centre, rayon, diametre)
+#  sur un cercle DEJA trace ; le trace au compas (N3 S2 S2) est un autre sujet,
+#  exclu. Le corpus N5 S3 S2/S3 calcule circonference (P = d x 3,14) et aire du
+#  disque (A = r x r x 3,14), pi ~ 3,14. Les figures sont schematiques : ce sont
+#  les valeurs affichees (rayon, noms de points) qui portent l'information, comme
+#  figure_cotee_simple. Circonference/aire manipulees en CENTIEMES (x314) pour
+#  eviter toute erreur de virgule flottante, affichage en decimal francais.
+# ============================================================
+# Lettres pour nommer les points du cercle (jamais O, reserve au centre).
+_CERCLE_LETTRES = ["A", "B", "C", "D", "E", "M", "N", "P"]
+
+
+def generer_cercle_identifier_elements(niveau: str = "CE3") -> dict:
+    centre = "O"
+    a, b, c = random.sample(_CERCLE_LETTRES, 3)
+    # a et b diametralement opposes (pour le diametre) ; c est un 3e point.
+    base = random.randint(0, 359)
+    ang_a = base
+    ang_b = (base + 180) % 360
+    ang_c = (base + random.choice([70, 110, 250, 290])) % 360
+    points = [
+        {"nom": a, "angle": ang_a},
+        {"nom": b, "angle": ang_b},
+        {"nom": c, "angle": ang_c},
+    ]
+
+    element = random.choice(["centre", "rayon", "diametre"])
+    seg = lambda p, q: f"[{p}{q}]"
+    # Rayon trace vers le 3e point c (hors du diametre ab) pour qu'il soit
+    # VISUELLEMENT distinct du diametre (sinon il se superpose a [ab]).
+    rayon, diametre, corde = seg(centre, c), seg(a, b), seg(a, c)
+
+    if element == "centre":
+        enonce = "Sur ce cercle, quel point est le centre ?"
+        segments: list[list[str]] = []
+        options = [centre, a, b]
+        valeur = centre
+        steps = [
+            "Le centre est le point situé au milieu du cercle, à égale distance de tous les points du cercle.",
+            f"Ici, le centre est le point {centre}.",
+        ]
+    elif element == "rayon":
+        enonce = "Sur ce cercle, quel segment est un rayon ?"
+        segments = [[centre, c], [a, b], [a, c]]
+        options = [rayon, diametre, corde]
+        valeur = rayon
+        steps = [
+            "Un rayon relie le centre du cercle à un point du cercle.",
+            f"Ici, {rayon} relie le centre {centre} au point {c} : c'est un rayon.",
+        ]
+    else:  # diametre
+        enonce = "Sur ce cercle, quel segment est un diamètre ?"
+        segments = [[a, b], [centre, c], [a, c]]
+        options = [diametre, rayon, corde]
+        valeur = diametre
+        steps = [
+            "Un diamètre relie deux points du cercle en passant par le centre.",
+            f"Ici, {diametre} passe par le centre {centre} : c'est un diamètre.",
+        ]
+
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="cercle_identifier_elements",
+        enonce=enonce,
+        variables={
+            "forme": "cercle_elements",
+            "element": element,
+            "centre": centre,
+            "points": points,
+            "segments": segments,
+            "options": options,
+        },
+        valeur=valeur,
+        format_reponse="choix_multiple",
+        equivalences=[valeur],
+        steps=steps,
+    )
+
+
+def generer_circonference_cercle(niveau: str = "CE5") -> dict:
+    rayon = random.randint(2, 12)
+    diametre = 2 * rayon
+    donnee = random.choice(["rayon", "diametre"])
+    p_cent = diametre * 314  # (d x 3,14) en centiemes
+    sp = _fmt_dec(p_cent)
+    if donnee == "rayon":
+        enonce = "Calcule la circonférence de ce cercle. (On prend π ≈ 3,14)"
+        steps = [
+            "La circonférence = diamètre × 3,14.",
+            f"Le diamètre = 2 × rayon = 2 × {rayon} = {diametre} cm.",
+            f"{diametre} × 3,14 = {sp} cm.",
+        ]
+    else:
+        enonce = "Calcule la circonférence de ce cercle. (On prend π ≈ 3,14)"
+        steps = [
+            "La circonférence = diamètre × 3,14.",
+            f"{diametre} × 3,14 = {sp} cm.",
+        ]
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="circonference_cercle",
+        enonce=enonce,
+        variables={
+            "forme": "cercle_cote",
+            "mesure": donnee,
+            "valeur_mesure": rayon if donnee == "rayon" else diametre,
+            "rayon": rayon,
+            "diametre": diametre,
+            "unite": "cm",
+        },
+        valeur=sp,
+        format_reponse="decimal",
+        equivalences=[sp.replace(",", ".")],
+        steps=steps,
+    )
+
+
+def generer_aire_disque(niveau: str = "CE5") -> dict:
+    rayon = random.randint(2, 12)
+    a_cent = rayon * rayon * 314  # (r x r x 3,14) en centiemes
+    sa = _fmt_dec(a_cent)
+    enonce = "Calcule l'aire de ce disque. (On prend π ≈ 3,14)"
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="aire_disque",
+        enonce=enonce,
+        variables={
+            "forme": "disque_cote",
+            "mesure": "rayon",
+            "valeur_mesure": rayon,
+            "rayon": rayon,
+            "unite": "cm",
+        },
+        valeur=sa,
+        format_reponse="decimal",
+        equivalences=[sa.replace(",", ".")],
+        steps=[
+            "L'aire d'un disque = rayon × rayon × 3,14.",
+            f"{rayon} × {rayon} = {rayon * rayon}.",
+            f"{rayon * rayon} × 3,14 = {sa} cm².",
+        ],
+    )
+
+
+# ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
 #  manipulees en CENTIEMES (entiers) pour eviter toute erreur de virgule
@@ -1088,6 +1235,9 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "completer_tableau_proportionnalite": generer_completer_tableau_proportionnalite,
     "figure_cotee_simple": generer_figure_cotee_simple,
     "echelle_plan": generer_echelle_plan,
+    "cercle_identifier_elements": generer_cercle_identifier_elements,
+    "circonference_cercle": generer_circonference_cercle,
+    "aire_disque": generer_aire_disque,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,
