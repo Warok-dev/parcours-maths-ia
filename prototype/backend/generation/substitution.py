@@ -1400,6 +1400,203 @@ def generer_solide_compter(niveau: str = "CE4") -> dict:
 
 
 # ============================================================
+#  GESTION DE DONNEES — LECTURE DE GRAPHIQUES (vague graphiques)
+#  Regle transverse : jamais d'estimation a l'oeil. Chaque graphique porte
+#  les valeurs numeriques exactes (symboles denombrables, pourcentages ecrits) ;
+#  l'eleve LIT une donnee affichee, il n'evalue jamais une taille ou un angle.
+# ============================================================
+def _distracteurs_nombres(correct: int, base: list[int], combien: int = 2) -> list[int]:
+    """Choisit `combien` distracteurs entiers distincts, positifs et != correct :
+    d'abord dans `base` (valeurs plausibles du contexte), completes par des
+    voisins immediats. Garantit des options distinctes meme quand `base` est
+    pauvre (ex. peu de categories)."""
+    choix: list[int] = []
+    for val in base:
+        if val != correct and val not in choix:
+            choix.append(val)
+    for delta in (1, -1, 2, -2, 3, -3, 4):
+        if len(choix) >= combien:
+            break
+        voisin = correct + delta
+        if voisin > 0 and voisin != correct and voisin not in choix:
+            choix.append(voisin)
+    return choix[:combien]
+
+
+# 1 symbole = 1 unite (CE1) : le graphique se lit en DENOMBRANT des icones
+# identiques, jamais en jugeant une hauteur. Singulier pour la legende.
+# Titres courts : ils doivent tenir dans la largeur du graphique (viewBox 250).
+_PICTO_THEMES = [
+    {"objet": "billes", "singulier": "bille", "icone": "bille",
+     "titre": "Les billes de chaque enfant"},
+    {"objet": "médailles", "singulier": "médaille", "icone": "medaille",
+     "titre": "Les médailles de chaque enfant"},
+    {"objet": "fleurs", "singulier": "fleur", "icone": "fleur",
+     "titre": "Les fleurs de chaque enfant"},
+]
+_PICTO_NOMS = ["Salma", "Walid", "Samir", "Kamal", "Nora", "Idris", "Lina", "Adam"]
+
+
+def generer_graphique_pictogramme(niveau: str = "CE1") -> dict:
+    theme = random.choice(_PICTO_THEMES)
+    noms = random.sample(_PICTO_NOMS, 3)
+    # Valeurs petites (CE1), avec un maximum STRICT pour que "qui en a le plus"
+    # ait une reponse unique.
+    while True:
+        valeurs = [random.randint(1, 6) for _ in noms]
+        if valeurs.count(max(valeurs)) == 1:
+            break
+    enfants = [{"nom": n, "valeur": v} for n, v in zip(noms, valeurs)]
+    objet, sing = theme["objet"], theme["singulier"]
+
+    if random.random() < 0.5:
+        # Lecture d'une valeur : on DENOMBRE les symboles d'un enfant designe.
+        cible = random.choice(enfants)
+        correct = cible["valeur"]
+        distracteurs = _distracteurs_nombres(correct, [e["valeur"] for e in enfants])
+        options = [str(correct), *(str(d) for d in distracteurs)]
+        random.shuffle(options)
+        enonce = f"Le graphique montre les {objet} de chaque enfant. Combien de {objet} a {cible['nom']} ?"
+        variables = {"question": "valeur", "cible": cible["nom"]}
+        valeur, equivs = str(correct), [str(correct)]
+        steps = [
+            f"Trouve la ligne de {cible['nom']}, puis compte ses symboles.",
+            f"La légende dit : 1 symbole = 1 {sing}.",
+            f"{cible['nom']} a {correct} {objet}.",
+        ]
+    else:
+        # "Qui en a le plus ?" : reponse = un prenom (lecture comparative).
+        gagnant = max(enfants, key=lambda e: e["valeur"])
+        options = noms[:]
+        random.shuffle(options)
+        enonce = f"Le graphique montre les {objet} de chaque enfant. Qui a le plus de {objet} ?"
+        variables = {"question": "max", "cible": gagnant["nom"]}
+        valeur, equivs = gagnant["nom"], [gagnant["nom"]]
+        steps = [
+            "Compare les lignes : la plus longue a le plus de symboles.",
+            f"{gagnant['nom']} a le plus de {objet} ({gagnant['valeur']}).",
+        ]
+
+    variables.update({
+        "titre": theme["titre"],
+        "objet": objet,
+        "singulier": sing,
+        "icone": theme["icone"],
+        "enfants": enfants,
+        "options": options,
+    })
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="graphique_pictogramme",
+        enonce=enonce,
+        variables=variables,
+        valeur=valeur,
+        format_reponse="choix_multiple",
+        equivalences=equivs,
+        steps=steps,
+    )
+
+
+# Diagramme circulaire (CE5) : chaque secteur porte son POURCENTAGE ecrit + une
+# legende couleur->categorie. On lit une valeur affichee, jamais un angle.
+_PIE_COULEURS = ["#e8734a", "#4a8cbe", "#6fb46f", "#e6b34a"]
+_PIE_THEMES = [
+    {"objet": "sport", "titre": "Le sport préféré des élèves",
+     "cats": ["Football", "Basket", "Natation", "Vélo", "Tennis"]},
+    {"objet": "fruit", "titre": "Le fruit préféré des élèves",
+     "cats": ["Pomme", "Banane", "Fraise", "Orange", "Cerise"]},
+    {"objet": "animal", "titre": "L'animal préféré des élèves",
+     "cats": ["Chien", "Chat", "Lapin", "Cheval", "Oiseau"]},
+]
+
+
+def _pcts_somme_100(k: int) -> list[int]:
+    """Tire k pourcentages entiers >=10, multiples de 5, DISTINCTS, de somme 100,
+    avec un maximum et un minimum uniques (reponses non ambigues)."""
+    while True:
+        parts = [random.randint(2, 8) for _ in range(k)]  # en pas de 5 %
+        total = sum(parts)
+        # Ajuste pour tomber sur 20 pas (=100 %).
+        while total != 20:
+            i = random.randrange(k)
+            if total < 20 and parts[i] < 12:
+                parts[i] += 1; total += 1
+            elif total > 20 and parts[i] > 2:
+                parts[i] -= 1; total -= 1
+        pcts = [p * 5 for p in parts]
+        if len(set(pcts)) == k and pcts.count(max(pcts)) == 1 and pcts.count(min(pcts)) == 1:
+            return pcts
+
+
+def generer_graphique_circulaire(niveau: str = "CE5") -> dict:
+    theme = random.choice(_PIE_THEMES)
+    k = random.choice([3, 4])
+    cats = random.sample(theme["cats"], k)
+    pcts = _pcts_somme_100(k)
+    secteurs = [
+        {"nom": c, "pct": p, "couleur": _PIE_COULEURS[i]}
+        for i, (c, p) in enumerate(zip(cats, pcts))
+    ]
+    objet = theme["objet"]
+    # Le titre porte deja le bon article ("Le sport…", "L'animal…") : on le
+    # reutilise en minuscule pour l'intro afin d'eviter "Le animal".
+    intro = theme["titre"][0].lower() + theme["titre"][1:]
+
+    tirage = random.random()
+    if tirage < 0.4:
+        gagnant = max(secteurs, key=lambda s: s["pct"])
+        options = cats[:]
+        random.shuffle(options)
+        enonce = f"Le diagramme montre {intro}. Quel {objet} est préféré par le plus d'élèves ?"
+        valeur, equivs = gagnant["nom"], [gagnant["nom"]]
+        steps = [
+            "Compare les pourcentages écrits sur chaque part.",
+            f"La plus grande part est {gagnant['nom']} ({gagnant['pct']} %).",
+        ]
+        variables = {"question": "max", "cible": gagnant["nom"]}
+    elif tirage < 0.7:
+        perdant = min(secteurs, key=lambda s: s["pct"])
+        options = cats[:]
+        random.shuffle(options)
+        enonce = f"Le diagramme montre {intro}. Quel {objet} est préféré par le moins d'élèves ?"
+        valeur, equivs = perdant["nom"], [perdant["nom"]]
+        steps = [
+            "Compare les pourcentages écrits sur chaque part.",
+            f"La plus petite part est {perdant['nom']} ({perdant['pct']} %).",
+        ]
+        variables = {"question": "min", "cible": perdant["nom"]}
+    else:
+        cible = random.choice(secteurs)
+        correct = cible["pct"]
+        options = [str(s["pct"]) for s in secteurs]
+        random.shuffle(options)
+        enonce = f"Le diagramme montre {intro}. Quel pourcentage des élèves préfère « {cible['nom']} » ?"
+        valeur, equivs = str(correct), [str(correct)]
+        steps = [
+            f"Trouve la part « {cible['nom']} » à l'aide de la légende.",
+            f"Lis le pourcentage écrit dessus : {correct} %.",
+        ]
+        variables = {"question": "pct", "cible": cible["nom"]}
+
+    variables.update({
+        "titre": theme["titre"],
+        "objet": objet,
+        "secteurs": secteurs,
+        "options": options,
+    })
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="graphique_circulaire",
+        enonce=enonce,
+        variables=variables,
+        valeur=valeur,
+        format_reponse="choix_multiple",
+        equivalences=equivs,
+        steps=steps,
+    )
+
+
+# ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
 #  manipulees en CENTIEMES (entiers) pour eviter toute erreur de virgule
@@ -1618,6 +1815,8 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "agrandissement_facteur": generer_agrandissement_facteur,
     "solide_nommer": generer_solide_nommer,
     "solide_compter": generer_solide_compter,
+    "graphique_pictogramme": generer_graphique_pictogramme,
+    "graphique_circulaire": generer_graphique_circulaire,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

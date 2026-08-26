@@ -2174,6 +2174,95 @@ function solideSvg(exercise) {
   }
 }
 
+/* Pictogramme (CE1) : lecture de donnees par DENOMBREMENT. 1 symbole = 1 unite
+   (legende explicite) ; l'eleve compte des icones identiques, il n'estime
+   jamais une hauteur. Les valeurs sont portees par le NOMBRE d'icones. */
+function pictoIconMarkup(type, cx, cy) {
+  if (type === "medaille") {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      const r = i % 2 ? 3.1 : 7;
+      pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
+    }
+    return `<polygon points="${pts.join(" ")}" class="picto-icon picto-medaille"></polygon>`;
+  }
+  if (type === "fleur") {
+    let petals = "";
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+      petals += `<circle cx="${(cx + 4.2 * Math.cos(a)).toFixed(1)}" cy="${(cy + 4.2 * Math.sin(a)).toFixed(1)}" r="3.2" class="picto-icon picto-fleur"></circle>`;
+    }
+    return `${petals}<circle cx="${cx}" cy="${cy}" r="2.8" class="picto-fleur-coeur"></circle>`;
+  }
+  return `<circle cx="${cx}" cy="${cy}" r="6.5" class="picto-icon picto-bille"></circle>`;
+}
+
+function pictogrammeSvg(exercise) {
+  const v = exercise.variables || {};
+  const enfants = v.enfants || [];
+  const icone = v.icone || "bille";
+  const rowH = 30;
+  const top = 40;
+  const xIcon0 = 70;
+  const gap = 19;
+  const rows = enfants
+    .map((e, i) => {
+      const y = top + i * rowH;
+      const icons = Array.from({ length: e.valeur }, (_, k) =>
+        pictoIconMarkup(icone, xIcon0 + k * gap, y),
+      ).join("");
+      return `<text x="8" y="${y + 4}" text-anchor="start" class="figure-label">${e.nom}</text>${icons}`;
+    })
+    .join("");
+  const legendY = top + enfants.length * rowH + 6;
+  return `
+    <text x="125" y="16" text-anchor="middle" class="chart-title">${v.titre || ""}</text>
+    ${rows}
+    <line x1="8" y1="${legendY - 16}" x2="242" y2="${legendY - 16}" class="chart-axis"></line>
+    ${pictoIconMarkup(icone, 20, legendY + 4)}
+    <text x="34" y="${legendY + 8}" text-anchor="start" class="figure-legend">= 1 ${v.singulier || ""}</text>
+  `;
+}
+
+/* Diagramme circulaire (CE5) : chaque secteur porte son POURCENTAGE ecrit, plus
+   une legende couleur->categorie. On lit une valeur affichee ; l'angle n'a
+   qu'un role illustratif (jamais mesure a l'oeil). */
+function camembertSvg(exercise) {
+  const v = exercise.variables || {};
+  const secteurs = v.secteurs || [];
+  const cx = 66;
+  const cy = 82;
+  const R = 52;
+  let a0 = -Math.PI / 2;
+  let parts = "";
+  let labels = "";
+  secteurs.forEach((s) => {
+    const sweep = (s.pct / 100) * 2 * Math.PI;
+    const a1 = a0 + sweep;
+    const large = sweep > Math.PI ? 1 : 0;
+    const p0 = [cx + R * Math.cos(a0), cy + R * Math.sin(a0)];
+    const p1 = [cx + R * Math.cos(a1), cy + R * Math.sin(a1)];
+    parts += `<path d="M ${cx} ${cy} L ${p0[0].toFixed(1)} ${p0[1].toFixed(1)} A ${R} ${R} 0 ${large} 1 ${p1[0].toFixed(1)} ${p1[1].toFixed(1)} Z" fill="${s.couleur}" class="pie-sector"></path>`;
+    const am = a0 + sweep / 2;
+    const lr = R * 0.62;
+    labels += `<text x="${(cx + lr * Math.cos(am)).toFixed(1)}" y="${(cy + lr * Math.sin(am) + 4).toFixed(1)}" text-anchor="middle" class="pie-pct">${s.pct} %</text>`;
+    a0 = a1;
+  });
+  const legend = secteurs
+    .map((s, i) => {
+      const y = 40 + i * 22;
+      return `<rect x="140" y="${y - 9}" width="13" height="13" rx="2" fill="${s.couleur}" class="pie-swatch"></rect><text x="160" y="${y + 2}" text-anchor="start" class="figure-legend">${s.nom}</text>`;
+    })
+    .join("");
+  return `
+    <text x="125" y="16" text-anchor="middle" class="chart-title">${v.titre || ""}</text>
+    ${parts}
+    ${labels}
+    ${legend}
+  `;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -2198,6 +2287,8 @@ function renderExerciseModal() {
   const isSolide = ["solide_nommer", "solide_compter"].includes(
     exercise.pattern?.pattern_name,
   );
+  const isPictogramme = exercise.pattern?.pattern_name === "graphique_pictogramme";
+  const isCamembert = exercise.pattern?.pattern_name === "graphique_circulaire";
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2344,6 +2435,20 @@ function renderExerciseModal() {
         isSolide
           ? `<div class="figure-figure">
                <svg viewBox="-58 -50 116 120" role="img" aria-label="Solide">${solideSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isPictogramme
+          ? `<div class="figure-figure figure-wide">
+               <svg viewBox="0 0 250 ${60 + 30 * (exercise.variables?.enfants?.length || 3)}" role="img" aria-label="Pictogramme">${pictogrammeSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isCamembert
+          ? `<div class="figure-figure figure-wide">
+               <svg viewBox="0 0 250 150" role="img" aria-label="Diagramme circulaire">${camembertSvg(exercise)}</svg>
              </div>`
           : ""
       }

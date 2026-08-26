@@ -647,6 +647,92 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "solide_compter", substitution.patterns_disponibles_pour_niveau(niveau)
             )
 
+    # ---------- Vague graphiques : pictogramme (CE1) ----------
+    def test_graphique_pictogramme(self) -> None:
+        questions_vues, icones_vues = set(), set()
+        for ex in self._generate_many("graphique_pictogramme", "CE1", count=300):
+            v = ex["variables"]
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            self.assertIn(v["icone"], ("bille", "medaille", "fleur"))
+            icones_vues.add(v["icone"])
+            enfants = v["enfants"]
+            self.assertEqual(len(enfants), 3)
+            for e in enfants:
+                self.assertGreaterEqual(e["valeur"], 1)
+                self.assertLessEqual(e["valeur"], 6)
+            valeur = _exercise_value(ex)
+            questions_vues.add(v["question"])
+            if v["question"] == "valeur":
+                cible = next(e for e in enfants if e["nom"] == v["cible"])
+                # Reponse = le nombre de symboles de l'enfant designe (denombrement).
+                self.assertEqual(valeur, str(cible["valeur"]))
+                self.assertIn(valeur, v["options"])
+                self.assertEqual(len(v["options"]), 3)
+                self.assertEqual(len(set(v["options"])), 3)
+                for opt in v["options"]:
+                    self.assertGreater(int(opt), 0)
+            else:
+                self.assertEqual(v["question"], "max")
+                # Maximum STRICT : reponse unique = le prenom du gagnant.
+                gagnant = max(enfants, key=lambda e: e["valeur"])
+                self.assertEqual([e["valeur"] for e in enfants].count(gagnant["valeur"]), 1)
+                self.assertEqual(valeur, gagnant["nom"])
+                self.assertEqual(v["cible"], gagnant["nom"])
+                self.assertEqual(set(v["options"]), {e["nom"] for e in enfants})
+        self.assertEqual(questions_vues, {"valeur", "max"})
+        self.assertEqual(icones_vues, {"bille", "medaille", "fleur"})
+
+    def test_graphique_pictogramme_disponible_ce1_seulement(self) -> None:
+        self.assertIn("graphique_pictogramme", substitution.patterns_disponibles_pour_niveau("CE1"))
+        for niveau in ("CE2", "CE3", "CE4", "CE5", "CE6"):
+            self.assertNotIn(
+                "graphique_pictogramme", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
+    # ---------- Vague graphiques : diagramme circulaire (CE5) ----------
+    def test_graphique_circulaire(self) -> None:
+        questions_vues, tailles_vues = set(), set()
+        for ex in self._generate_many("graphique_circulaire", "CE5", count=400):
+            v = ex["variables"]
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            secteurs = v["secteurs"]
+            k = len(secteurs)
+            tailles_vues.add(k)
+            self.assertIn(k, (3, 4))
+            pcts = [s["pct"] for s in secteurs]
+            # Pourcentages : multiples de 5, distincts, somme 100, max et min uniques.
+            self.assertEqual(sum(pcts), 100)
+            self.assertTrue(all(p % 5 == 0 and p >= 10 for p in pcts))
+            self.assertEqual(len(set(pcts)), k)
+            self.assertEqual(pcts.count(max(pcts)), 1)
+            self.assertEqual(pcts.count(min(pcts)), 1)
+            self.assertEqual(len({s["couleur"] for s in secteurs}), k)
+            valeur = _exercise_value(ex)
+            questions_vues.add(v["question"])
+            if v["question"] == "max":
+                gagnant = max(secteurs, key=lambda s: s["pct"])
+                self.assertEqual(valeur, gagnant["nom"])
+                self.assertEqual(set(v["options"]), {s["nom"] for s in secteurs})
+            elif v["question"] == "min":
+                perdant = min(secteurs, key=lambda s: s["pct"])
+                self.assertEqual(valeur, perdant["nom"])
+                self.assertEqual(set(v["options"]), {s["nom"] for s in secteurs})
+            else:
+                self.assertEqual(v["question"], "pct")
+                cible = next(s for s in secteurs if s["nom"] == v["cible"])
+                # Reponse = le pourcentage ECRIT sur la part (lecture, pas estimation).
+                self.assertEqual(valeur, str(cible["pct"]))
+                self.assertEqual(set(v["options"]), {str(p) for p in pcts})
+        self.assertEqual(questions_vues, {"max", "min", "pct"})
+        self.assertEqual(tailles_vues, {3, 4})
+
+    def test_graphique_circulaire_disponible_ce5_seulement(self) -> None:
+        self.assertIn("graphique_circulaire", substitution.patterns_disponibles_pour_niveau("CE5"))
+        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE6"):
+            self.assertNotIn(
+                "graphique_circulaire", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:
         echelles = set()

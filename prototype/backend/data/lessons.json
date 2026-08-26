@@ -185,6 +185,20 @@
       "patterns": [
         "vitesse_distance_duree"
       ]
+    },
+    {
+      "lecon_id": "pictogramme",
+      "nom": "Lire un pictogramme",
+      "patterns": [
+        "graphique_pictogramme"
+      ]
+    },
+    {
+      "lecon_id": "diagramme_circulaire",
+      "nom": "Le diagramme circulaire",
+      "patterns": [
+        "graphique_circulaire"
+      ]
     }
   ]
 }

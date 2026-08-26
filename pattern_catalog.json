@@ -420,6 +420,46 @@
       ]
     },
     {
+      "pattern_name": "graphique_pictogramme",
+      "levels": ["N1"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Lire un pictogramme (mبيان بالصور) : denombrer les symboles d'une categorie, ou trouver qui en a le plus (QCM)",
+      "constraints": {
+        "rule_type": "lecture de donnees sur un pictogramme DEJA rendu ; 1 symbole = 1 unite, reponse par DENOMBREMENT (jamais d'estimation)",
+        "generation_rules": [
+          "V1 : 3 enfants, valeurs 1..6, theme billes / medailles / fleurs",
+          "questions : 'combien de X a {enfant}' (reponse numerique) ou 'qui a le plus' (reponse prenom) ; choix_multiple 3 options",
+          "legende explicite (1 symbole = 1 unite) affichee sur la figure"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM3_S2.pptx", "question": "ما هو عدد الكلل التي تملكها سلمى؟ (مبيان بالصور)", "correction": "lecture par denombrement des symboles de la ligne de Salma"},
+        {"file": "MATH_N1_P4_SEM3_S2.pptx", "question": "ما هو عدد الميداليات التي حصل عليها مجد؟ من الذي حصل على أكثر ميداليات؟", "correction": "denombrement + comparaison (qui en a le plus)"},
+        {"file": "MATH_N1_P4_SEM3_S5.pptx", "question": "كم خبز أنير من حبة بسكويت؟ (نمذجة قراءة مبيان بالصور)", "correction": "1) reperer l'element connu 2) lire la donnee correspondante"}
+      ]
+    },
+    {
+      "pattern_name": "graphique_circulaire",
+      "levels": ["N5"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Lire un diagramme circulaire (المبيان الدائري) : chaque secteur porte son pourcentage ecrit + legende ; lire la plus grande/petite part ou le pourcentage d'une categorie (QCM)",
+      "constraints": {
+        "rule_type": "lecture de donnees sur un camembert DEJA rendu ; le POURCENTAGE est ecrit sur chaque part, on lit une valeur affichee (jamais d'angle estime)",
+        "generation_rules": [
+          "V1 : 3 ou 4 secteurs, pourcentages multiples de 5, distincts, de somme 100, max et min uniques",
+          "questions : plus grande part / plus petite part (reponse categorie) ou pourcentage d'une categorie nommee (reponse numerique) ; choix_multiple 3 options",
+          "legende couleur->categorie + pourcentage ecrit sur chaque secteur"
+        ]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM1_S1.pptx", "question": "اكتبوا اللون الذي يمثل اللاعب دياز في المبيان (25%)", "correction": "lecture legende couleur<->categorie + pourcentage affiche"},
+        {"file": "MATH_N5_P4_SEM1_S2.pptx", "question": "اكتبوا اللون الذي يمثل أكبر نسبة ؛ ما المدينة التي يفضلها أكبر عدد من التلاميذ؟", "correction": "plus grande part = categorie au plus fort pourcentage"},
+        {"file": "MATH_N6_P4_SEM5_S1.pptx", "question": "الهواية التي يفضلها أكبر عدد من التلاميذ هي؟", "correction": "المطالعة (part au plus grand pourcentage)"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",
