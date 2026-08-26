@@ -49,6 +49,9 @@ const LESSON_ICONS = {
   cercle: "◯",
   triangles: "▲",
   angles: "∠",
+  symetrie: "🦋",
+  prismes: "📦",
+  agrandissement: "🔍",
   echelle: "🗺",
   nombres_decimaux: "0,5",
   durees: "🕒",
@@ -2051,6 +2054,66 @@ function angleSvg(exercise) {
   `;
 }
 
+/* Symetrie : la figure connue est rendue SANS ses axes (l'eleve les compte).
+   Polygones reguliers + rectangle, memes briques que figureCoteeSvg. */
+function symetrieSvg(exercise) {
+  const v = exercise.variables || {};
+  const R = 44;
+  const regular = (n, start = -90) => {
+    const pts = [];
+    for (let i = 0; i < n; i += 1) {
+      const ang = ((start + (i * 360) / n) * Math.PI) / 180;
+      pts.push(`${(Math.cos(ang) * R).toFixed(1)},${(Math.sin(ang) * R).toFixed(1)}`);
+    }
+    return `<polygon points="${pts.join(" ")}" class="figure-shape"></polygon>`;
+  };
+  switch (v.forme_sym) {
+    case "triangle_equilateral":
+      return regular(3);
+    case "pentagone":
+      return regular(5);
+    case "hexagone":
+      return regular(6);
+    case "carre": {
+      const s = 74;
+      return `<rect x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}" rx="3" class="figure-shape"></rect>`;
+    }
+    default: {
+      // rectangle (non carre)
+      const w = 96;
+      const h = 58;
+      return `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="3" class="figure-shape"></rect>`;
+    }
+  }
+}
+
+/* Agrandissement / reduction : deux carres cotes cote a cote (reference + image),
+   tailles proportionnelles aux valeurs, la longueur du cote etiquetee dessous.
+   Le dessin illustre ; l'info est portee par les etiquettes. */
+function deuxRectanglesSvg(exercise) {
+  const v = exercise.variables || {};
+  const label = (x, y, text) =>
+    `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" class="figure-label">${text}</text>`;
+  const maxv = Math.max(v.ref_val, v.img_val) || 1;
+  const sideOf = (val) => 22 + 42 * (val / maxv);
+  const square = (cx, side, text) => {
+    const x = cx - side / 2;
+    const y = 30 - side; // pose sur une base commune a y = 30
+    return `
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${side.toFixed(1)}" height="${side.toFixed(1)}" rx="3" class="figure-shape"></rect>
+      ${label(cx, 44, text)}
+    `;
+  };
+  const sref = sideOf(v.ref_val);
+  const simg = sideOf(v.img_val);
+  return `
+    ${square(-34, sref, v.ref_label)}
+    <line x1="-6" y1="6" x2="8" y2="6" class="figure-segment"></line>
+    <polyline points="4,2 9,6 4,10" class="figure-segment" fill="none"></polyline>
+    ${square(34, simg, v.img_label)}
+  `;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -2059,7 +2122,10 @@ function renderExerciseModal() {
   const exercise = state.currentExercise;
   const isClock = exercise.pattern?.pattern_name === "lecture_heure_analogique";
   const isTable = exercise.pattern?.pattern_name === "completer_tableau_proportionnalite";
-  const isFigure = exercise.pattern?.pattern_name === "figure_cotee_simple";
+  // La base cotee d'un prisme reutilise le meme composant que figure_cotee.
+  const isFigure = ["figure_cotee_simple", "prisme_aire_base", "prisme_aire_totale"].includes(
+    exercise.pattern?.pattern_name,
+  );
   const isCercle = ["cercle_identifier_elements", "circonference_cercle", "aire_disque"].includes(
     exercise.pattern?.pattern_name,
   );
@@ -2067,6 +2133,8 @@ function renderExerciseModal() {
     exercise.pattern?.pattern_name,
   );
   const isAngle = exercise.pattern?.pattern_name === "angle_type";
+  const isSymetrie = exercise.pattern?.pattern_name === "symetrie_axes";
+  const isAgrandissement = exercise.pattern?.pattern_name === "agrandissement_facteur";
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2192,6 +2260,20 @@ function renderExerciseModal() {
         isAngle
           ? `<div class="figure-figure">
                <svg viewBox="-56 -40 112 90" role="img" aria-label="Angle">${angleSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isSymetrie
+          ? `<div class="figure-figure">
+               <svg viewBox="-60 -56 120 112" role="img" aria-label="Figure">${symetrieSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isAgrandissement
+          ? `<div class="figure-figure">
+               <svg viewBox="-70 -30 140 90" role="img" aria-label="Agrandissement">${deuxRectanglesSvg(exercise)}</svg>
              </div>`
           : ""
       }

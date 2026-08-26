@@ -166,6 +166,7 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "cercle_identifier_elements",
                 "triangle_classer_cotes",
                 "triangle_classer_angles",
+                "symetrie_axes",
             },
         )
 
@@ -501,6 +502,87 @@ class SubstitutionGenerationTests(unittest.TestCase):
         self.assertIn("angle_type", substitution.patterns_disponibles_pour_niveau("CE4"))
         for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
             self.assertNotIn("angle_type", substitution.patterns_disponibles_pour_niveau(niveau))
+
+    # ---------- Prisme : aire de base & aire totale (CE5) ----------
+    def test_prisme_aire_base(self) -> None:
+        formes = set()
+        for ex in self._generate_many("prisme_aire_base", "CE5", count=200):
+            v = ex["variables"]
+            formes.add(v["forme"])
+            valeur = _exercise_value(ex)
+            self.assertIsInstance(valeur, int)
+            if v["forme"] == "carre":
+                self.assertEqual(valeur, v["cote"] * v["cote"])
+            else:
+                self.assertEqual(v["forme"], "rectangle")
+                self.assertNotEqual(v["largeur"], v["hauteur"])
+                self.assertEqual(valeur, v["largeur"] * v["hauteur"])
+        self.assertEqual(formes, {"carre", "rectangle"})
+
+    def test_prisme_aire_totale(self) -> None:
+        for ex in self._generate_many("prisme_aire_totale", "CE5", count=200):
+            v = ex["variables"]
+            h = v["hauteur_prisme"]
+            if v["forme"] == "carre":
+                c = v["cote"]
+                base, perim = c * c, 4 * c
+            else:
+                base, perim = v["largeur"] * v["hauteur"], 2 * (v["largeur"] + v["hauteur"])
+            attendu = 2 * base + perim * h
+            self.assertEqual(_exercise_value(ex), attendu)
+            self.assertEqual(v["aire_totale"], attendu)
+
+    def test_prismes_disponibles_ce5_seulement(self) -> None:
+        for pattern in ("prisme_aire_base", "prisme_aire_totale"):
+            self.assertIn(pattern, substitution.patterns_disponibles_pour_niveau("CE5"))
+            for niveau in ("CE1", "CE2", "CE3", "CE4", "CE6"):
+                self.assertNotIn(pattern, substitution.patterns_disponibles_pour_niveau(niveau))
+
+    # ---------- Symetrie : nombre d'axes (CE3) ----------
+    def test_symetrie_axes(self) -> None:
+        attendu = {
+            "triangle_equilateral": 3,
+            "carre": 4,
+            "rectangle": 2,
+            "pentagone": 5,
+            "hexagone": 6,
+        }
+        formes_vues = set()
+        for ex in self._generate_many("symetrie_axes", "CE3", count=200):
+            v = ex["variables"]
+            formes_vues.add(v["forme_sym"])
+            self.assertEqual(_exercise_value(ex), attendu[v["forme_sym"]])
+        self.assertEqual(formes_vues, set(attendu))
+
+    def test_symetrie_disponible_ce3_seulement(self) -> None:
+        self.assertIn("symetrie_axes", substitution.patterns_disponibles_pour_niveau("CE3"))
+        for niveau in ("CE1", "CE2", "CE4", "CE5", "CE6"):
+            self.assertNotIn("symetrie_axes", substitution.patterns_disponibles_pour_niveau(niveau))
+
+    # ---------- Agrandissement / reduction (CE6) ----------
+    def test_agrandissement_facteur(self) -> None:
+        variantes = set()
+        for ex in self._generate_many("agrandissement_facteur", "CE6", count=300):
+            v = ex["variables"]
+            valeur = _exercise_value(ex)
+            self.assertIsInstance(valeur, int)
+            self.assertGreater(v["img_val"], 0)
+            self.assertGreater(v["ref_val"], 0)
+            # img = ref x facteur : la plus grande valeur est un multiple de la petite.
+            grand, petit = max(v["ref_val"], v["img_val"]), min(v["ref_val"], v["img_val"])
+            self.assertEqual(grand % petit, 0)
+            facteur = grand // petit
+            # La reponse est soit le facteur, soit la longueur agrandie.
+            self.assertIn(valeur, (facteur, grand))
+            variantes.add("longueur" if valeur == grand and facteur != grand else "facteur")
+        self.assertTrue(variantes)  # au moins une variante generee
+
+    def test_agrandissement_disponible_ce6_seulement(self) -> None:
+        self.assertIn("agrandissement_facteur", substitution.patterns_disponibles_pour_niveau("CE6"))
+        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE5"):
+            self.assertNotIn(
+                "agrandissement_facteur", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
 
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:

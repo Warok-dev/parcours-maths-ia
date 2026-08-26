@@ -1143,6 +1143,157 @@ def generer_angle_type(niveau: str = "CE4") -> dict:
 
 
 # ============================================================
+#  PRISME DROIT (N5) : aire de la base, aire totale
+#  Corpus N5 S2 S2/S3. On ne dessine PAS le solide en 3D : on affiche la BASE
+#  cotee en 2D (reutilise figure_cotee) et la hauteur est donnee en texte. Aire
+#  totale = 2 x aire de base + (perimetre de base x hauteur). Reponses entieres.
+# ============================================================
+def generer_prisme_aire_base(niveau: str = "CE5") -> dict:
+    if random.random() < 0.5:
+        cote = random.randint(3, 12)
+        aire = cote * cote
+        return _build_exercise(
+            niveau=niveau,
+            pattern_name="prisme_aire_base",
+            enonce=f"La base de ce prisme droit est un carré de côté {cote} cm. Calcule l'aire de sa base.",
+            variables={"forme": "carre", "cote": cote, "unite": "cm"},
+            valeur=aire,
+            steps=["L'aire d'un carré = côté × côté.", f"{cote} × {cote} = {aire} cm²."],
+        )
+    largeur = random.randint(3, 12)
+    hauteur = random.randint(2, 11)
+    if hauteur == largeur:
+        hauteur = hauteur - 1 if hauteur > 2 else hauteur + 1
+    aire = largeur * hauteur
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="prisme_aire_base",
+        enonce=f"La base de ce prisme droit est un rectangle de {largeur} cm sur {hauteur} cm. Calcule l'aire de sa base.",
+        variables={"forme": "rectangle", "largeur": largeur, "hauteur": hauteur, "unite": "cm"},
+        valeur=aire,
+        steps=["L'aire d'un rectangle = longueur × largeur.", f"{largeur} × {hauteur} = {aire} cm²."],
+    )
+
+
+def generer_prisme_aire_totale(niveau: str = "CE5") -> dict:
+    hauteur = random.randint(4, 12)
+    if random.random() < 0.5:
+        cote = random.randint(3, 10)
+        base = cote * cote
+        perim = 4 * cote
+        forme_vars = {"forme": "carre", "cote": cote, "unite": "cm"}
+        base_step = f"Aire d'une base = {cote} × {cote} = {base} cm²."
+        enonce = f"Ce prisme droit a une base carrée de côté {cote} cm et une hauteur de {hauteur} cm. Calcule son aire totale."
+    else:
+        largeur = random.randint(3, 10)
+        petit = random.randint(2, 9)
+        if petit == largeur:
+            petit = petit - 1 if petit > 2 else petit + 1
+        base = largeur * petit
+        perim = 2 * (largeur + petit)
+        forme_vars = {"forme": "rectangle", "largeur": largeur, "hauteur": petit, "unite": "cm"}
+        base_step = f"Aire d'une base = {largeur} × {petit} = {base} cm²."
+        enonce = f"Ce prisme droit a une base rectangle de {largeur} cm sur {petit} cm et une hauteur de {hauteur} cm. Calcule son aire totale."
+    deux_bases = 2 * base
+    laterale = perim * hauteur
+    total = deux_bases + laterale
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="prisme_aire_totale",
+        enonce=enonce,
+        variables={**forme_vars, "hauteur_prisme": hauteur, "aire_totale": total},
+        valeur=total,
+        steps=[
+            base_step,
+            f"Les 2 bases : 2 × {base} = {deux_bases} cm².",
+            f"Aire latérale = périmètre de la base × hauteur = {perim} × {hauteur} = {laterale} cm².",
+            f"Aire totale = {deux_bases} + {laterale} = {total} cm².",
+        ],
+    )
+
+
+# ============================================================
+#  SYMETRIE (N3 S4 S1) : nombre d'axes de symetrie d'une figure connue
+#  Le trace des axes est manuel (exclu) ; on COMPTE les axes d'une figure deja
+#  rendue. Polygone regulier a n cotes -> n axes ; rectangle (non carre) -> 2.
+# ============================================================
+_SYM_FIGURES = [
+    ("triangle_equilateral", 3, "ce triangle équilatéral"),
+    ("carre", 4, "ce carré"),
+    ("rectangle", 2, "ce rectangle"),
+    ("pentagone", 5, "ce pentagone régulier"),
+    ("hexagone", 6, "cet hexagone régulier"),
+]
+
+
+def generer_symetrie_axes(niveau: str = "CE3") -> dict:
+    forme, axes, libelle = random.choice(_SYM_FIGURES)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="symetrie_axes",
+        enonce="Combien d'axes de symétrie a cette figure ?",
+        variables={"forme_sym": forme, "axes": axes},
+        valeur=axes,
+        steps=[
+            "Un axe de symétrie partage la figure en deux moitiés qui se superposent exactement.",
+            f"En les comptant, {libelle} a {axes} axes de symétrie.",
+        ],
+    )
+
+
+# ============================================================
+#  AGRANDISSEMENT / REDUCTION (N6 S4) : calcul du facteur (mقدار التكبير)
+#  Le corpus fait CALCULER le facteur d'agrandissement/reduction a partir de
+#  deux longueurs correspondantes. On rend deux rectangles cotes ; le trace est
+#  exclu. Reponses entieres (facteur ou longueur agrandie).
+# ============================================================
+def generer_agrandissement_facteur(niveau: str = "CE6") -> dict:
+    k = random.randint(2, 5)
+    petit = random.randint(2, 9)
+    grand = petit * k
+    variante = random.choice(["facteur_agrandir", "longueur_agrandir", "facteur_reduire"])
+
+    if variante == "facteur_agrandir":
+        enonce = (
+            f"Ce rectangle est agrandi : un côté de {petit} cm devient {grand} cm. "
+            "Par combien a-t-on multiplié ?"
+        )
+        valeur = k
+        ref_val, img_val, img_label = petit, grand, f"{grand} cm"
+        steps = ["Le facteur d'agrandissement = nouvelle longueur ÷ ancienne longueur.", f"{grand} ÷ {petit} = {k}."]
+    elif variante == "longueur_agrandir":
+        enonce = (
+            f"Ce rectangle est agrandi {k} fois. Un côté de {petit} cm devient combien de cm ?"
+        )
+        valeur = grand
+        ref_val, img_val, img_label = petit, grand, "? cm"
+        steps = ["On multiplie la longueur par le facteur d'agrandissement.", f"{petit} × {k} = {grand} cm."]
+    else:  # facteur_reduire
+        enonce = (
+            f"Ce rectangle est réduit : un côté de {grand} cm devient {petit} cm. "
+            "Par combien a-t-on divisé ?"
+        )
+        valeur = k
+        ref_val, img_val, img_label = grand, petit, f"{petit} cm"
+        steps = ["Le facteur de réduction = ancienne longueur ÷ nouvelle longueur.", f"{grand} ÷ {petit} = {k}."]
+
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="agrandissement_facteur",
+        enonce=enonce,
+        variables={
+            "forme": "deux_rectangles",
+            "ref_val": ref_val,
+            "img_val": img_val,
+            "ref_label": f"{ref_val} cm",
+            "img_label": img_label,
+        },
+        valeur=valeur,
+        steps=steps,
+    )
+
+
+# ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
 #  manipulees en CENTIEMES (entiers) pour eviter toute erreur de virgule
@@ -1355,6 +1506,10 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "triangle_classer_cotes": generer_triangle_classer_cotes,
     "triangle_classer_angles": generer_triangle_classer_angles,
     "angle_type": generer_angle_type,
+    "prisme_aire_base": generer_prisme_aire_base,
+    "prisme_aire_totale": generer_prisme_aire_totale,
+    "symetrie_axes": generer_symetrie_axes,
+    "agrandissement_facteur": generer_agrandissement_facteur,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

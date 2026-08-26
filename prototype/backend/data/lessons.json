@@ -119,6 +119,28 @@
       ]
     },
     {
+      "lecon_id": "symetrie",
+      "nom": "La symétrie",
+      "patterns": [
+        "symetrie_axes"
+      ]
+    },
+    {
+      "lecon_id": "prismes",
+      "nom": "Les prismes",
+      "patterns": [
+        "prisme_aire_base",
+        "prisme_aire_totale"
+      ]
+    },
+    {
+      "lecon_id": "agrandissement",
+      "nom": "Agrandir et réduire",
+      "patterns": [
+        "agrandissement_facteur"
+      ]
+    },
+    {
       "lecon_id": "echelle",
       "nom": "Échelle et plan",
       "patterns": [

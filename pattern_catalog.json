@@ -315,6 +315,73 @@
       ]
     },
     {
+      "pattern_name": "prisme_aire_base",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Aire de la base d'un prisme droit (carre ou rectangle cote) ",
+      "constraints": {
+        "rule_type": "aire d'une base 2D (carre c*c ou rectangle L*l) ; PAS de rendu 3D",
+        "generation_rules": [
+          "base carree (cote 3-12) ou rectangle (dimensions 2-12) ; reponse = 1 entier",
+          "figure = la base cotee en 2D (reutilise figure_cotee)"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM2_S2.pptx", "question": "احسبوا مساحة قاعدة الموشور (مربع ضلعه 8)", "correction": "8 x 8 = 64 cm2"}
+      ]
+    },
+    {
+      "pattern_name": "prisme_aire_totale",
+      "levels": ["N5"],
+      "pattern_family": "calcul_direct",
+      "template": "Aire totale d'un prisme droit = 2 x base + (perimetre de base x hauteur)",
+      "constraints": {
+        "rule_type": "aire totale d'un prisme droit ; base 2D cotee + hauteur donnee en texte, pas de 3D",
+        "generation_rules": [
+          "base carree ou rectangle ; hauteur 4-12 ; aire totale = 2*base + perimetre*hauteur",
+          "reponse = 1 entier ; methode guidee en plusieurs etapes"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM2_S3.pptx", "question": "المساحة الكلية (قاعدة مربعة 6، ارتفاع 10)", "correction": "2x36 + (4x6)x10 = 72 + 240 = 312 cm2"}
+      ]
+    },
+    {
+      "pattern_name": "symetrie_axes",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "Nombre d'axes de symetrie d'une figure connue (polygone regulier -> n ; rectangle -> 2)",
+      "constraints": {
+        "rule_type": "COMPTER les axes de symetrie d'une figure deja rendue ; le trace des axes est exclu",
+        "generation_rules": [
+          "triangle equilateral 3, carre 4, rectangle 2, pentagone 5, hexagone 6 ; reponse = 1 entier"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM4_S1.pptx", "question": "كم محور تماثل للمستطيل؟", "correction": "المستطيل له محورا تماثل (2)"}
+      ]
+    },
+    {
+      "pattern_name": "agrandissement_facteur",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "Facteur d'agrandissement / reduction (ou longueur agrandie) a partir de deux longueurs correspondantes",
+      "constraints": {
+        "rule_type": "calcul du facteur (mقدار التكبير/التصغير) ou de la longueur image ; le trace est exclu",
+        "generation_rules": [
+          "facteur k entier (2-5) ; longueur de reference (2-9) ; image = reference x k",
+          "3 variantes : facteur d'agrandissement, longueur agrandie, facteur de reduction ; reponse entiere"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM4_S1.pptx", "question": "احسبوا مقدار تكبير الشكل C إلى A", "correction": "nouvelle longueur / ancienne longueur = facteur"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",
