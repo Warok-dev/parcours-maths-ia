@@ -58,6 +58,7 @@
     symetrie_axes: "Axes de symétrie d'une figure",
     agrandissement_facteur: "Agrandissement et réduction",
     solide_nommer: "Nommer un solide",
+    solide_compter: "Compter faces, arêtes et sommets",
     echelle_plan: "Échelle et plan",
     comparaison_decimaux: "Comparer des décimaux",
     addition_decimaux: "Additionner des décimaux",

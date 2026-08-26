@@ -2195,7 +2195,9 @@ function renderExerciseModal() {
   const isAngle = exercise.pattern?.pattern_name === "angle_type";
   const isSymetrie = exercise.pattern?.pattern_name === "symetrie_axes";
   const isAgrandissement = exercise.pattern?.pattern_name === "agrandissement_facteur";
-  const isSolide = exercise.pattern?.pattern_name === "solide_nommer";
+  const isSolide = ["solide_nommer", "solide_compter"].includes(
+    exercise.pattern?.pattern_name,
+  );
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();

@@ -137,7 +137,8 @@
       "lecon_id": "solides",
       "nom": "Les solides",
       "patterns": [
-        "solide_nommer"
+        "solide_nommer",
+        "solide_compter"
       ]
     },
     {

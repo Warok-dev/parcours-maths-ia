@@ -1328,6 +1328,77 @@ def generer_solide_nommer(niveau: str = "CE4") -> dict:
     )
 
 
+# Comptes de reference (element -> nombre) pour chaque solide rendu par solideSvg.
+# La pyramide est a base carree (cf. rendu) : 5 faces, 8 aretes, 5 sommets. Le
+# cylindre est volontairement exclu (comptes ambigus au CE : arete = cercle ?).
+_SOLIDE_COMPTES = {
+    "cube": {"faces": 6, "aretes": 12, "sommets": 8},
+    "pave": {"faces": 6, "aretes": 12, "sommets": 8},
+    "pyramide": {"faces": 5, "aretes": 8, "sommets": 5},
+}
+# element -> (question, pluriel, indice de methode). L'indice d'aretes renvoie
+# aux pointilles du rendu (aretes cachees) ; celui des faces/sommets rappelle
+# le fond du solide, souvent oublie.
+_SOLIDE_ELEMENTS = {
+    "faces": (
+        "Combien de faces a ce solide ?",
+        "faces",
+        "Compte les faces une par une, sans oublier celles du fond.",
+    ),
+    "aretes": (
+        "Combien d'arêtes a ce solide ?",
+        "arêtes",
+        "Compte les arêtes une par une : les pointillés sont les arêtes cachées.",
+    ),
+    "sommets": (
+        "Combien de sommets a ce solide ?",
+        "sommets",
+        "Compte les sommets (les coins) un par un, sans oublier ceux du fond.",
+    ),
+}
+
+
+def generer_solide_compter(niveau: str = "CE4") -> dict:
+    solide = random.choice(list(_SOLIDE_COMPTES))
+    element = random.choice(list(_SOLIDE_ELEMENTS))
+    question, pluriel, indice = _SOLIDE_ELEMENTS[element]
+    comptes = _SOLIDE_COMPTES[solide]
+    correct = comptes[element]
+    # Distracteurs privilegies : les DEUX autres comptes du meme solide (erreurs
+    # classiques : confondre faces / aretes / sommets). On complete par des
+    # voisins si l'un coincide avec la bonne reponse (ex. pyramide : faces =
+    # sommets = 5), pour garantir 3 options distinctes et positives.
+    distracteurs: list[int] = []
+    for autre in comptes.values():
+        if autre != correct and autre not in distracteurs:
+            distracteurs.append(autre)
+    for delta in (2, -2, 3, 1, -1, 4):
+        if len(distracteurs) >= 2:
+            break
+        voisin = correct + delta
+        if voisin > 0 and voisin != correct and voisin not in distracteurs:
+            distracteurs.append(voisin)
+    options = [str(correct), *(str(d) for d in distracteurs[:2])]
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="solide_compter",
+        enonce=question,
+        variables={
+            "solide": solide,
+            "element": element,
+            "options": options,
+        },
+        valeur=str(correct),
+        format_reponse="choix_multiple",
+        equivalences=[str(correct)],
+        steps=[
+            indice,
+            f"Ce solide a {correct} {pluriel}.",
+        ],
+    )
+
+
 # ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
@@ -1546,6 +1617,7 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "symetrie_axes": generer_symetrie_axes,
     "agrandissement_facteur": generer_agrandissement_facteur,
     "solide_nommer": generer_solide_nommer,
+    "solide_compter": generer_solide_compter,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

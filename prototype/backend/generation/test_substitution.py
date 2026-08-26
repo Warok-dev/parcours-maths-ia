@@ -607,6 +607,46 @@ class SubstitutionGenerationTests(unittest.TestCase):
         for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
             self.assertNotIn("solide_nommer", substitution.patterns_disponibles_pour_niveau(niveau))
 
+    def test_solide_compter(self) -> None:
+        # Comptes de reference (face / arete / sommet) verifies au corpus et a la
+        # geometrie ; le cylindre est exclu.
+        comptes = {
+            "cube": {"faces": 6, "aretes": 12, "sommets": 8},
+            "pave": {"faces": 6, "aretes": 12, "sommets": 8},
+            "pyramide": {"faces": 5, "aretes": 8, "sommets": 5},
+        }
+        solides_vus, elements_vus = set(), set()
+        for ex in self._generate_many("solide_compter", "CE4", count=300):
+            v = ex["variables"]
+            solide, element = v["solide"], v["element"]
+            solides_vus.add(solide)
+            elements_vus.add(element)
+            self.assertIn(solide, comptes)
+            self.assertNotEqual(solide, "cylindre")
+            self.assertIn(element, ("faces", "aretes", "sommets"))
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            attendu = str(comptes[solide][element])
+            # La bonne reponse correspond au compte reel et figure parmi 3 options
+            # numeriques distinctes et positives.
+            self.assertEqual(_exercise_value(ex), attendu)
+            self.assertIn(attendu, v["options"])
+            self.assertEqual(len(v["options"]), 3)
+            self.assertEqual(len(set(v["options"])), 3)
+            for opt in v["options"]:
+                self.assertGreater(int(opt), 0)
+            # Le mot de l'element denombre apparait dans l'enonce.
+            mots = {"faces": "faces", "aretes": "arêtes", "sommets": "sommets"}
+            self.assertIn(mots[element], ex["enonce"])
+        self.assertEqual(solides_vus, set(comptes))
+        self.assertEqual(elements_vus, {"faces", "aretes", "sommets"})
+
+    def test_solide_compter_disponible_ce4_seulement(self) -> None:
+        self.assertIn("solide_compter", substitution.patterns_disponibles_pour_niveau("CE4"))
+        for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
+            self.assertNotIn(
+                "solide_compter", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:
         echelles = set()

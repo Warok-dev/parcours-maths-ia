@@ -399,6 +399,27 @@
       ]
     },
     {
+      "pattern_name": "solide_compter",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Compter les faces / aretes / sommets d'un solide deja dessine (perspective cavaliere) : cube / pave droit / pyramide (QCM)",
+      "constraints": {
+        "rule_type": "denombrement d'un element (face, arete ou sommet) d'un solide DEJA rendu ; aucun trace de l'eleve",
+        "generation_rules": [
+          "V1 : cube (6/12/8), pave droit (6/12/8), pyramide a base carree (5/8/5) ; PAS le cylindre",
+          "reponse choix_multiple (3 options numeriques distinctes) ; distracteurs = les autres comptes du meme solide, completes si besoin par des voisins",
+          "meme rendu SVG que solide_nommer (aretes cachees en pointilles pour aider le denombrement)"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N2_P4_SEM4_S2.pptx", "question": "اكتبوا على الألواح عدد أحرف هذا المجسم (المكعب)", "correction": "12 حرفا (12 aretes)"},
+        {"file": "MATH_N2_P4_SEM4_S2.pptx", "question": "اكتبوا على الألواح عدد رؤوس المكعب", "correction": "8 رؤوس (8 sommets)"},
+        {"file": "MATH_N2_P4_SEM4_S2.pptx", "question": "اكتبوا على الألواح عدد رؤوس الهرم", "correction": "5 رؤوس (5 sommets)"},
+        {"file": "MATH_N2_P4_SEM4_S2.pptx", "question": "اكتبوا على الألواح عدد أحرف الهرم", "correction": "8 أحرف (8 aretes)"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",
