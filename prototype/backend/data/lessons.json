@@ -169,6 +169,7 @@
       "nom": "Les durées",
       "patterns": [
         "conversion_duree_min",
+        "conversion_temps_secondes",
         "duree_entre_horaires"
       ]
     },

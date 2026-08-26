@@ -613,6 +613,25 @@
       ]
     },
     {
+      "pattern_name": "conversion_temps_secondes",
+      "levels": ["N5"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "convertir une duree composee en secondes : {m} min {s} s = {total} s ; {h} h {m} min = {total} s",
+      "constraints": {
+        "rule_type": "conversion d'une duree composee vers les secondes (x60)",
+        "generation_rules": [
+          "forme min_s : total = minutes x 60 + secondes",
+          "forme h_min : total = (heures x 60 + minutes) x 60",
+          "corpus : 5 h 16 s = 18 016 s (methode 5 h = 300 min = 18 000 s)"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM4_S1.pptx", "question": "5 h 16 s = ... s", "correction": "18 016 s (5 h = 18 000 s, + 16 s)"},
+        {"file": "MATH_N5_P4_SEM4_S1.pptx", "question": "5 h = ... s (methode)", "correction": "5 x 60 = 300 min ; 300 x 60 = 18 000 s"}
+      ]
+    },
+    {
       "pattern_name": "duree_entre_horaires",
       "levels": ["N5"],
       "pattern_family": "calcul_direct",

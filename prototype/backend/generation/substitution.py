@@ -1992,6 +1992,41 @@ def generer_conversion_duree_min(niveau: str = "CE5") -> dict:
     )
 
 
+def generer_conversion_temps_secondes(niveau: str = "CE5") -> dict:
+    """Convertit une duree composee vers les SECONDES (N5_P4_SEM4 قياس الزمن).
+    Deux formes : min+s -> s, et h+min -> s (via x60). Complete
+    conversion_duree_min (h+min -> min), qui ne couvre pas les secondes."""
+    if random.random() < 0.5:
+        m = random.randint(1, 59)
+        s = random.randint(0, 59)
+        total = m * 60 + s
+        enonce = f"Convertis en secondes : {m} min {s} s = ... s"
+        variables = {"forme": "min_s", "minutes": m, "secondes": s, "total_s": total}
+        steps = [
+            f"1 min = 60 s, donc {m} min = {m * 60} s.",
+            f"{m * 60} + {s} = {total} s.",
+        ]
+    else:
+        h = random.randint(1, 6)
+        m = random.randint(0, 59)
+        inter = h * 60 + m
+        total = inter * 60
+        enonce = f"Convertis en secondes : {h} h {m} min = ... s"
+        variables = {"forme": "h_min", "heures": h, "minutes": m, "total_s": total}
+        steps = [
+            f"{h} h {m} min = {inter} min.",
+            f"1 min = 60 s, donc {inter} × 60 = {total} s.",
+        ]
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="conversion_temps_secondes",
+        enonce=enonce,
+        variables=variables,
+        valeur=total,
+        steps=steps,
+    )
+
+
 def generer_duree_entre_horaires(niveau: str = "CE5") -> dict:
     depart = random.randint(0, 21 * 60)
     duree = random.randint(20, 179)
@@ -2110,6 +2145,7 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,
     "conversion_duree_min": generer_conversion_duree_min,
+    "conversion_temps_secondes": generer_conversion_temps_secondes,
     "duree_entre_horaires": generer_duree_entre_horaires,
     "pourcentage_d_une_quantite": generer_pourcentage_d_une_quantite,
     "vitesse_distance_duree": generer_vitesse_distance_duree,

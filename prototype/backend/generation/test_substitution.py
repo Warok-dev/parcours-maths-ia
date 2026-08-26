@@ -968,6 +968,35 @@ class SubstitutionGenerationTests(unittest.TestCase):
             self.assertGreater(v["arrivee_min"], v["depart_min"])
             self.assertEqual(_exercise_value(ex), v["duree_min"])
 
+    def test_conversion_temps_secondes(self) -> None:
+        formes_vues = set()
+        for ex in self._generate_many("conversion_temps_secondes", "CE5", count=300):
+            v = ex["variables"]
+            formes_vues.add(v["forme"])
+            self.assertIn(v["forme"], ("min_s", "h_min"))
+            self.assertIn("secondes", ex["enonce"])
+            if v["forme"] == "min_s":
+                self.assertEqual(v["total_s"], v["minutes"] * 60 + v["secondes"])
+                self.assertGreaterEqual(v["minutes"], 1)
+                self.assertLess(v["minutes"], 60)
+                self.assertLess(v["secondes"], 60)
+            else:
+                self.assertEqual(v["total_s"], (v["heures"] * 60 + v["minutes"]) * 60)
+                self.assertGreaterEqual(v["heures"], 1)
+                self.assertLessEqual(v["heures"], 6)
+                self.assertLess(v["minutes"], 60)
+            self.assertEqual(_exercise_value(ex), v["total_s"])
+        self.assertEqual(formes_vues, {"min_s", "h_min"})
+
+    def test_conversion_temps_secondes_disponible_ce5_seulement(self) -> None:
+        self.assertIn(
+            "conversion_temps_secondes", substitution.patterns_disponibles_pour_niveau("CE5")
+        )
+        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE6"):
+            self.assertNotIn(
+                "conversion_temps_secondes", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
     # ---------- Pourcentage (CE5 + CE6) et vitesse (CE6) ----------
     def test_pourcentage_d_une_quantite(self) -> None:
         for niveau in ("CE5", "CE6"):

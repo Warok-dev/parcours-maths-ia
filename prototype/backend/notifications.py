@@ -116,6 +116,7 @@ _LIBELLES_CONCEPTS = {
     "addition_decimaux": "Additionner des décimaux",
     "soustraction_decimaux": "Soustraire des décimaux",
     "conversion_duree_min": "Convertir une durée en minutes",
+    "conversion_temps_secondes": "Convertir une durée en secondes",
     "duree_entre_horaires": "Durée entre deux horaires",
     "pourcentage_d_une_quantite": "Pourcentage d'une quantité",
     "vitesse_distance_duree": "Vitesse, distance et durée",
