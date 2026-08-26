@@ -2263,6 +2263,43 @@ function camembertSvg(exercise) {
   `;
 }
 
+/* Diagramme en batons (CE1) : jumeau du pictogramme. La valeur se LIT sur l'axe
+   gradue de gauche (une ligne par unite, sommet de barre pile sur une
+   graduation) ; aucune valeur n'est ecrite sur la barre, sinon ce ne serait
+   plus une lecture de graphique. */
+function barresSvg(exercise) {
+  const v = exercise.variables || {};
+  const cats = v.categories || [];
+  const axeMax = v.max_axe || 6;
+  const baseY = 150;
+  const left = 30;
+  const right = 238;
+  const unit = 18; /* hauteur d'une graduation (px du viewBox) */
+
+  let grid = "";
+  for (let i = 0; i <= axeMax; i += 1) {
+    const y = baseY - i * unit;
+    grid += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" class="bar-grid"></line>`;
+    grid += `<text x="${left - 8}" y="${y + 4}" text-anchor="end" class="figure-label">${i}</text>`;
+  }
+  const slot = (right - left) / cats.length;
+  const barW = Math.min(34, slot * 0.5);
+  const bars = cats
+    .map((c, j) => {
+      const cx = left + slot * (j + 0.5);
+      const h = c.valeur * unit;
+      return `<rect x="${(cx - barW / 2).toFixed(1)}" y="${(baseY - h).toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2" class="bar-rect"></rect><text x="${cx.toFixed(1)}" y="${baseY + 16}" text-anchor="middle" class="figure-label">${c.nom}</text>`;
+    })
+    .join("");
+  return `
+    <text x="134" y="16" text-anchor="middle" class="chart-title">${v.titre || ""}</text>
+    ${grid}
+    <line x1="${left}" y1="${baseY - axeMax * unit}" x2="${left}" y2="${baseY}" class="bar-axis"></line>
+    <line x1="${left}" y1="${baseY}" x2="${right}" y2="${baseY}" class="bar-axis"></line>
+    ${bars}
+  `;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -2289,6 +2326,7 @@ function renderExerciseModal() {
   );
   const isPictogramme = exercise.pattern?.pattern_name === "graphique_pictogramme";
   const isCamembert = exercise.pattern?.pattern_name === "graphique_circulaire";
+  const isBarres = exercise.pattern?.pattern_name === "graphique_barres";
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2449,6 +2487,13 @@ function renderExerciseModal() {
         isCamembert
           ? `<div class="figure-figure figure-wide">
                <svg viewBox="0 0 250 150" role="img" aria-label="Diagramme circulaire">${camembertSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isBarres
+          ? `<div class="figure-figure figure-wide">
+               <svg viewBox="0 0 250 178" role="img" aria-label="Diagramme en bâtons">${barresSvg(exercise)}</svg>
              </div>`
           : ""
       }

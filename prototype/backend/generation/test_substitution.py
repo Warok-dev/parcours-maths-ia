@@ -733,6 +733,49 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "graphique_circulaire", substitution.patterns_disponibles_pour_niveau(niveau)
             )
 
+    # ---------- Vague graphiques : diagramme en batons (CE1) ----------
+    def test_graphique_barres(self) -> None:
+        questions_vues, tailles_vues = set(), set()
+        for ex in self._generate_many("graphique_barres", "CE1", count=400):
+            v = ex["variables"]
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            cats = v["categories"]
+            k = len(cats)
+            tailles_vues.add(k)
+            self.assertIn(k, (3, 4))
+            axe = v["max_axe"]
+            for c in cats:
+                # Valeurs entieres dans l'axe gradue (sommet de barre sur une graduation).
+                self.assertGreaterEqual(c["valeur"], 1)
+                self.assertLessEqual(c["valeur"], axe)
+            valeur = _exercise_value(ex)
+            questions_vues.add(v["question"])
+            if v["question"] == "valeur":
+                cible = next(c for c in cats if c["nom"] == v["cible"])
+                self.assertEqual(valeur, str(cible["valeur"]))
+                self.assertIn(valeur, v["options"])
+                self.assertEqual(len(v["options"]), 3)
+                self.assertEqual(len(set(v["options"])), 3)
+                for opt in v["options"]:
+                    # Toutes les options sont des lectures plausibles sur l'axe visible.
+                    self.assertGreaterEqual(int(opt), 1)
+                    self.assertLessEqual(int(opt), axe)
+            else:
+                self.assertEqual(v["question"], "max")
+                gagnant = max(cats, key=lambda c: c["valeur"])
+                self.assertEqual([c["valeur"] for c in cats].count(gagnant["valeur"]), 1)
+                self.assertEqual(valeur, gagnant["nom"])
+                self.assertEqual(set(v["options"]), {c["nom"] for c in cats})
+        self.assertEqual(questions_vues, {"valeur", "max"})
+        self.assertEqual(tailles_vues, {3, 4})
+
+    def test_graphique_barres_disponible_ce1_seulement(self) -> None:
+        self.assertIn("graphique_barres", substitution.patterns_disponibles_pour_niveau("CE1"))
+        for niveau in ("CE2", "CE3", "CE4", "CE5", "CE6"):
+            self.assertNotIn(
+                "graphique_barres", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:
         echelles = set()

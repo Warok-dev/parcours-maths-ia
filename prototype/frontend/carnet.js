@@ -60,6 +60,7 @@
     solide_nommer: "Nommer un solide",
     solide_compter: "Compter faces, arêtes et sommets",
     graphique_pictogramme: "Lire un pictogramme",
+    graphique_barres: "Lire un diagramme en bâtons",
     graphique_circulaire: "Lire un diagramme circulaire",
     echelle_plan: "Échelle et plan",
     comparaison_decimaux: "Comparer des décimaux",

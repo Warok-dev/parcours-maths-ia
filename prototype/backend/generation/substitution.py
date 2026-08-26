@@ -1596,6 +1596,85 @@ def generer_graphique_circulaire(niveau: str = "CE5") -> dict:
     )
 
 
+# Diagramme en batons (CE1) : jumeau du pictogramme (meme lecon N1_P4_SEM3, meme
+# modele de donnees). Ici la valeur se LIT sur un AXE GRADUE (sommet de la barre
+# pile sur une graduation), jamais estimee a l'oeil. Titres courts (viewBox 250).
+_BARRES_AXE_MAX = 6  # valeurs 1..6, une graduation par unite
+_BARRES_THEMES = [
+    {"objet": "livres", "singulier": "livre", "titre": "Les livres lus"},
+    {"objet": "buts", "singulier": "but", "titre": "Les buts marqués"},
+    {"objet": "gâteaux", "singulier": "gâteau", "titre": "Les gâteaux vendus"},
+]
+
+
+def generer_graphique_barres(niveau: str = "CE1") -> dict:
+    theme = random.choice(_BARRES_THEMES)
+    k = random.choice([3, 4])
+    noms = random.sample(_PICTO_NOMS, k)
+    while True:
+        valeurs = [random.randint(1, _BARRES_AXE_MAX) for _ in noms]
+        if valeurs.count(max(valeurs)) == 1:  # maximum strict (reponse unique)
+            break
+    categories = [{"nom": n, "valeur": v} for n, v in zip(noms, valeurs)]
+    objet, sing = theme["objet"], theme["singulier"]
+
+    if random.random() < 0.5:
+        cible = random.choice(categories)
+        correct = cible["valeur"]
+        # Distracteurs : d'abord les hauteurs des autres colonnes (erreur de
+        # lecture classique), completees par des valeurs de l'axe visible. Tous
+        # dans [1, max_axe] pour rester des lectures plausibles sur le graphique.
+        pool = [c["valeur"] for c in categories if c["valeur"] != correct]
+        for cand in range(1, _BARRES_AXE_MAX + 1):
+            if cand != correct and cand not in pool:
+                pool.append(cand)
+        distracteurs, vus = [], set()
+        for x in pool:
+            if x not in vus:
+                vus.add(x)
+                distracteurs.append(x)
+        options = [str(correct), *(str(d) for d in distracteurs[:2])]
+        random.shuffle(options)
+        enonce = f"Le graphique montre les {objet} de chaque enfant. Combien de {objet} a {cible['nom']} ?"
+        variables = {"question": "valeur", "cible": cible["nom"]}
+        valeur, equivs = str(correct), [str(correct)]
+        steps = [
+            f"Trouve la colonne de {cible['nom']}.",
+            "Lis sa hauteur sur l'axe gradué de gauche.",
+            f"{cible['nom']} a {correct} {objet}.",
+        ]
+    else:
+        gagnant = max(categories, key=lambda c: c["valeur"])
+        options = noms[:]
+        random.shuffle(options)
+        enonce = f"Le graphique montre les {objet} de chaque enfant. Qui a le plus de {objet} ?"
+        variables = {"question": "max", "cible": gagnant["nom"]}
+        valeur, equivs = gagnant["nom"], [gagnant["nom"]]
+        steps = [
+            "Compare la hauteur des colonnes : la plus haute gagne.",
+            f"{gagnant['nom']} a le plus de {objet} ({gagnant['valeur']}).",
+        ]
+
+    variables.update({
+        "titre": theme["titre"],
+        "objet": objet,
+        "singulier": sing,
+        "categories": categories,
+        "max_axe": _BARRES_AXE_MAX,
+        "options": options,
+    })
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="graphique_barres",
+        enonce=enonce,
+        variables=variables,
+        valeur=valeur,
+        format_reponse="choix_multiple",
+        equivalences=equivs,
+        steps=steps,
+    )
+
+
 # ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
@@ -1817,6 +1896,7 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "solide_compter": generer_solide_compter,
     "graphique_pictogramme": generer_graphique_pictogramme,
     "graphique_circulaire": generer_graphique_circulaire,
+    "graphique_barres": generer_graphique_barres,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

@@ -188,9 +188,10 @@
     },
     {
       "lecon_id": "pictogramme",
-      "nom": "Lire un pictogramme",
+      "nom": "Lire un graphique",
       "patterns": [
-        "graphique_pictogramme"
+        "graphique_pictogramme",
+        "graphique_barres"
       ]
     },
     {

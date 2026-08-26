@@ -460,6 +460,25 @@
       ]
     },
     {
+      "pattern_name": "graphique_barres",
+      "levels": ["N1"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Lire un diagramme en batons (مبيان بالأعمدة) : lire la hauteur d'une colonne sur un axe gradue, ou trouver qui en a le plus (QCM)",
+      "constraints": {
+        "rule_type": "lecture de donnees sur un diagramme en batons DEJA rendu ; la valeur se LIT sur un axe gradue (sommet de barre pile sur une graduation), jamais estimee",
+        "generation_rules": [
+          "V1 : jumeau du pictogramme (meme lecon N1_P4_SEM3), 3 ou 4 colonnes, valeurs 1..6, axe gradue 0..6",
+          "questions : 'combien de X a {enfant}' (lecture de hauteur, reponse numerique) ou 'qui en a le plus' (reponse prenom) ; choix_multiple 3 options",
+          "axe gradue avec une ligne par unite ; PAS de valeur ecrite sur la barre (sinon ce n'est plus une lecture)"
+        ]
+      },
+      "occurrence_count": 2,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM3_S5.pptx", "question": "قراءة معطيات مبيان بالأعمدة (objectif CE1, meme lecon que le pictogramme)", "correction": "1) يحدد العمود المناسب (repere la colonne) 2) يقرأ المعطى المناسب (lit la donnee sur l'axe)"},
+        {"file": "MATH_N1_P4_SEM3_S5.pptx", "question": "نمذجة قراءة معطيات مبيان بالأعمدة", "correction": "meme modele de donnees que le pictogramme (enfants + effectifs)"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",
