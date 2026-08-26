@@ -51,6 +51,7 @@ const LESSON_ICONS = {
   angles: "∠",
   symetrie: "🦋",
   prismes: "📦",
+  solides: "🧊",
   agrandissement: "🔍",
   echelle: "🗺",
   nombres_decimaux: "0,5",
@@ -2114,6 +2115,65 @@ function deuxRectanglesSvg(exercise) {
   `;
 }
 
+/* Solides en perspective cavaliere (G7) : figure DEJA rendue, l'eleve nomme.
+   Faces visibles nuancees (dessus clair, cote fonce), aretes cachees en
+   pointilles. Geometrie figee validee au prototype ; jamais de trace. */
+function solideSvg(exercise) {
+  const v = exercise.variables || {};
+  switch (v.solide) {
+    case "cube":
+      return `
+        <polygon points="-32,-2 -10,-24 48,-24 26,-2" class="solide-top"></polygon>
+        <polygon points="26,-2 48,-24 48,34 26,56" class="solide-side"></polygon>
+        <polygon points="-32,-2 26,-2 26,56 -32,56" class="solide-front"></polygon>
+        <line x1="-10" y1="-24" x2="-10" y2="34" class="solide-hidden"></line>
+        <line x1="-10" y1="34" x2="48" y2="34" class="solide-hidden"></line>
+        <line x1="-32" y1="56" x2="-10" y2="34" class="solide-hidden"></line>
+      `;
+    case "pave":
+      return `
+        <polygon points="-40,4 -20,-16 52,-16 32,4" class="solide-top"></polygon>
+        <polygon points="32,4 52,-16 52,28 32,48" class="solide-side"></polygon>
+        <polygon points="-40,4 32,4 32,48 -40,48" class="solide-front"></polygon>
+        <line x1="-20" y1="-16" x2="-20" y2="28" class="solide-hidden"></line>
+        <line x1="-20" y1="28" x2="52" y2="28" class="solide-hidden"></line>
+        <line x1="-40" y1="48" x2="-20" y2="28" class="solide-hidden"></line>
+      `;
+    case "cylindre": {
+      const rx = 38;
+      const ry = 13;
+      const t = -30;
+      const b = 40;
+      return `
+        <rect x="${-rx}" y="${t}" width="${2 * rx}" height="${b - t}" class="solide-front" stroke="none"></rect>
+        <ellipse cx="0" cy="${b}" rx="${rx}" ry="${ry}" class="solide-front" stroke="none"></ellipse>
+        <path d="M ${-rx} ${b} A ${rx} ${ry} 0 0 0 ${rx} ${b}" class="solide-edge" fill="none"></path>
+        <path d="M ${-rx} ${b} A ${rx} ${ry} 0 0 1 ${rx} ${b}" class="solide-hidden" fill="none"></path>
+        <line x1="${-rx}" y1="${t}" x2="${-rx}" y2="${b}" class="solide-edge"></line>
+        <line x1="${rx}" y1="${t}" x2="${rx}" y2="${b}" class="solide-edge"></line>
+        <ellipse cx="0" cy="${t}" rx="${rx}" ry="${ry}" class="solide-top"></ellipse>
+      `;
+    }
+    default: {
+      // pyramide (base carree en fuyante + apex)
+      const apex = [8, -42];
+      const FL = [-34, 46];
+      const FR = [30, 46];
+      const BR = [50, 26];
+      const BL = [-14, 26];
+      const pt = (p) => `${p[0]},${p[1]}`;
+      return `
+        <polygon points="${pt(apex)} ${pt(FR)} ${pt(BR)}" class="solide-side"></polygon>
+        <polygon points="${pt(apex)} ${pt(FL)} ${pt(FR)}" class="solide-front"></polygon>
+        <line x1="${apex[0]}" y1="${apex[1]}" x2="${BL[0]}" y2="${BL[1]}" class="solide-hidden"></line>
+        <line x1="${BL[0]}" y1="${BL[1]}" x2="${FL[0]}" y2="${FL[1]}" class="solide-hidden"></line>
+        <line x1="${BL[0]}" y1="${BL[1]}" x2="${BR[0]}" y2="${BR[1]}" class="solide-hidden"></line>
+        <line x1="${apex[0]}" y1="${apex[1]}" x2="${BR[0]}" y2="${BR[1]}" class="solide-edge"></line>
+      `;
+    }
+  }
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -2135,6 +2195,7 @@ function renderExerciseModal() {
   const isAngle = exercise.pattern?.pattern_name === "angle_type";
   const isSymetrie = exercise.pattern?.pattern_name === "symetrie_axes";
   const isAgrandissement = exercise.pattern?.pattern_name === "agrandissement_facteur";
+  const isSolide = exercise.pattern?.pattern_name === "solide_nommer";
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2274,6 +2335,13 @@ function renderExerciseModal() {
         isAgrandissement
           ? `<div class="figure-figure">
                <svg viewBox="-70 -30 140 90" role="img" aria-label="Agrandissement">${deuxRectanglesSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isSolide
+          ? `<div class="figure-figure">
+               <svg viewBox="-58 -50 116 120" role="img" aria-label="Solide">${solideSvg(exercise)}</svg>
              </div>`
           : ""
       }

@@ -382,6 +382,23 @@
       ]
     },
     {
+      "pattern_name": "solide_nommer",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Nommer un solide deja dessine (perspective cavaliere) : cube / pave droit / cylindre / pyramide (QCM)",
+      "constraints": {
+        "rule_type": "identification du nom d'un solide DEJA rendu ; aucun trace de l'eleve",
+        "generation_rules": [
+          "V1 : cube, pave droit, cylindre, pyramide ; reponse choix_multiple (3 options)",
+          "rendu SVG en perspective cavaliere (faces nuancees, aretes cachees en pointilles)"
+        ]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM4_S1.pptx", "question": "اكتبوا اسم المجسم", "correction": "مكعب (cube) / هرم (pyramide) / موشور قائم (pave droit)"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",

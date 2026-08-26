@@ -1294,6 +1294,41 @@ def generer_agrandissement_facteur(niveau: str = "CE6") -> dict:
 
 
 # ============================================================
+#  SOLIDES (N2/N3/N4) : nommer un solide deja dessine (perspective cavaliere)
+#  Corpus N4 S4 S1 (تعرف وتسمية المجسمات) : on NOMME le solide d'apres sa forme
+#  (base + faces). V1 : cube, pave droit, cylindre, pyramide. QCM, aucun trace.
+# ============================================================
+# nom + article (pyramide est feminin -> "une").
+_SOLIDES_NOMS = {
+    "cube": ("cube", "un"),
+    "pave": ("pavé droit", "un"),
+    "cylindre": ("cylindre", "un"),
+    "pyramide": ("pyramide", "une"),
+}
+
+
+def generer_solide_nommer(niveau: str = "CE4") -> dict:
+    solide = random.choice(list(_SOLIDES_NOMS))
+    nom, article = _SOLIDES_NOMS[solide]
+    autres = [n for n, _ in _SOLIDES_NOMS.values() if n != nom]
+    options = [nom, *random.sample(autres, 2)]
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="solide_nommer",
+        enonce="Comment s'appelle ce solide ?",
+        variables={"solide": solide, "options": options},
+        valeur=nom,
+        format_reponse="choix_multiple",
+        equivalences=[nom],
+        steps=[
+            "Regarde la forme de sa base et de ses faces pour le reconnaître.",
+            f"Ce solide est {article} {nom}.",
+        ],
+    )
+
+
+# ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
 #  manipulees en CENTIEMES (entiers) pour eviter toute erreur de virgule
@@ -1510,6 +1545,7 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "prisme_aire_totale": generer_prisme_aire_totale,
     "symetrie_axes": generer_symetrie_axes,
     "agrandissement_facteur": generer_agrandissement_facteur,
+    "solide_nommer": generer_solide_nommer,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

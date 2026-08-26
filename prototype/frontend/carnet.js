@@ -57,6 +57,7 @@
     prisme_aire_totale: "Aire totale d'un prisme",
     symetrie_axes: "Axes de symétrie d'une figure",
     agrandissement_facteur: "Agrandissement et réduction",
+    solide_nommer: "Nommer un solide",
     echelle_plan: "Échelle et plan",
     comparaison_decimaux: "Comparer des décimaux",
     addition_decimaux: "Additionner des décimaux",

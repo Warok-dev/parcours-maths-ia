@@ -584,6 +584,29 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "agrandissement_facteur", substitution.patterns_disponibles_pour_niveau(niveau)
             )
 
+    # ---------- Solides : nommer (CE4) ----------
+    def test_solide_nommer(self) -> None:
+        noms = {"cube": "cube", "pave": "pavé droit", "cylindre": "cylindre", "pyramide": "pyramide"}
+        solides_vus = set()
+        for ex in self._generate_many("solide_nommer", "CE4", count=200):
+            v = ex["variables"]
+            solide = v["solide"]
+            solides_vus.add(solide)
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            valeur = _exercise_value(ex)
+            # Le nom annonce correspond au solide dessine, et fait partie des options.
+            self.assertEqual(valeur, noms[solide])
+            self.assertIn(valeur, v["options"])
+            self.assertEqual(len(v["options"]), 3)
+            self.assertEqual(len(set(v["options"])), 3)
+            self.assertTrue(set(v["options"]).issubset(set(noms.values())))
+        self.assertEqual(solides_vus, set(noms))
+
+    def test_solide_nommer_disponible_ce4_seulement(self) -> None:
+        self.assertIn("solide_nommer", substitution.patterns_disponibles_pour_niveau("CE4"))
+        for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
+            self.assertNotIn("solide_nommer", substitution.patterns_disponibles_pour_niveau(niveau))
+
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:
         echelles = set()

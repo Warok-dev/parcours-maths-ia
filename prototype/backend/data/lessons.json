@@ -134,6 +134,13 @@
       ]
     },
     {
+      "lecon_id": "solides",
+      "nom": "Les solides",
+      "patterns": [
+        "solide_nommer"
+      ]
+    },
+    {
       "lecon_id": "agrandissement",
       "nom": "Agrandir et réduire",
       "patterns": [

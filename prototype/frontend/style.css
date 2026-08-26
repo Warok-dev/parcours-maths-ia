@@ -2448,6 +2448,44 @@ input {
   stroke-width: 2.2;
 }
 
+/* Solides en perspective cavaliere : faces nuancees pour la profondeur (avant,
+   dessus plus clair, cote plus fonce), aretes cachees en pointilles. */
+.solide-front {
+  fill: rgba(111, 194, 236, 0.18);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.solide-top {
+  fill: rgba(111, 194, 236, 0.34);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.solide-side {
+  fill: rgba(74, 140, 190, 0.3);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.solide-edge {
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.solide-hidden {
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 4 4;
+  opacity: 0.55;
+}
+
 /* ----- Panier a remplir ----- */
 .basket-field {
   display: flex;
