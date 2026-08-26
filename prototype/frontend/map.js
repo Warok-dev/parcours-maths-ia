@@ -2300,6 +2300,47 @@ function barresSvg(exercise) {
   `;
 }
 
+/* Proportionnalite graphique (CE6) : SEUL graphique a vraie lecture visuelle.
+   Anti-estimation : quadrillage entier, axe vertical gradue en multiples du
+   taux k, point interroge (a, k*a) PILE sur une intersection. On trace le guide
+   vertical depuis a (methode du corpus) ; l'eleve lit l'ordonnee en face. */
+function graphiqueProportionSvg(exercise) {
+  const v = exercise.variables || {};
+  const xMax = v.x_max || 5;
+  const k = v.k || 2;
+  const a = v.a || 2;
+  const left = 42;
+  const baseY = 150;
+  const right = 228;
+  const top = 32;
+  const dx = (right - left) / xMax;
+  const dy = (baseY - top) / xMax;
+  const px = (i) => left + i * dx;
+  const py = (j) => baseY - j * dy; /* j = indice de graduation (valeur = j*k) */
+
+  let grid = "";
+  for (let i = 0; i <= xMax; i += 1) {
+    grid += `<line x1="${px(i).toFixed(1)}" y1="${top}" x2="${px(i).toFixed(1)}" y2="${baseY}" class="bar-grid"></line>`;
+    grid += `<text x="${px(i).toFixed(1)}" y="${baseY + 14}" text-anchor="middle" class="figure-label">${i}</text>`;
+  }
+  for (let j = 0; j <= xMax; j += 1) {
+    grid += `<line x1="${left}" y1="${py(j).toFixed(1)}" x2="${right}" y2="${py(j).toFixed(1)}" class="bar-grid"></line>`;
+    grid += `<text x="${left - 7}" y="${(py(j) + 4).toFixed(1)}" text-anchor="end" class="figure-label">${j * k}</text>`;
+  }
+  const dotX = px(a);
+  const dotY = py(a); /* la droite y=k*x passe par l'indice a -> valeur k*a */
+  return `
+    ${grid}
+    <line x1="${left}" y1="${baseY}" x2="${right}" y2="${top}" class="graph-line"></line>
+    <line x1="${dotX.toFixed(1)}" y1="${baseY}" x2="${dotX.toFixed(1)}" y2="${dotY.toFixed(1)}" class="graph-guide"></line>
+    <circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="4" class="graph-point"></circle>
+    <line x1="${left}" y1="${top}" x2="${left}" y2="${baseY}" class="bar-axis"></line>
+    <line x1="${left}" y1="${baseY}" x2="${right}" y2="${baseY}" class="bar-axis"></line>
+    <text x="8" y="20" text-anchor="start" class="graph-axis-title">${v.y_axis || ""}</text>
+    <text x="${right}" y="${baseY + 30}" text-anchor="end" class="graph-axis-title">${v.x_axis || ""}</text>
+  `;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -2327,6 +2368,7 @@ function renderExerciseModal() {
   const isPictogramme = exercise.pattern?.pattern_name === "graphique_pictogramme";
   const isCamembert = exercise.pattern?.pattern_name === "graphique_circulaire";
   const isBarres = exercise.pattern?.pattern_name === "graphique_barres";
+  const isProportion = exercise.pattern?.pattern_name === "graphique_proportionnalite";
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2494,6 +2536,13 @@ function renderExerciseModal() {
         isBarres
           ? `<div class="figure-figure figure-wide">
                <svg viewBox="0 0 250 178" role="img" aria-label="Diagramme en bâtons">${barresSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isProportion
+          ? `<div class="figure-figure figure-wide">
+               <svg viewBox="0 0 250 190" role="img" aria-label="Graphique de proportionnalité">${graphiqueProportionSvg(exercise)}</svg>
              </div>`
           : ""
       }

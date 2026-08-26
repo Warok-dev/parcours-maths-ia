@@ -200,6 +200,13 @@
       "patterns": [
         "graphique_circulaire"
       ]
+    },
+    {
+      "lecon_id": "proportionnalite_graphique",
+      "nom": "Lire un graphique de proportionnalité",
+      "patterns": [
+        "graphique_proportionnalite"
+      ]
     }
   ]
 }

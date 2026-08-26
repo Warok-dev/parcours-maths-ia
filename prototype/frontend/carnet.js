@@ -62,6 +62,7 @@
     graphique_pictogramme: "Lire un pictogramme",
     graphique_barres: "Lire un diagramme en bâtons",
     graphique_circulaire: "Lire un diagramme circulaire",
+    graphique_proportionnalite: "Lire un graphique de proportionnalité",
     echelle_plan: "Échelle et plan",
     comparaison_decimaux: "Comparer des décimaux",
     addition_decimaux: "Additionner des décimaux",

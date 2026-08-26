@@ -776,6 +776,45 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "graphique_barres", substitution.patterns_disponibles_pour_niveau(niveau)
             )
 
+    # ---------- Vague graphiques : proportionnalité graphique (CE6) ----------
+    def test_graphique_proportionnalite(self) -> None:
+        pentes_vues = set()
+        for ex in self._generate_many("graphique_proportionnalite", "CE6", count=400):
+            v = ex["variables"]
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            k, x_max, a = v["k"], v["x_max"], v["a"]
+            pentes_vues.add(k)
+            self.assertIn(k, (2, 3, 4))
+            self.assertIn(x_max, (4, 5, 6))
+            # Abscisse interrogee STRICTEMENT interieure (point lisible, droite au-delà).
+            self.assertGreaterEqual(a, 2)
+            self.assertLessEqual(a, x_max - 1)
+            correct = k * a
+            # La reponse = k*a, qui tombe sur une graduation etiquetee (multiple de k)
+            # et reste dans l'axe visible (<= k*x_max).
+            self.assertEqual(_exercise_value(ex), str(correct))
+            self.assertLessEqual(correct, k * x_max)
+            self.assertEqual(correct % k, 0)
+            self.assertIn(str(correct), v["options"])
+            self.assertEqual(len(v["options"]), 3)
+            self.assertEqual(len(set(v["options"])), 3)
+            for opt in v["options"]:
+                val = int(opt)
+                # Toutes les options sont des graduations visibles de l'axe vertical.
+                self.assertGreater(val, 0)
+                self.assertLessEqual(val, k * x_max)
+                self.assertEqual(val % k, 0)
+        self.assertEqual(pentes_vues, {2, 3, 4})
+
+    def test_graphique_proportionnalite_disponible_ce6_seulement(self) -> None:
+        self.assertIn(
+            "graphique_proportionnalite", substitution.patterns_disponibles_pour_niveau("CE6")
+        )
+        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE5"):
+            self.assertNotIn(
+                "graphique_proportionnalite", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
     # ---------- Echelle / plan (CE6) ----------
     def test_echelle_plan(self) -> None:
         echelles = set()

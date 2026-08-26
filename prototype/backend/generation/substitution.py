@@ -1675,6 +1675,67 @@ def generer_graphique_barres(niveau: str = "CE1") -> dict:
     )
 
 
+# Proportionnalite graphique (CE6, N6_P4_SEM1 "قراءة مبيان وضعية تناسبية").
+# SEUL pattern de la vague a VRAIE lecture visuelle : la reponse se lit en
+# suivant une graduation. Anti-estimation : la droite passe par des
+# intersections ENTIERES du quadrillage ; l'axe vertical est gradue en multiples
+# du taux k (0, k, 2k, ...), donc le point interroge (a, k*a) tombe pile sur une
+# graduation etiquetee. Methode du corpus : "trace une verticale depuis la
+# valeur sur l'axe horizontal jusqu'a la droite, puis lis sur l'axe vertical".
+_PROP_THEMES = [
+    {"contexte": "Un robinet remplit un bassin à débit constant.",
+     "descr": "le volume selon le temps", "x_axis": "temps (min)",
+     "y_axis": "volume (L)", "yu": "L", "q": "Quel volume d'eau après {a} min ?"},
+    {"contexte": "Une voiture roule à vitesse constante.",
+     "descr": "la distance selon le temps", "x_axis": "temps (h)",
+     "y_axis": "distance (km)", "yu": "km", "q": "Quelle distance après {a} h ?"},
+    {"contexte": "Des cahiers identiques sont vendus.",
+     "descr": "le prix selon le nombre", "x_axis": "nombre",
+     "y_axis": "prix (dh)", "yu": "dh", "q": "Quel est le prix de {a} cahiers ?"},
+]
+
+
+def generer_graphique_proportionnalite(niveau: str = "CE6") -> dict:
+    theme = random.choice(_PROP_THEMES)
+    k = random.choice([2, 3, 4])          # taux (valeur unitaire) = pente
+    x_max = random.choice([4, 5, 6])      # graduations de l'axe horizontal
+    a = random.randint(2, x_max - 1)      # abscisse interrogee, STRICTEMENT interieure
+    correct = k * a                       # ordonnee lue (sur une graduation etiquetee)
+    y_max = k * x_max
+    # Distracteurs = mauvaises lectures "a une graduation pres" (memes valeurs
+    # etiquetees sur l'axe vertical), donc plausibles et non ambigues.
+    candidats = [k * (a - 1), k * (a + 1), k * (a + 2), k * (a - 2)]
+    distracteurs, vus = [], set()
+    for d in candidats:
+        if 0 < d <= y_max and d != correct and d not in vus:
+            vus.add(d)
+            distracteurs.append(d)
+    options = [str(correct), *(str(d) for d in distracteurs[:2])]
+    random.shuffle(options)
+    yu = theme["yu"]
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="graphique_proportionnalite",
+        enonce=f"{theme['contexte']} Le graphique montre {theme['descr']}. {theme['q'].format(a=a)}",
+        variables={
+            "k": k,
+            "x_max": x_max,
+            "a": a,
+            "x_axis": theme["x_axis"],
+            "y_axis": theme["y_axis"],
+            "options": options,
+        },
+        valeur=str(correct),
+        format_reponse="choix_multiple",
+        equivalences=[str(correct)],
+        steps=[
+            f"Repère {a} sur l'axe horizontal, puis monte jusqu'à la droite.",
+            "Lis la valeur en face, sur l'axe vertical gradué.",
+            f"On lit {correct} {yu}.",
+        ],
+    )
+
+
 # ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
@@ -1897,6 +1958,7 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "graphique_pictogramme": generer_graphique_pictogramme,
     "graphique_circulaire": generer_graphique_circulaire,
     "graphique_barres": generer_graphique_barres,
+    "graphique_proportionnalite": generer_graphique_proportionnalite,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

@@ -2529,6 +2529,34 @@ input {
   stroke-linejoin: round;
 }
 
+/* Proportionnalite graphique : droite y=k*x, point interroge + guide vertical. */
+.graph-line {
+  stroke: #e8734a;
+  stroke-width: 2.6;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.graph-point {
+  fill: #e8734a;
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+}
+
+.graph-guide {
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 3;
+  opacity: 0.6;
+}
+
+.graph-axis-title {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 11px;
+}
+
 /* Angle : demi-droites (traits pleins) + arc/marque d'angle droit (plus fin). */
 .figure-ray {
   stroke: var(--wood-dark);

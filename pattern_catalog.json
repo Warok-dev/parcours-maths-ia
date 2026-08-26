@@ -479,6 +479,26 @@
       ]
     },
     {
+      "pattern_name": "graphique_proportionnalite",
+      "levels": ["N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Lire un mبيان d'une situation de proportionnalite (droite passant par l'origine) : lire l'ordonnee correspondant a une abscisse donnee (QCM)",
+      "constraints": {
+        "rule_type": "VRAIE lecture visuelle sur axes gradues ; anti-estimation : la droite passe par des intersections entieres du quadrillage, le point interroge tombe pile sur une graduation etiquetee",
+        "generation_rules": [
+          "V1 : droite y = k*x (k in 2..4), axe horizontal 0..x_max (4..6), axe vertical gradue en multiples de k",
+          "on interroge une abscisse a interieure ; reponse = k*a, lue sur l'axe vertical ; distracteurs = mauvaises lectures a une graduation pres",
+          "guide vertical trace depuis a + point marque a l'intersection ; le trait horizontal (reponse) est laisse a l'eleve"
+        ]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM1_S2.pptx", "question": "أرسموا خطا عموديا انطلاقا من القيمة 2 إلى حدود المبيان ثم خطا أفقيا لتحديد القيمة الموافقة لها على المحور العمودي", "correction": "methode : verticale depuis la valeur (ex. 2) -> droite -> lecture sur l'axe vertical"},
+        {"file": "MATH_N6_P4_SEM1_S2.pptx", "question": "التناسبية : قراءة مبيان وضعية تناسبية (topic)", "correction": "lire l'ordonnee proportionnelle a une abscisse donnee"},
+        {"file": "MATH_N6_P4_SEM1_S3.pptx", "question": "حددوا على أحد محوري المبيان القيمتين المتناسبتين", "correction": "reperer sur un axe une valeur et lire sa correspondante"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",
