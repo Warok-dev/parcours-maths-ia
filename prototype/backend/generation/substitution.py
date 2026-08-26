@@ -1737,6 +1737,150 @@ def generer_graphique_proportionnalite(niveau: str = "CE6") -> dict:
 
 
 # ============================================================
+#  FRACTIONS (vague nombres & calcul)
+#  Regle transverse : parts EGALES nettement delimitees, denombrees (jamais
+#  d'estimation de proportion a l'oeil). La fraction lue = parts coloriees sur
+#  parts totales, toutes discretes et comptables.
+# ============================================================
+def _frac_distracteurs(m: int, n: int, combien: int = 2) -> list[str]:
+    """Distracteurs = fractions PROPRES plausibles proches de m/n (le complement
+    n-m/n, un coloriage mal compte m±1/n, un mauvais total m/n±1), completes au
+    besoin. Garantit `combien` chaines distinctes != m/n."""
+    pool = [
+        (n - m, n), (m + 1, n), (m - 1, n),
+        (m, n + 1), (m + 1, n + 1), (m, max(2, n - 1)), (m + 2, n),
+    ]
+    out, vus = [], {(m, n)}
+    for num, den in pool:
+        if den >= 2 and 1 <= num < den and (num, den) not in vus:
+            vus.add((num, den))
+            out.append(f"{num}/{den}")
+        if len(out) >= combien:
+            break
+    # Repli DETERMINISTE en balayant des denominateurs croissants : garantit la
+    # terminaison meme dans les cas etroits (ex. n=2, m=1 -> seule 1/2 propre).
+    den = n + 1
+    while len(out) < combien:
+        for num in range(1, den):
+            if (num, den) not in vus:
+                vus.add((num, den))
+                out.append(f"{num}/{den}")
+                if len(out) >= combien:
+                    break
+        den += 1
+    return out[:combien]
+
+
+# barre = rectangle partage en parts verticales egales ; disque = secteurs egaux.
+_FRAC_FORMES = ["barre", "disque"]
+
+
+def generer_fraction_lire_figure(niveau: str = "CE3") -> dict:
+    forme = random.choice(_FRAC_FORMES)
+    n = random.choice([2, 3, 4, 5, 6, 8])          # nombre de parts egales
+    m = random.randint(1, n - 1)                    # parts coloriees (fraction PROPRE)
+    correct = f"{m}/{n}"
+    options = [correct, *_frac_distracteurs(m, n, 2)]
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="fraction_lire_figure",
+        enonce="Quelle fraction de la figure est coloriée ?",
+        variables={"forme": forme, "n": n, "m": m, "options": options},
+        valeur=correct,
+        format_reponse="choix_multiple",
+        equivalences=[correct],
+        steps=[
+            "Compte les parts coloriées, puis le nombre total de parts.",
+            f"{m} parts coloriées sur {n} : la fraction est {m}/{n}.",
+        ],
+    )
+
+
+def generer_fraction_quantite(niveau: str = "CE4") -> dict:
+    d = random.choice([2, 3, 4, 5, 6, 8, 10])
+    num = random.randint(1, d - 1)                  # fraction propre num/d
+    k = random.randint(2, max(2, 60 // d))          # quantite Q = d*k (multiple de d)
+    quantite = d * k
+    correct = num * k                               # (num/d) de Q = num * (Q/d)
+    # Distracteurs : oubli du x num (=k), complement (Q-correct), erreurs de num.
+    base = [k, quantite - correct, (num + 1) * k, (num - 1) * k]
+    distracteurs = _distracteurs_nombres(correct, [b for b in base if b > 0], 2)
+    options = [str(correct), *(str(x) for x in distracteurs)]
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="fraction_quantite",
+        enonce=f"Calcule {num}/{d} de {quantite}.",
+        variables={"num": num, "d": d, "quantite": quantite, "options": options},
+        valeur=str(correct),
+        format_reponse="choix_multiple",
+        equivalences=[str(correct)],
+        steps=[
+            f"Divise {quantite} par {d} : {quantite} ÷ {d} = {k}.",
+            f"Multiplie par {num} : {k} × {num} = {correct}.",
+        ],
+    )
+
+
+# x/100 <-> decimal <-> pourcentage (grille des centiemes, cf. N6_P4_SEM2).
+_FRAC_CENTIEMES = [10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90]
+
+
+def generer_fraction_decimal_pourcentage(niveau: str = "CE6") -> dict:
+    x = random.choice(_FRAC_CENTIEMES)              # numerateur sur 100
+    direction = random.choice(["frac_dec", "frac_pct", "pct_frac"])
+    if direction == "frac_dec":
+        dec = _fmt_dec(x)                           # x centiemes -> ex. 0,25 / 0,2
+        deux = f"0,{x:02d}"                          # forme a deux decimales (0,20)
+        equivs = list({dec, dec.replace(",", "."), deux, deux.replace(",", ".")})
+        return _build_exercise(
+            niveau=niveau,
+            pattern_name="fraction_decimal_pourcentage",
+            enonce=f"Écris {x}/100 en nombre décimal.",
+            variables={"direction": direction, "x": x},
+            valeur=dec,
+            format_reponse="decimal",
+            equivalences=equivs,
+            steps=[f"{x}/100, c'est {x} centièmes.", f"On écrit {dec}."],
+        )
+    if direction == "frac_pct":
+        base = [100 - x, x + 10, x - 10, x + 5]
+        distracteurs = _distracteurs_nombres(x, [b for b in base if 0 < b < 100], 2)
+        options = [str(x), *(str(d) for d in distracteurs)]
+        random.shuffle(options)
+        return _build_exercise(
+            niveau=niveau,
+            pattern_name="fraction_decimal_pourcentage",
+            enonce=f"Complète : {x}/100 = ... %",
+            variables={"direction": direction, "x": x, "options": options},
+            valeur=str(x),
+            format_reponse="choix_multiple",
+            equivalences=[str(x)],
+            steps=[f"Une fraction sur 100 se lit directement en pourcentage.", f"{x}/100 = {x} %."],
+        )
+    # pct_frac : x % -> fraction sur 100. Distracteurs = erreurs de denominateur
+    # (/10, /1000) ou le complement, en garantissant 3 options DISTINCTES (le
+    # complement coincide avec la reponse quand x = 50).
+    correct_frac = f"{x}/100"
+    options = [correct_frac]
+    for cand in (f"{x}/10", f"{100 - x}/100", f"{x}/1000"):
+        if cand not in options and len(options) < 3:
+            options.append(cand)
+    random.shuffle(options)
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="fraction_decimal_pourcentage",
+        enonce=f"Écris {x} % sous forme de fraction.",
+        variables={"direction": direction, "x": x, "options": options},
+        valeur=f"{x}/100",
+        format_reponse="choix_multiple",
+        equivalences=[f"{x}/100"],
+        steps=["« Pour cent » veut dire « sur 100 ».", f"{x} % = {x}/100."],
+    )
+
+
+# ============================================================
 #  NOMBRES DECIMAUX (coeur de CE4 / N4) — patterns TEXTE
 #  Comparaison (< > =), addition et soustraction posees. Les valeurs sont
 #  manipulees en CENTIEMES (entiers) pour eviter toute erreur de virgule
@@ -1959,6 +2103,9 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "graphique_circulaire": generer_graphique_circulaire,
     "graphique_barres": generer_graphique_barres,
     "graphique_proportionnalite": generer_graphique_proportionnalite,
+    "fraction_lire_figure": generer_fraction_lire_figure,
+    "fraction_quantite": generer_fraction_quantite,
+    "fraction_decimal_pourcentage": generer_fraction_decimal_pourcentage,
     "comparaison_decimaux": generer_comparaison_decimaux,
     "addition_decimaux": generer_addition_decimaux,
     "soustraction_decimaux": generer_soustraction_decimaux,

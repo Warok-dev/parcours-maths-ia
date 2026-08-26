@@ -2557,6 +2557,29 @@ input {
   font-size: 11px;
 }
 
+/* Fraction sur une figure : parts EGALES nettement delimitees ; coloriees
+   (plein) vs vides (creme), separateurs marques -> denombrement sans ambiguite. */
+.frac-fill {
+  fill: #6fb46f;
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.frac-empty {
+  fill: #fffaf0;
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.frac-border {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 3.4;
+  stroke-linejoin: round;
+}
+
 /* Angle : demi-droites (traits pleins) + arc/marque d'angle droit (plus fin). */
 .figure-ray {
   stroke: var(--wood-dark);

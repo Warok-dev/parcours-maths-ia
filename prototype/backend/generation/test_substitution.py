@@ -167,6 +167,7 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "triangle_classer_cotes",
                 "triangle_classer_angles",
                 "symetrie_axes",
+                "fraction_lire_figure",
             },
         )
 
@@ -813,6 +814,92 @@ class SubstitutionGenerationTests(unittest.TestCase):
         for niveau in ("CE1", "CE2", "CE3", "CE4", "CE5"):
             self.assertNotIn(
                 "graphique_proportionnalite", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
+    # ---------- Vague fractions : lire une fraction sur une figure (CE3) ----------
+    def test_fraction_lire_figure(self) -> None:
+        formes_vues = set()
+        for ex in self._generate_many("fraction_lire_figure", "CE3", count=300):
+            v = ex["variables"]
+            self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+            n, m = v["n"], v["m"]
+            formes_vues.add(v["forme"])
+            self.assertIn(v["forme"], ("barre", "disque"))
+            # Fraction PROPRE : au moins 1 part coloriee, jamais toutes.
+            self.assertGreaterEqual(m, 1)
+            self.assertLess(m, n)
+            self.assertEqual(_exercise_value(ex), f"{m}/{n}")
+            self.assertIn(f"{m}/{n}", v["options"])
+            self.assertEqual(len(v["options"]), 3)
+            self.assertEqual(len(set(v["options"])), 3)
+            # Toutes les options sont des fractions propres (num < den).
+            for opt in v["options"]:
+                num, den = opt.split("/")
+                self.assertLess(int(num), int(den))
+                self.assertGreaterEqual(int(num), 1)
+        self.assertEqual(formes_vues, {"barre", "disque"})
+
+    def test_fraction_lire_figure_disponible_ce3_seulement(self) -> None:
+        self.assertIn("fraction_lire_figure", substitution.patterns_disponibles_pour_niveau("CE3"))
+        for niveau in ("CE1", "CE2", "CE4", "CE5", "CE6"):
+            self.assertNotIn(
+                "fraction_lire_figure", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
+    # ---------- Vague fractions : fraction d'une quantite (CE4) ----------
+    def test_fraction_quantite(self) -> None:
+        for ex in self._generate_many("fraction_quantite", "CE4", count=300):
+            v = ex["variables"]
+            num, d, Q = v["num"], v["d"], v["quantite"]
+            # Denominateur divise la quantite -> resultat entier.
+            self.assertEqual(Q % d, 0)
+            self.assertGreaterEqual(num, 1)
+            self.assertLess(num, d)
+            self.assertEqual(_exercise_value(ex), str(num * Q // d))
+            self.assertIn(str(num * Q // d), v["options"])
+            self.assertEqual(len(set(v["options"])), 3)
+            for opt in v["options"]:
+                self.assertGreater(int(opt), 0)
+
+    def test_fraction_quantite_disponible_ce4_seulement(self) -> None:
+        self.assertIn("fraction_quantite", substitution.patterns_disponibles_pour_niveau("CE4"))
+        for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
+            self.assertNotIn(
+                "fraction_quantite", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
+    # ---------- Vague fractions : fraction / decimal / pourcentage (CE6) ----------
+    def test_fraction_decimal_pourcentage(self) -> None:
+        directions_vues = set()
+        for ex in self._generate_many("fraction_decimal_pourcentage", "CE6", count=400):
+            v = ex["variables"]
+            x, direction = v["x"], v["direction"]
+            directions_vues.add(direction)
+            valeur = _exercise_value(ex)
+            if direction == "frac_dec":
+                self.assertEqual(ex["reponse_attendue"]["format"], "decimal")
+                # x/100 == valeur decimale (comparaison numerique robuste).
+                self.assertAlmostEqual(float(valeur.replace(",", ".")), x / 100, places=4)
+            elif direction == "frac_pct":
+                self.assertEqual(ex["reponse_attendue"]["format"], "choix_multiple")
+                self.assertEqual(valeur, str(x))
+                self.assertIn(str(x), v["options"])
+                self.assertEqual(len(set(v["options"])), 3)
+            else:
+                self.assertEqual(direction, "pct_frac")
+                self.assertEqual(valeur, f"{x}/100")
+                self.assertIn(f"{x}/100", v["options"])
+                self.assertEqual(len(set(v["options"])), 3)
+        self.assertEqual(directions_vues, {"frac_dec", "frac_pct", "pct_frac"})
+
+    def test_fraction_decimal_pourcentage_disponible_ce6_seulement(self) -> None:
+        self.assertIn(
+            "fraction_decimal_pourcentage", substitution.patterns_disponibles_pour_niveau("CE6")
+        )
+        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE5"):
+            self.assertNotIn(
+                "fraction_decimal_pourcentage",
+                substitution.patterns_disponibles_pour_niveau(niveau),
             )
 
     # ---------- Echelle / plan (CE6) ----------

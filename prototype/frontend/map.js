@@ -2341,6 +2341,45 @@ function graphiqueProportionSvg(exercise) {
   `;
 }
 
+/* Fraction sur une figure (CE3) : parts EGALES nettement delimitees, m
+   coloriees sur n. La reponse se lit en DENOMBRANT (parts pleines / total),
+   jamais en estimant une proportion. Barre (parts verticales) ou disque
+   (secteurs egaux). */
+function fractionFigureSvg(exercise) {
+  const v = exercise.variables || {};
+  const n = v.n || 2;
+  const m = v.m || 1;
+  if (v.forme === "disque") {
+    const R = 46;
+    const rad = (deg) => (deg * Math.PI) / 180;
+    let parts = "";
+    for (let i = 0; i < n; i += 1) {
+      const a0 = rad(-90 + (i * 360) / n);
+      const a1 = rad(-90 + ((i + 1) * 360) / n);
+      const large = 360 / n > 180 ? 1 : 0;
+      const x0 = (R * Math.cos(a0)).toFixed(1);
+      const y0 = (R * Math.sin(a0)).toFixed(1);
+      const x1 = (R * Math.cos(a1)).toFixed(1);
+      const y1 = (R * Math.sin(a1)).toFixed(1);
+      const cls = i < m ? "frac-fill" : "frac-empty";
+      parts += `<path d="M 0 0 L ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} Z" class="${cls}"></path>`;
+    }
+    return `${parts}<circle cx="0" cy="0" r="${R}" class="frac-border"></circle>`;
+  }
+  // barre : rectangle partage en n parts verticales egales, m coloriees.
+  const W = 112;
+  const H = 34;
+  const x0 = -56;
+  const y0 = -17;
+  const pw = W / n;
+  let parts = "";
+  for (let i = 0; i < n; i += 1) {
+    const cls = i < m ? "frac-fill" : "frac-empty";
+    parts += `<rect x="${(x0 + i * pw).toFixed(2)}" y="${y0}" width="${pw.toFixed(2)}" height="${H}" class="${cls}"></rect>`;
+  }
+  return `${parts}<rect x="${x0}" y="${y0}" width="${W}" height="${H}" class="frac-border"></rect>`;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -2369,6 +2408,9 @@ function renderExerciseModal() {
   const isCamembert = exercise.pattern?.pattern_name === "graphique_circulaire";
   const isBarres = exercise.pattern?.pattern_name === "graphique_barres";
   const isProportion = exercise.pattern?.pattern_name === "graphique_proportionnalite";
+  const isFractionFigure = exercise.pattern?.pattern_name === "fraction_lire_figure";
+  const fractionVB =
+    exercise.variables?.forme === "disque" ? "-56 -56 112 112" : "-62 -26 124 52";
   const confidence = isConfidenceExercise();
   const offline = state.offlineActif;
   const obstacle = activeObstacle();
@@ -2543,6 +2585,13 @@ function renderExerciseModal() {
         isProportion
           ? `<div class="figure-figure figure-wide">
                <svg viewBox="0 0 250 190" role="img" aria-label="Graphique de proportionnalité">${graphiqueProportionSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isFractionFigure
+          ? `<div class="figure-figure">
+               <svg viewBox="${fractionVB}" role="img" aria-label="Figure partagée en parts égales">${fractionFigureSvg(exercise)}</svg>
              </div>`
           : ""
       }

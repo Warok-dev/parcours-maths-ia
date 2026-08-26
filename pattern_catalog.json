@@ -499,6 +499,60 @@
       ]
     },
     {
+      "pattern_name": "fraction_lire_figure",
+      "levels": ["N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Lire la fraction coloriee d'une figure partagee en parts EGALES (barre ou disque) : parts coloriees / parts totales (QCM)",
+      "constraints": {
+        "rule_type": "lecture d'une fraction sur une figure DEJA rendue ; parts egales nettement delimitees, reponse par DENOMBREMENT (jamais d'estimation de proportion)",
+        "generation_rules": [
+          "V1 : n parts egales (2..8), m coloriees (1..n-1, fraction PROPRE non reduite)",
+          "reponse = m/n en chaine ; distracteurs = complement (n-m)/n, coloriage mal compte, mauvais total ; choix_multiple 3 options"
+        ]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM1_S4.pptx", "question": "مثلوا الأجزاء المكونة للقسم واكتبوا عددها (شريط الأجزاء)", "correction": "representer les parts egales et ecrire leur nombre"},
+        {"file": "MATH_N6_P4_SEM2_S2.pptx", "question": "20 تربيعة ملونة من أصل 100 : أعبر عنها بكسر بسطه 20 ومقامه 100", "correction": "20/100 (parts coloriees / total, grille de 100)"}
+      ]
+    },
+    {
+      "pattern_name": "fraction_quantite",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Calculer la fraction d'une quantite (كسر كمية) : num/d de Q (le denominateur divise Q, resultat entier)",
+      "constraints": {
+        "rule_type": "fraction d'une quantite ; Q multiple de d pour un resultat entier",
+        "generation_rules": [
+          "V1 : num/d propre (d in 2..10), Q = d*k -> reponse = num*k ; choix_multiple",
+          "distracteurs : oubli du x num (=Q/d), complement, erreurs sur le numerateur"
+        ]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM4_S4.pptx", "question": "اكتبوا الكسر الذي يمثل ما صرفه العامل / المبلغ المتبقي (250 درهما, parts de 50)", "correction": "fraction d'une quantite : ex. depense = 200/250, reste = 50/250"}
+      ]
+    },
+    {
+      "pattern_name": "fraction_decimal_pourcentage",
+      "levels": ["N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "Convertir entre fraction sur 100, nombre decimal et pourcentage (x/100 <-> 0,xx <-> x %)",
+      "constraints": {
+        "rule_type": "conversions fraction(centiemes) / decimal / pourcentage",
+        "generation_rules": [
+          "V1 : x sur 100 (multiples de 5/10) ; 3 directions : x/100->decimal (clavier), x/100->% (QCM), x%->fraction (QCM)",
+          "fractions NON reduites (grille des centiemes du corpus)"
+        ]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM2_S2.pptx", "question": "اكتبوا الكسر الممثل للجزء الملون ثم حولوا الكسر إلى عدد عشري", "correction": "20/100 -> 0,20"},
+        {"file": "MATH_N6_P4_SEM2_S3.pptx", "question": "اكتبوا الكسر الممثل للنسبة المئوية 30% / 60%", "correction": "30% -> 30/100 ; 60% -> 60/100"},
+        {"file": "MATH_N6_P4_SEM2_S2.pptx", "question": "اكتبوا النسبة المئوية انطلاقا من هذا الكسر", "correction": "20/100 -> 20 %"}
+      ]
+    },
+    {
       "pattern_name": "comparaison_decimaux",
       "levels": ["N4"],
       "pattern_family": "exercice_a_trous_serie",

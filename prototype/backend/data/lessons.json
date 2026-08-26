@@ -207,6 +207,27 @@
       "patterns": [
         "graphique_proportionnalite"
       ]
+    },
+    {
+      "lecon_id": "fraction_figure",
+      "nom": "Lire une fraction",
+      "patterns": [
+        "fraction_lire_figure"
+      ]
+    },
+    {
+      "lecon_id": "fraction_quantite",
+      "nom": "Fraction d'une quantité",
+      "patterns": [
+        "fraction_quantite"
+      ]
+    },
+    {
+      "lecon_id": "fraction_decimal_pourcentage",
+      "nom": "Fractions, décimaux et pourcentages",
+      "patterns": [
+        "fraction_decimal_pourcentage"
+      ]
     }
   ]
 }
