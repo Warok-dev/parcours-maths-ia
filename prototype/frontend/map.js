@@ -2937,6 +2937,13 @@ async function syncSession() {
 }
 
 function renderLessonChoices() {
+  /* Etat "chargement" laisse par un demarrage de session precedent : quand on
+     clique une carte, on ajoute is-loading (grise + pointer-events:none) et on
+     ne le retire QUE sur erreur (au succes, la carte de jeu prend le relais).
+     Au retour ici (fin de parcours, "Changer de lecon"), il faut donc le
+     nettoyer, sinon TOUTES les cartes restent non cliquables. */
+  lessonActions.classList.remove("is-loading");
+
   lessonTitle.textContent = state.selectedLevel
     ? `Choisis une leçon de ${state.selectedLevel}`
     : "Choisis ta leçon";
