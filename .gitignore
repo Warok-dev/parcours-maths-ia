@@ -232,3 +232,24 @@ prototype/backend/data/*.db-shm
 
 # Credentials du compte de service Google Cloud (Text-to-Speech) — jamais commit
 prototype/backend/google-tts-credentials.json
+
+# ============================================================
+#  Artefacts de developpement — jamais versionnes
+# ============================================================
+
+# Sortie de l'outil graphify (graphe de connaissance regenere a la demande)
+graphify-out/
+
+# Captures d'ecran de verification (visuelles, regenerees a la demande).
+# Note : quelques screenshots/bugfix/ historiques restent suivis ; cette regle
+# empeche seulement de nouveaux dossiers non suivis de trainer.
+prototype/frontend/screenshots/
+
+# Harnais de test / verification temporaires (montages ad hoc jetables)
+prototype/frontend/_capture_*
+prototype/frontend/_harness_*
+prototype/frontend/_e2e_*
+
+# Assets externes Kenney telecharges puis ecartes : non references dans le code
+# (verifie), on ne les versionne pas pour ne pas alourdir le depot.
+prototype/frontend/assets/
