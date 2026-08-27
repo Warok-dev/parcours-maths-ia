@@ -2027,6 +2027,75 @@ def generer_conversion_temps_secondes(niveau: str = "CE5") -> dict:
     )
 
 
+def generer_decomposition_entiers(niveau: str = "CE2") -> dict:
+    """Decomposition en VALEUR DE POSITION d'un nombre a 2-3 chiffres
+    (corpus N2 : فككوا العدد 46 إلى وحدات وعشرات). Distinct de
+    multiplication_decomposee (decomposition comme etape d'une multiplication) :
+    ici, valeur de position pure. Trois formes numeriques : composer depuis les
+    valeurs de position, retrouver un terme manquant, ou lire un chiffre a un
+    rang donne (ce dernier enseigne le zero intercalaire)."""
+    while True:
+        if random.random() < 0.4:  # 40 % de nombres a 3 chiffres
+            c = random.randint(1, 9)
+            d = random.randint(0, 9)
+            u = random.randint(0, 9)
+        else:
+            c = 0
+            d = random.randint(1, 9)
+            u = random.randint(0, 9)
+        nombre = c * 100 + d * 10 + u
+        # Au moins deux chiffres non nuls : sinon la decomposition est triviale.
+        if sum(1 for x in (c, d, u) if x > 0) >= 2:
+            break
+
+    # Termes de valeur de position NON NULS (on omet les zeros, comme l'ecriture
+    # usuelle : 305 = 300 + 5).
+    termes = []
+    if c:
+        termes.append(c * 100)
+    if d:
+        termes.append(d * 10)
+    if u:
+        termes.append(u)
+
+    question = random.choice(["compose", "trou", "chiffre"])
+    if question == "compose":
+        expr = " + ".join(str(t) for t in termes)
+        enonce = f"Combien vaut {expr} ?"
+        valeur = nombre
+        variables = {"question": "compose", "nombre": nombre, "termes": termes}
+        steps = [f"On additionne les valeurs : {expr}.", f"{expr} = {nombre}."]
+    elif question == "trou":
+        i = random.randrange(len(termes))
+        manquant = termes[i]
+        affiche = " + ".join("..." if j == i else str(t) for j, t in enumerate(termes))
+        enonce = f"Complète : {nombre} = {affiche}"
+        valeur = manquant
+        variables = {"question": "trou", "nombre": nombre, "termes": termes, "manquant": manquant}
+        complet = " + ".join(str(t) for t in termes)
+        steps = [f"Décompose {nombre} : {complet}.", f"Le nombre qui manque est {manquant}."]
+    else:  # chiffre : lire le chiffre a un rang donne
+        rangs = []
+        if c:
+            rangs.append(("centaines", c))
+        rangs.append(("dizaines", d))
+        rangs.append(("unités", u))
+        nom_rang, chiffre = random.choice(rangs)
+        enonce = f"Dans {nombre}, quel est le chiffre des {nom_rang} ?"
+        valeur = chiffre
+        variables = {"question": "chiffre", "nombre": nombre, "rang": nom_rang}
+        steps = [f"On repère le rang des {nom_rang} dans {nombre}.", f"C'est {chiffre}."]
+
+    return _build_exercise(
+        niveau=niveau,
+        pattern_name="decomposition_entiers",
+        enonce=enonce,
+        variables=variables,
+        valeur=valeur,
+        steps=steps,
+    )
+
+
 def generer_duree_entre_horaires(niveau: str = "CE5") -> dict:
     depart = random.randint(0, 21 * 60)
     duree = random.randint(20, 179)
@@ -2146,6 +2215,7 @@ GENERATOR_REGISTRY: dict[str, Callable[[str], dict]] = {
     "soustraction_decimaux": generer_soustraction_decimaux,
     "conversion_duree_min": generer_conversion_duree_min,
     "conversion_temps_secondes": generer_conversion_temps_secondes,
+    "decomposition_entiers": generer_decomposition_entiers,
     "duree_entre_horaires": generer_duree_entre_horaires,
     "pourcentage_d_une_quantite": generer_pourcentage_d_une_quantite,
     "vitesse_distance_duree": generer_vitesse_distance_duree,

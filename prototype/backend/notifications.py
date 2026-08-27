@@ -74,6 +74,7 @@ _LIBELLES_CONCEPTS = {
     "multiplication_par_10": "Multiplication par 10",
     "multiplication_chiffre_x_multiple_de_10": "Chiffre x multiple de 10",
     "identifier_multiple_de_10": "Reconnaître les multiples de 10",
+    "decomposition_entiers": "Décomposer un nombre",
     "multiplication_decomposee_chiffre_x_2chiffres": "Multiplication décomposée",
     "addition_repetee_vers_multiplication": "De l'addition à la multiplication",
     "facteur_manquant_table_de_2": "Facteur manquant (table de 2)",

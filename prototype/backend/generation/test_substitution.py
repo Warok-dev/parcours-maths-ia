@@ -997,6 +997,49 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "conversion_temps_secondes", substitution.patterns_disponibles_pour_niveau(niveau)
             )
 
+    # ---------- Decomposition en valeur de position (CE2) ----------
+    def test_decomposition_entiers(self) -> None:
+        questions_vues = set()
+        for ex in self._generate_many("decomposition_entiers", "CE2", count=400):
+            v = ex["variables"]
+            n = v["nombre"]
+            questions_vues.add(v["question"])
+            self.assertGreaterEqual(n, 10)
+            self.assertLessEqual(n, 999)
+            # Au moins deux chiffres non nuls (decomposition non triviale).
+            chiffres = [int(x) for x in str(n)]
+            self.assertGreaterEqual(sum(1 for x in chiffres if x > 0), 2)
+            if v["question"] in ("compose", "trou"):
+                termes = v["termes"]
+                # Termes = valeurs de position non nulles, dont la somme fait le nombre.
+                self.assertEqual(sum(termes), n)
+                for t in termes:
+                    self.assertGreater(t, 0)
+                    # Chaque terme est un chiffre d'unites (<10) ou un multiple de 10.
+                    self.assertTrue(t < 10 or t % 10 == 0)
+                if v["question"] == "compose":
+                    self.assertEqual(_exercise_value(ex), n)
+                else:
+                    self.assertEqual(_exercise_value(ex), v["manquant"])
+                    self.assertIn(v["manquant"], termes)
+            else:
+                self.assertEqual(v["question"], "chiffre")
+                rang = v["rang"]
+                self.assertIn(rang, ("centaines", "dizaines", "unités"))
+                idx = {"centaines": -3, "dizaines": -2, "unités": -1}[rang]
+                attendu = int(str(n).zfill(3)[idx])
+                self.assertEqual(_exercise_value(ex), attendu)
+                self.assertGreaterEqual(attendu, 0)
+                self.assertLessEqual(attendu, 9)
+        self.assertEqual(questions_vues, {"compose", "trou", "chiffre"})
+
+    def test_decomposition_entiers_disponible_ce2_seulement(self) -> None:
+        self.assertIn("decomposition_entiers", substitution.patterns_disponibles_pour_niveau("CE2"))
+        for niveau in ("CE1", "CE3", "CE4", "CE5", "CE6"):
+            self.assertNotIn(
+                "decomposition_entiers", substitution.patterns_disponibles_pour_niveau(niveau)
+            )
+
     # ---------- Pourcentage (CE5 + CE6) et vitesse (CE6) ----------
     def test_pourcentage_d_une_quantite(self) -> None:
         for niveau in ("CE5", "CE6"):

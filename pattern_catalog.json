@@ -1113,6 +1113,24 @@
           "correction": "2 x 8 = 16"
         }
       ]
+    },
+    {
+      "pattern_name": "decomposition_entiers",
+      "levels": ["N2"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "decomposition en valeur de position d'un nombre a 2-3 chiffres : {n} = {centaines} + {dizaines} + {unites}",
+      "constraints": {
+        "rule_type": "valeur de position (dizaines/unites/centaines) ; distinct de multiplication_decomposee (etape d'une multiplication)",
+        "generation_rules": [
+          "nombre a 2 ou 3 chiffres, au moins 2 chiffres non nuls ; termes de valeur de position non nuls (305 = 300 + 5)",
+          "3 formes numeriques : composer (300+40+7 = ?), terme manquant (347 = 300 + ... + 7), chiffre a un rang (chiffre des dizaines de 305 = 0)"
+        ]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N2_P4_SEM1_S3.pptx", "question": "من يفكك العدد 46 إلى وحدات وعشرات؟", "correction": "46 = 40 + 6"},
+        {"file": "MATH_N2_P4_SEM5_S1.pptx", "question": "فككوا ذهنيا العدد 42 إلى وحدات وعشرات", "correction": "42 = 40 + 2"}
+      ]
     }
   ],
   "llm_required_patterns": [
