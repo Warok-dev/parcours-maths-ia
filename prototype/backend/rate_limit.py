@@ -17,9 +17,9 @@ Deux mecanismes complementaires :
 
 Activation : le limiteur est DESACTIVE a l'import (pour que la suite de tests,
 qui rejoue des centaines de requetes depuis la meme IP, ne soit pas bridee), et
-ACTIVE au demarrage du serveur reel via activer_selon_env() (appele dans le hook
-startup de main.py ; le lifespan ne s'ouvre pas pendant les tests). En prod on
-peut forcer off avec RATE_LIMIT_ENABLED=0. Les tests dedies l'activent
+ACTIVE au demarrage du serveur reel via activer_selon_env() (appele dans le
+lifespan de main.py, qui ne s'ouvre pas pendant les tests). En prod on peut
+forcer off avec RATE_LIMIT_ENABLED=0. Les tests dedies l'activent
 explicitement (activer()/desactiver()/reinitialiser()).
 """
 
@@ -58,8 +58,8 @@ _strategie = MovingWindowRateLimiter(_storage)
 
 
 def activer_selon_env() -> None:
-    """Active le limiteur sauf si RATE_LIMIT_ENABLED=0. Appele au startup du
-    serveur reel (pas pendant les tests, qui n'ouvrent pas le lifespan)."""
+    """Active le limiteur sauf si RATE_LIMIT_ENABLED=0. Appele par le lifespan
+    du serveur reel (pas pendant les tests, qui n'ouvrent pas le lifespan)."""
     limiter.enabled = os.environ.get("RATE_LIMIT_ENABLED", "1") != "0"
 
 

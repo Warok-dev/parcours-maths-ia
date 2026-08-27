@@ -124,15 +124,34 @@ class DatabaseModelTests(unittest.TestCase):
             self.session.commit()
         self.session.rollback()
 
-    def test_unicite_progression_eleve_pattern(self) -> None:
-        # Une seule ligne par (eleve, pattern) : un doublon est refuse.
+    def test_unicite_progression_eleve_pattern_lecon(self) -> None:
+        # Une seule ligne par (eleve, pattern, lecon) : un doublon exact est refuse.
         h = self._hierarchie()
-        self.session.add(Progression(eleve=h["eleve"], pattern_name="double_via_2xn", maitrise=1))
+        self.session.add(
+            Progression(eleve=h["eleve"], pattern_name="double_via_2xn", lecon_id="doubles", maitrise=1)
+        )
         self.session.commit()
-        self.session.add(Progression(eleve=h["eleve"], pattern_name="double_via_2xn", maitrise=2))
+        self.session.add(
+            Progression(eleve=h["eleve"], pattern_name="double_via_2xn", lecon_id="doubles", maitrise=2)
+        )
         with self.assertRaises(IntegrityError):
             self.session.commit()
         self.session.rollback()
+
+    def test_meme_pattern_lecons_differentes_autorise(self) -> None:
+        # Le meme concept dans deux lecons distinctes cohabite (deux lignes).
+        h = self._hierarchie()
+        self.session.add(
+            Progression(eleve=h["eleve"], pattern_name="double_via_2xn", lecon_id="lecon_A", maitrise=1)
+        )
+        self.session.add(
+            Progression(eleve=h["eleve"], pattern_name="double_via_2xn", lecon_id="lecon_B", maitrise=3)
+        )
+        self.session.commit()  # ne doit pas lever
+        total = self.session.scalars(
+            select(Progression).where(Progression.eleve_id == h["eleve"].id)
+        ).all()
+        self.assertEqual(len(total), 2)
 
     # ---------- Suppression : cascade et set null ----------
     def test_suppression_classe_cascade_eleves_et_progressions(self) -> None:

@@ -49,6 +49,22 @@ class TestCompareReponse(unittest.TestCase):
         attendue = {"valeur": "10 - 7", "tolerance": {"ignorer_espaces": True}}
         self.assertFalse(compare_reponse("7 - 10", attendue)["correct"])
 
+    def test_soustraction_resultat_apres_ou_absent(self) -> None:
+        attendue = _attendue("8 = 13 - 5")
+        self.assertTrue(compare_reponse("13 - 5 = 8", attendue)["correct"])
+        self.assertTrue(compare_reponse("13 - 5", attendue)["correct"])
+        self.assertTrue(compare_reponse("8 = 13 - 5", attendue)["correct"])
+
+    def test_soustraction_ordre_operandes_fige(self) -> None:
+        attendue = _attendue("8 = 13 - 5")
+        # Inverser les termes change le sens : refuse.
+        self.assertFalse(compare_reponse("5 - 13", attendue)["correct"])
+        self.assertFalse(compare_reponse("5 - 13 = 8", attendue)["correct"])
+
+    def test_soustraction_mauvais_resultat_refuse(self) -> None:
+        attendue = _attendue("8 = 13 - 5")
+        self.assertFalse(compare_reponse("13 - 5 = 9", attendue)["correct"])
+
 
 if __name__ == "__main__":
     unittest.main()

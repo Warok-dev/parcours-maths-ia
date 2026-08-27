@@ -104,6 +104,20 @@
   let enseignant = null; /* { id, nom } */
   let classes = []; /* [{ id, nom, niveau_scolaire, code_classe, nb_eleves }] */
 
+  /* Rafraichissement automatique leger du tableau de bord : tant que l'ecran
+     reste ouvert, on re-interroge le backend a intervalle regulier pour voir
+     progresser un eleve qui joue en meme temps, sans rechargement manuel. Un
+     simple setTimeout re-arme (pas de WebSocket : le volume ne le justifie pas). */
+  const INTERVALLE_TABLEAU_BORD_MS = 45000; /* ~45 s, dans la fourchette 30-60 s */
+  let timerTableauBord = null;
+
+  function arreterRafraichissementTableauBord() {
+    if (timerTableauBord !== null) {
+      clearTimeout(timerTableauBord);
+      timerTableauBord = null;
+    }
+  }
+
   function lireStockage() {
     try {
       const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
@@ -335,6 +349,7 @@
   }
 
   function deconnecter() {
+    arreterRafraichissementTableauBord();
     token = null;
     enseignant = null;
     classes = [];
@@ -1325,7 +1340,40 @@
 
   /* --- Vue : tableau de bord d'une classe (vue d'ensemble) --- */
   async function vueTableauDeBord(classeId) {
+    /* Point d'entree : premier rendu (avec messages d'etat), puis on arme le
+       rafraichissement automatique s'il a reussi. */
+    arreterRafraichissementTableauBord(); /* pas de doublon si on re-entre */
     setStatut("Chargement du tableau de bord...");
+    const ok = await rendreTableauDeBord(classeId, { silencieux: false });
+    if (ok) {
+      programmerRafraichissementTableauBord(classeId);
+    }
+  }
+
+  /* Re-arme un unique tick differe. A l'echeance, si l'enseignant a quitte
+     l'ecran (le noeud d'ancrage a disparu du DOM apres un autre rendu), on
+     arrete ; sinon on re-rend en silence et on reprogramme. */
+  function programmerRafraichissementTableauBord(classeId) {
+    arreterRafraichissementTableauBord();
+    timerTableauBord = setTimeout(async () => {
+      const ancre = body.querySelector(".teacher-bord-eleves");
+      if (!ancre || !ancre.isConnected) {
+        arreterRafraichissementTableauBord();
+        return;
+      }
+      const ok = await rendreTableauDeBord(classeId, { silencieux: true });
+      if (ok) {
+        programmerRafraichissementTableauBord(classeId);
+      } else {
+        arreterRafraichissementTableauBord();
+      }
+    }, INTERVALLE_TABLEAU_BORD_MS);
+  }
+
+  /* Charge les donnees et (re)construit la vue. En mode silencieux (poll de
+     fond), on n'affiche ni "Chargement..." ni message d'erreur : un echec
+     transitoire laisse l'ecran en place, l'appelant coupe le rafraichissement. */
+  async function rendreTableauDeBord(classeId, { silencieux }) {
     let bord;
     let difficiles;
     try {
@@ -1334,8 +1382,10 @@
         chargerConceptsDifficiles(classeId),
       ]);
     } catch (error) {
-      setStatut(error.message, "erreur");
-      return;
+      if (!silencieux) {
+        setStatut(error.message, "erreur");
+      }
+      return false;
     }
     const classe = bord.classe;
     const elevesTries = trierElevesParDifficulte(bord.eleves || []);
@@ -1383,16 +1433,24 @@
       <h3 class="teacher-bord-soustitre">Élèves <span class="teacher-bord-hint">(les plus en difficulté d'abord)</span></h3>
       <ul class="teacher-bord-eleves">${lignesEleves}</ul>
     `;
-    setStatut("");
+    if (!silencieux) {
+      setStatut("");
+    }
 
-    body.querySelector("#ens-retour-detail").addEventListener("click", () => vueClasseDetail(classeId));
+    body.querySelector("#ens-retour-detail").addEventListener("click", () => {
+      arreterRafraichissementTableauBord();
+      vueClasseDetail(classeId);
+    });
     const eleveParId = new Map((bord.eleves || []).map((e) => [e.id, e]));
     body.querySelectorAll(".teacher-bord-eleve[data-eleve-id]").forEach((ligne) => {
       const eleve = eleveParId.get(Number(ligne.dataset.eleveId));
       if (!eleve) {
         return;
       }
-      const ouvrir = () => vueEleveProgression(classeId, classe, eleve);
+      const ouvrir = () => {
+        arreterRafraichissementTableauBord();
+        vueEleveProgression(classeId, classe, eleve);
+      };
       ligne.addEventListener("click", ouvrir);
       ligne.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -1401,6 +1459,7 @@
         }
       });
     });
+    return true;
   }
 
   /* --- Vue : progression complete d'un eleve (le carnet, vu par l'enseignant) --- */
@@ -1477,6 +1536,7 @@
   function retourAuJeu() {
     /* On quitte l'espace enseignant : on efface l'ancre et on recharge pour
        repartir proprement sur le flux eleve (connexion / essai libre). */
+    arreterRafraichissementTableauBord();
     window.location.hash = "";
     window.location.reload();
   }
@@ -1503,6 +1563,8 @@
     chargerLecons,
     chargerTableauDeBord,
     chargerConceptsDifficiles,
+    vueTableauDeBord,
+    arreterRafraichissementTableauBord,
     /* Coeur pur */
     validerInscription,
     libelleErreur,

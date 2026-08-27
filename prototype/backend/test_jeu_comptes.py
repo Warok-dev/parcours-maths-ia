@@ -254,6 +254,38 @@ class JeuComptesTests(unittest.TestCase):
             total = db.query(Progression).filter_by(eleve_id=eleve_id).count()
             self.assertEqual(total, 1)
 
+    # ---------- La lecon fait partie de l'identite d'une progression ----------
+    def test_meme_pattern_deux_lecons_deux_lignes(self) -> None:
+        ctx = self._prof_classe_eleve()
+        eleve_id = ctx["eleve_id"]
+        with self.SessionFactory() as db:
+            # Meme concept, deux lecons differentes -> deux lignes distinctes.
+            main._upsert_progression(db, eleve_id, "addition_2chiffres", "lecon_A", 1)
+            main._upsert_progression(db, eleve_id, "addition_2chiffres", "lecon_B", 3)
+            db.commit()
+            lignes = db.query(Progression).filter_by(
+                eleve_id=eleve_id, pattern_name="addition_2chiffres"
+            ).all()
+            self.assertEqual(len(lignes), 2)
+            self.assertEqual({l.lecon_id: l.maitrise for l in lignes}, {"lecon_A": 1, "lecon_B": 3})
+
+    def test_revision_sans_lecon_reutilise_sa_ligne(self) -> None:
+        ctx = self._prof_classe_eleve()
+        eleve_id = ctx["eleve_id"]
+        with self.SessionFactory() as db:
+            # Session de revision : lecon_id absent (None). Deux passages ne
+            # doivent pas empiler deux lignes NULL.
+            main._upsert_progression(db, eleve_id, "addition_2chiffres", None, 1)
+            db.commit()
+            main._upsert_progression(db, eleve_id, "addition_2chiffres", None, 2)
+            db.commit()
+            lignes = db.query(Progression).filter_by(
+                eleve_id=eleve_id, pattern_name="addition_2chiffres"
+            ).all()
+            self.assertEqual(len(lignes), 1)
+            self.assertIsNone(lignes[0].lecon_id)
+            self.assertEqual(lignes[0].maitrise, 2)
+
     # ---------- Cloisonnement de l'acces a la progression ----------
     def test_eleve_ne_voit_que_sa_propre_progression(self) -> None:
         a = self._prof_classe_eleve(prof="profA", niveau="CE3", prenom="Sofia")

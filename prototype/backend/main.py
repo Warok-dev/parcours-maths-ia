@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
@@ -105,7 +106,24 @@ SESSION_STATE: dict[str, dict] = {}
 # repondu) dans la console uvicorn pendant le developpement.
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Prototype Parcours Maths IA", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Cycle de vie de l'application (pattern moderne FastAPI, en remplacement
+    du hook @app.on_event("startup") deprecie).
+
+    Au demarrage : cree data/parcours.db et ses tables si besoin (create_all
+    idempotent), purge en cascade les ecoles de demo expirees (la base existe
+    alors), puis active le rate limiting. Rien de particulier a l'arret.
+
+    Le lifespan ne s'ouvre PAS pendant les tests (TestClient instancie sans
+    `with`), qui restent donc non brides et gerent leur propre base de test."""
+    init_db()
+    _cleanup_demos_expirees()
+    activer_selon_env()
+    yield
+
+
+app = FastAPI(title="Prototype Parcours Maths IA", version="0.1.0", lifespan=lifespan)
 
 # Rate limiting (slowapi) : limite generale par IP sur toute l'API via le
 # middleware, plus des limites plus strictes decorees endpoint par endpoint.
@@ -121,18 +139,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def _demarrage() -> None:
-    """Cree data/parcours.db et ses tables au demarrage si besoin (create_all
-    idempotent) et active le rate limiting (le lifespan ne s'ouvre pas pendant
-    les tests, qui restent donc non brides)."""
-    init_db()
-    # La base existe maintenant : on peut purger les ecoles de demo expirees
-    # (definie plus bas ; resolue au moment de l'appel, au demarrage reel).
-    _cleanup_demos_expirees()
-    activer_selon_env()
 
 
 # Endpoints comptes/gestion (enseignants, classes, eleves). Isoles du flux de
@@ -909,9 +915,15 @@ def _upsert_progression(
 ) -> None:
     """Ecrit/ met a jour la maitrise d'un concept en gardant la MEILLEURE
     obtenue (meme logique que le carnet d'aventurier localStorage)."""
+    # La lecon fait partie de l'identite : un meme pattern dans deux lecons
+    # tient deux lignes distinctes. Cote SQLAlchemy, "== None" est rendu
+    # "IS NULL", donc une session de revision (lecon_id absent) retrouve bien
+    # sa propre ligne sans en creer une nouvelle a chaque passage.
     ligne = db.scalars(
         select(Progression).where(
-            Progression.eleve_id == eleve_id, Progression.pattern_name == pattern_name
+            Progression.eleve_id == eleve_id,
+            Progression.pattern_name == pattern_name,
+            Progression.lecon_id == lecon_id,
         )
     ).first()
     if ligne is None:

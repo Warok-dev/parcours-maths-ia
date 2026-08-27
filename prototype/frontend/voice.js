@@ -227,8 +227,14 @@
   }
 
   /* Branche le bouton micro du popup d'exercice courant (appele a chaque
-     rendu de la popup par map.js). Retire le bouton si l'API est absente
-     ou si l'acces micro a deja ete refuse. */
+     rendu de la popup par map.js, y compris le montage en deux temps). Retire
+     le bouton si l'API est absente ou si l'acces micro a deja ete refuse.
+
+     Robuste au remontage du DOM : la marque d'ecoute est posee sur le BOUTON
+     lui-meme (dataset). Un popup recree fournit un nouveau bouton, sans marque,
+     qui est donc rebranche ; un attach() rejoue sur le MEME bouton ne double
+     pas l'ecouteur. Le champ et le statut sont resolus au CLIC (pas ici), pour
+     viser toujours les noeuds du DOM courant meme s'ils ont ete recrees. */
   function attach() {
     if (typeof document === "undefined") {
       return;
@@ -241,9 +247,16 @@
       button.remove();
       return;
     }
-    const statusNode = document.getElementById("mic-status");
-    const input = document.getElementById("answer-input");
+    if (button.dataset.micBound === "1") {
+      return; /* deja branche sur CE bouton : pas de doublon */
+    }
+    button.dataset.micBound = "1";
     button.addEventListener("click", () => {
+      const statusNode = document.getElementById("mic-status");
+      const input = document.getElementById("answer-input");
+      if (!input) {
+        return; /* DOM d'exercice absent : rien a remplir */
+      }
       if (listening) {
         recognition?.stop();
         return;

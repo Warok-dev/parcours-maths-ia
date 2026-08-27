@@ -250,16 +250,25 @@ class Eleve(Base):
 
 
 class Progression(Base):
-    """Maitrise atteinte par un eleve sur un concept.
+    """Maitrise atteinte par un eleve sur un concept d'une lecon.
 
-    Une seule ligne par (eleve, pattern) : mise a jour (pas dupliquee) quand
-    l'eleve retravaille le concept, en gardant la meilleure maitrise (logique
-    appliquee par le futur service, comme le carnet localStorage actuel).
+    Une seule ligne par (eleve, pattern, lecon) : mise a jour (pas dupliquee)
+    quand l'eleve retravaille le concept, en gardant la meilleure maitrise
+    (logique appliquee par le futur service, comme le carnet localStorage
+    actuel). Un meme pattern present dans deux lecons donne deux lignes.
     """
 
     __tablename__ = "progression"
     __table_args__ = (
-        UniqueConstraint("eleve_id", "pattern_name", name="uq_progression_eleve_pattern"),
+        # Un meme concept (pattern_name) peut vivre dans plusieurs lecons : la
+        # lecon fait donc partie de l'identite d'une progression, sinon deux
+        # lecons partageant un pattern se confondraient sur une seule ligne.
+        # (NB : cote SQL, un lecon_id NULL n'entre pas en conflit avec un autre
+        #  NULL ; l'upsert applicatif le gere via une recherche IS NULL.)
+        UniqueConstraint(
+            "eleve_id", "pattern_name", "lecon_id",
+            name="uq_progression_eleve_pattern_lecon",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -438,6 +447,81 @@ engine = create_db_engine()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, class_=Session)
 
 
+def _migrer_unicite_progression(eng: Engine, inspector) -> None:
+    """Fait passer l'unicite de progression de (eleve, pattern) a
+    (eleve, pattern, lecon).
+
+    Sans ca, un meme concept present dans deux lecons se confondait sur une
+    seule ligne. Idempotent : si une contrainte unique porte deja lecon_id, on
+    ne fait rien (bases neuves creees par create_all avec le modele a jour).
+
+    - SQLite ne sait pas modifier une contrainte : on reconstruit la table
+      (recette officielle create/copy/drop/rename), sans risque d'orphelin car
+      aucune autre table ne reference progression.
+    - PostgreSQL : DROP puis ADD CONSTRAINT, l'ancien nom etant lu par reflet.
+    """
+    uniques = inspector.get_unique_constraints("progression")
+    if any("lecon_id" in u["column_names"] for u in uniques):
+        return  # deja au bon format
+
+    if eng.dialect.name == "sqlite":
+        with eng.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE progression_new ("
+                    " id INTEGER NOT NULL PRIMARY KEY,"
+                    " eleve_id INTEGER NOT NULL,"
+                    " pattern_name VARCHAR(80) NOT NULL,"
+                    " lecon_id VARCHAR(80),"
+                    " maitrise INTEGER NOT NULL,"
+                    " nb_tentatives INTEGER NOT NULL DEFAULT 1,"
+                    " date_derniere_tentative DATETIME NOT NULL,"
+                    " CONSTRAINT uq_progression_eleve_pattern_lecon"
+                    "  UNIQUE (eleve_id, pattern_name, lecon_id),"
+                    " FOREIGN KEY(eleve_id) REFERENCES eleve (id) ON DELETE CASCADE"
+                    ")"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO progression_new"
+                    " (id, eleve_id, pattern_name, lecon_id, maitrise,"
+                    "  nb_tentatives, date_derniere_tentative)"
+                    " SELECT id, eleve_id, pattern_name, lecon_id, maitrise,"
+                    "  nb_tentatives, date_derniere_tentative FROM progression"
+                )
+            )
+            conn.execute(text("DROP TABLE progression"))
+            conn.execute(text("ALTER TABLE progression_new RENAME TO progression"))
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_progression_eleve_id"
+                    " ON progression (eleve_id)"
+                )
+            )
+    else:
+        ancienne = next(
+            (
+                u["name"]
+                for u in uniques
+                if set(u["column_names"]) == {"eleve_id", "pattern_name"} and u["name"]
+            ),
+            None,
+        )
+        with eng.begin() as conn:
+            if ancienne:
+                conn.execute(
+                    text(f'ALTER TABLE progression DROP CONSTRAINT "{ancienne}"')
+                )
+            conn.execute(
+                text(
+                    "ALTER TABLE progression ADD CONSTRAINT"
+                    " uq_progression_eleve_pattern_lecon"
+                    " UNIQUE (eleve_id, pattern_name, lecon_id)"
+                )
+            )
+
+
 def _migrer_colonnes_manquantes(eng: Engine) -> None:
     """Micro-migration sans outil dedie : ajoute les colonnes apparues apres la
     creation initiale de la base (ici pin_hash sur eleve). create_all ne modifie
@@ -539,6 +623,7 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
                         "ADD COLUMN nb_tentatives INTEGER NOT NULL DEFAULT 1"
                     )
                 )
+        _migrer_unicite_progression(eng, inspector)
 
 
 def init_db(target_engine: Engine | None = None) -> Engine:
