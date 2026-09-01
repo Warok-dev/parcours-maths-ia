@@ -227,6 +227,27 @@ class NotificationsTests(unittest.TestCase):
         # Et interdit explicitement l'invention.
         self.assertIn("N'invente aucun chiffre", prompt)
 
+    def test_rapport_prompt_anonymise_pas_de_prenom_reel(self) -> None:
+        # Le prenom reel (Sofia) ne doit JAMAIS partir vers le LLM tiers : le
+        # prompt designe l'eleve par un terme generique.
+        self._seed_scenario_variee()
+        captures: list[str] = []
+
+        def faux(prompt: str) -> str:
+            captures.append(prompt)
+            return "Un texte d'appreciation valide et suffisamment long pour passer."
+
+        with patch("notifications._appel_gemini_rapport", side_effect=faux):
+            with self.Session() as db:
+                notifications.generer_rapport_ia(db, self.eleve_id, "enseignant")
+                prompt_ens = captures[-1]
+                notifications.generer_rapport_ia(db, self.eleve_id, "parent")
+                prompt_par = captures[-1]
+        self.assertNotIn("Sofia", prompt_ens)
+        self.assertNotIn("Sofia", prompt_par)
+        self.assertIn("l'eleve", prompt_ens)
+        self.assertIn("votre enfant", prompt_par)
+
     def test_rapport_ton_differe_selon_destinataire(self) -> None:
         self._seed_scenario_variee()
         vus: dict[str, str] = {}

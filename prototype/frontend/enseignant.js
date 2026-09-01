@@ -231,11 +231,10 @@
     return appel("/ecole/enseignants", { method: "GET" });
   }
 
-  async function inviterEnseignant(email) {
-    return appel("/ecole/enseignants/inviter", {
-      method: "POST",
-      body: JSON.stringify({ email: email || null }),
-    });
+  async function inviterEnseignant() {
+    // Aucune donnee sur le destinataire n'est envoyee ni stockee (minimisation) :
+    // le code d'invitation suffit, n'importe quel identifiant peut le consommer.
+    return appel("/ecole/enseignants/inviter", { method: "POST" });
   }
 
   async function changerRole(enseignantId, role) {
@@ -731,7 +730,6 @@
         <h2 class="teacher-subtitle">Inviter un enseignant</h2>
         <form id="ens-inviter" class="teacher-create login-form" autocomplete="off">
           <div class="teacher-create-row">
-            <input id="ens-invite-email" class="login-input teacher-input" type="text" placeholder="Email ou nom (optionnel)" />
             <button type="submit" class="btn-primary">Générer un code</button>
           </div>
         </form>
@@ -797,10 +795,9 @@
 
     body.querySelector("#ens-inviter").addEventListener("submit", async (event) => {
       event.preventDefault();
-      const email = body.querySelector("#ens-invite-email").value.trim();
       setStatut("Génération du code d'invitation...");
       try {
-        const invitation = await inviterEnseignant(email);
+        const invitation = await inviterEnseignant();
         setStatut("Code d'invitation généré.", "succes");
         const zone = body.querySelector("#ens-invite-resultat");
         zone.innerHTML = `

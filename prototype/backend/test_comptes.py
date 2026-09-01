@@ -8,7 +8,7 @@ classe/eleves, le cloisonnement entre enseignants, et la connexion eleve.
 from __future__ import annotations
 
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -1514,6 +1514,21 @@ class SuppressionDonneesTests(unittest.TestCase):
         self.assertFalse(apres["session_par_id"])  # la session est bien effacee, pas juste anonymisee
         self.assertEqual(apres["session_par_eleve"], 0)
 
+    def test_log_suppression_ne_contient_pas_le_prenom(self) -> None:
+        # Minimisation des logs : la tracabilite garde l'id de l'eleve (et qui a
+        # supprime), mais JAMAIS le prenom en clair dans les logs bruts.
+        eleve = self._creer_eleve(prenom="Sofia")
+        with self.assertLogs("comptes.suppression", level="INFO") as journal:
+            rep = self.client.post(
+                f"/classe/{self.classe['id']}/eleve/{eleve['id']}/suppression",
+                json={"confirmation": "SUPPRIMER"},
+                headers=self._auth(self.token),
+            )
+        self.assertEqual(rep.status_code, 200)
+        trace = "\n".join(journal.output)
+        self.assertNotIn("Sofia", trace)
+        self.assertIn(f"id={eleve['id']}", trace)  # tracabilite conservee via l'id
+
     def test_suppression_definitive_sans_confirmation_refusee(self) -> None:
         eleve = self._creer_eleve()
         self._seed_donnees_completes(eleve["id"])
@@ -1864,6 +1879,183 @@ class DemoIntegrationTests(unittest.TestCase):
             n = comptes.purger_ecoles_demo_expirees(db)
             self.assertEqual(n, 0)
             self.assertEqual(db.scalar(select(func.count()).select_from(Ecole)), 1)
+
+
+class RetentionAutomatiqueTests(unittest.TestCase):
+    """Retention automatique (RGPD, delai 2 ans) : purge des eleves inactifs en
+    cascade et des sessions de jeu obsoletes, comme au demarrage du serveur."""
+
+    def setUp(self) -> None:
+        self.engine = create_db_engine("sqlite://")
+        init_db(self.engine)
+        self.Session = sessionmaker(
+            bind=self.engine, autoflush=False, expire_on_commit=False, class_=Session
+        )
+        comptes._reset_tokens()
+        with self.Session() as db:
+            ecole = Ecole(nom="Ecole reelle")
+            db.add(ecole)
+            db.flush()
+            ens = Enseignant(
+                ecole_id=ecole.id, nom="Prof", identifiant="prof",
+                mot_de_passe_hash="x", role="administrateur",
+            )
+            db.add(ens)
+            db.flush()
+            classe = Classe(
+                enseignant_id=ens.id, ecole_id=ecole.id, nom="CE3 A",
+                niveau_scolaire="CE3", code_classe="CE3-TEST01",
+            )
+            db.add(classe)
+            db.commit()
+            self.classe_id = classe.id
+
+    def tearDown(self) -> None:
+        comptes._reset_tokens()
+        self.engine.dispose()
+
+    # --- Helpers de seeding avec des dates controlees ---
+    def _il_y_a(self, jours: int) -> datetime:
+        return datetime.now(timezone.utc) - timedelta(days=jours)
+
+    def _creer_eleve(self, db, prenom, cree_il_y_a=10, archive=False, classe_id=None):
+        eleve = Eleve(
+            classe_id=classe_id or self.classe_id,
+            prenom=prenom,
+            archive=archive,
+            date_creation=self._il_y_a(cree_il_y_a),
+        )
+        db.add(eleve)
+        db.flush()
+        return eleve.id
+
+    def _ajouter_progression(self, db, eleve_id, il_y_a):
+        db.add(Progression(
+            eleve_id=eleve_id, pattern_name="p", lecon_id="l", maitrise=1,
+            date_derniere_tentative=self._il_y_a(il_y_a),
+        ))
+
+    def _ajouter_session(self, db, eleve_id, il_y_a):
+        db.add(SessionJeu(
+            eleve_id=eleve_id, niveau_scolaire="CE3",
+            date_debut=self._il_y_a(il_y_a),
+            date_derniere_activite=self._il_y_a(il_y_a),
+        ))
+
+    def _existe(self, db, eleve_id) -> bool:
+        return db.get(Eleve, eleve_id) is not None
+
+    # --- C : purge des eleves inactifs ---
+    def test_eleve_totalement_inactif_2ans_est_purge_en_cascade(self) -> None:
+        with self.Session() as db:
+            eid = self._creer_eleve(db, "Vieux", cree_il_y_a=900)
+            self._ajouter_progression(db, eid, il_y_a=800)
+            self._ajouter_session(db, eid, il_y_a=800)
+            db.add(Personnage(eleve_id=eid, etoiles_totales=5, couleur="bleu", accessoire="cape"))
+            db.commit()
+
+        with self.Session() as db:
+            n = comptes.purger_eleves_inactifs(db)
+        self.assertEqual(n, 1)
+        with self.Session() as db:
+            self.assertFalse(self._existe(db, eid))
+            # Cascade : plus aucune donnee liee ne subsiste.
+            self.assertEqual(db.scalar(select(func.count()).select_from(Progression)), 0)
+            self.assertEqual(db.scalar(select(func.count()).select_from(Personnage)), 0)
+            self.assertEqual(db.scalar(select(func.count()).select_from(SessionJeu)), 0)
+
+    def test_activite_recente_protege_meme_avec_donnees_anciennes(self) -> None:
+        # Progression tres ancienne MAIS une session recente -> l'eleve reste actif.
+        with self.Session() as db:
+            eid = self._creer_eleve(db, "Actif", cree_il_y_a=900)
+            self._ajouter_progression(db, eid, il_y_a=800)
+            self._ajouter_session(db, eid, il_y_a=30)  # activite recente
+            db.commit()
+
+        with self.Session() as db:
+            n = comptes.purger_eleves_inactifs(db)
+        self.assertEqual(n, 0)
+        with self.Session() as db:
+            self.assertTrue(self._existe(db, eid))
+
+    def test_eleve_recemment_cree_sans_activite_est_protege(self) -> None:
+        # Aucune session ni tentative, mais cree hier : la creation fait plancher.
+        with self.Session() as db:
+            eid = self._creer_eleve(db, "Nouveau", cree_il_y_a=1)
+            db.commit()
+
+        with self.Session() as db:
+            self.assertEqual(comptes.purger_eleves_inactifs(db), 0)
+            self.assertTrue(self._existe(db, eid))
+
+    def test_eleve_archive_inactif_est_purge(self) -> None:
+        # L'archivage (reversible) ne protege PAS de la retention.
+        with self.Session() as db:
+            eid = self._creer_eleve(db, "Archive", cree_il_y_a=900, archive=True)
+            self._ajouter_session(db, eid, il_y_a=900)
+            db.commit()
+
+        with self.Session() as db:
+            self.assertEqual(comptes.purger_eleves_inactifs(db), 1)
+            self.assertFalse(self._existe(db, eid))
+
+    def test_classe_entiere_inactive_est_purgee(self) -> None:
+        with self.Session() as db:
+            ids = [self._creer_eleve(db, f"E{i}", cree_il_y_a=900) for i in range(3)]
+            for eid in ids:
+                self._ajouter_session(db, eid, il_y_a=800)
+            db.commit()
+
+        with self.Session() as db:
+            self.assertEqual(comptes.purger_eleves_inactifs(db), 3)
+            self.assertEqual(db.scalar(select(func.count()).select_from(Eleve)), 0)
+
+    def test_juste_sous_le_seuil_est_protege(self) -> None:
+        # Derniere activite a 729 jours (< 730) -> conserve.
+        with self.Session() as db:
+            eid = self._creer_eleve(db, "Limite", cree_il_y_a=900)
+            self._ajouter_session(db, eid, il_y_a=729)
+            db.commit()
+        with self.Session() as db:
+            self.assertEqual(comptes.purger_eleves_inactifs(db), 0)
+            self.assertTrue(self._existe(db, eid))
+
+    # --- D : purge des sessions par anciennete ---
+    def test_session_ancienne_purgee_meme_si_eleve_actif(self) -> None:
+        with self.Session() as db:
+            eid = self._creer_eleve(db, "Mixte", cree_il_y_a=900)
+            self._ajouter_session(db, eid, il_y_a=800)  # obsolete -> purgee
+            self._ajouter_session(db, eid, il_y_a=10)   # recente -> conservee
+            db.commit()
+
+        with self.Session() as db:
+            n = comptes.purger_sessions_anciennes(db)
+        self.assertEqual(n, 1)
+        with self.Session() as db:
+            # L'eleve (actif) reste, seule la vieille session part.
+            self.assertTrue(self._existe(db, eid))
+            self.assertEqual(
+                db.scalar(select(func.count()).select_from(SessionJeu).where(
+                    SessionJeu.eleve_id == eid)),
+                1,
+            )
+
+    def test_session_anonyme_ancienne_est_purgee(self) -> None:
+        # Session d'essai libre (eleve_id nul) de plus de 2 ans : purgee aussi.
+        with self.Session() as db:
+            db.add(SessionJeu(
+                eleve_id=None, niveau_scolaire="CE3",
+                date_debut=self._il_y_a(800), date_derniere_activite=self._il_y_a(800),
+            ))
+            db.add(SessionJeu(
+                eleve_id=None, niveau_scolaire="CE3",
+                date_debut=self._il_y_a(5), date_derniere_activite=self._il_y_a(5),
+            ))
+            db.commit()
+
+        with self.Session() as db:
+            self.assertEqual(comptes.purger_sessions_anciennes(db), 1)
+            self.assertEqual(db.scalar(select(func.count()).select_from(SessionJeu)), 1)
 
 
 if __name__ == "__main__":

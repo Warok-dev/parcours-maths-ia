@@ -119,6 +119,7 @@ async def lifespan(_app: FastAPI):
     `with`), qui restent donc non brides et gerent leur propre base de test."""
     init_db()
     _cleanup_demos_expirees()
+    _cleanup_retention()
     activer_selon_env()
     yield
 
@@ -264,6 +265,31 @@ def _cleanup_demos_expirees() -> None:
     except Exception:  # noqa: BLE001 - le nettoyage ne doit jamais bloquer le boot
         logging.getLogger("comptes.suppression").warning(
             "Purge des demos expirees ignoree au demarrage (erreur non bloquante).",
+            exc_info=True,
+        )
+
+
+def _cleanup_retention() -> None:
+    """Au demarrage : applique la retention automatique des donnees reelles
+    (RGPD, delai = 2 ans, documente cote comptes) — efface les eleves inactifs
+    depuis 2 ans (en cascade) puis les sessions de jeu de plus de 2 ans. Meme
+    esprit que la purge des demos, et aussi tolerant aux pannes : un echec ne
+    doit jamais empecher le serveur de demarrer."""
+    from comptes import purger_eleves_inactifs, purger_sessions_anciennes
+
+    log = logging.getLogger("comptes.suppression")
+    try:
+        n_eleves = purger_eleves_inactifs()
+        n_sessions = purger_sessions_anciennes()
+        if n_eleves or n_sessions:
+            log.info(
+                "Demarrage : retention appliquee (%s eleve(s) inactif(s), "
+                "%s session(s) ancienne(s) purgee(s)).",
+                n_eleves, n_sessions,
+            )
+    except Exception:  # noqa: BLE001 - le nettoyage ne doit jamais bloquer le boot
+        log.warning(
+            "Purge de retention ignoree au demarrage (erreur non bloquante).",
             exc_info=True,
         )
 

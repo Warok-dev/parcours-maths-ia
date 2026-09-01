@@ -101,6 +101,23 @@ DEMO_MAX_CONCEPTS = 6
 # retente plusieurs fois (>= seuil de blocage cote notifications) -> alerte.
 _TENTATIVES_PAR_MAITRISE = {1: 3, 2: 2, 3: 1}
 
+# --- Retention automatique des donnees reelles (RGPD : limitation de la duree
+#     de conservation) ---
+# DELAI DE CONSERVATION : 2 ans (730 jours). A REPRENDRE TEL QUEL dans la
+# politique de confidentialite.
+#
+#  * Un eleve SANS AUCUNE activite (ni session de jeu, ni tentative) depuis ce
+#    delai est efface definitivement en cascade au demarrage du serveur, comme
+#    la purge des demos expirees (couvre aussi une classe entiere devenue
+#    inactive : chacun de ses eleves est purge). L'archivage ne protege pas de
+#    cette purge (ce n'est pas une conservation indefinie).
+#  * Une session de jeu de plus de ce delai est purgee par anciennete,
+#    INDEPENDAMMENT de l'activite de l'eleve par ailleurs : au-dela de 2 ans une
+#    session est de toute facon obsolete pour les tableaux de bord (couvre aussi
+#    les sessions anonymes de l'essai libre, eleve_id nul).
+RETENTION_INACTIVITE_JOURS = 730  # 2 ans
+RETENTION_SESSION_JOURS = 730  # 2 ans
+
 # --- Tokens opaques cote serveur (en memoire) ---
 _TOKENS_ENSEIGNANT: dict[str, int] = {}  # token -> enseignant_id
 _TOKENS_ELEVE: dict[str, int] = {}  # token -> eleve_id
@@ -279,11 +296,6 @@ class EnseignantInscription(BaseModel):
     code_invitation: str | None = Field(default=None, max_length=40)
 
 
-class InvitationCreation(BaseModel):
-    # Aide-memoire non contraignant : a qui l'admin destine l'invitation.
-    email: str | None = Field(default=None, max_length=180)
-
-
 class RoleMaj(BaseModel):
     role: str = Field(pattern=r"^(administrateur|enseignant)$")
 
@@ -391,6 +403,17 @@ def _effacer_ecole_en_cascade(db: Session, ecole: Ecole) -> tuple[int, int]:
     db.delete(ecole)  # cascade : enseignants -> classes -> eleves -> progressions...
     db.commit()
     return nb_enseignants or 0, nb_eleves or 0
+
+
+def _effacer_eleve_en_cascade(db: Session, eleve: Eleve) -> None:
+    """Efface UN eleve et TOUTES ses donnees liees : progression, assignations,
+    personnage (garde-robe) via la cascade ORM, PLUS ses sessions de jeu (que la
+    FK SET NULL laisserait persister, anonymes) — pour ne laisser AUCUNE trace.
+    Commit inclus. Source unique de la suppression d'un eleve, partagee par le
+    droit a l'effacement (endpoint) et la purge de retention automatique."""
+    db.execute(delete(SessionJeu).where(SessionJeu.eleve_id == eleve.id))
+    db.delete(eleve)  # cascade : progression, assignations, personnage
+    db.commit()
 
 
 def _enseignant_public(enseignant: Enseignant) -> dict:
@@ -746,6 +769,94 @@ def purger_ecoles_demo_expirees(db: Session | None = None) -> int:
 
 
 # ============================================================
+#  RETENTION AUTOMATIQUE DES DONNEES REELLES (RGPD)
+#  Purges executees au demarrage, comme celle des demos expirees. Delai unique
+#  documente en tete de module (RETENTION_*_JOURS = 2 ans), a reprendre tel quel
+#  dans la politique de confidentialite.
+# ============================================================
+def _derniere_activite_eleve(eleve: Eleve) -> datetime:
+    """Date (UTC) de la DERNIERE activite reelle d'un eleve : le plus recent
+    entre sa creation, sa derniere tentative (Progression) et sa derniere session
+    de jeu. La creation sert de PLANCHER : un eleve tout juste cree mais n'ayant
+    encore rien joue n'est jamais considere inactif (il vient d'arriver)."""
+    dates = [_en_utc(eleve.date_creation)]
+    dates += [_en_utc(p.date_derniere_tentative) for p in eleve.progressions]
+    dates += [_en_utc(s.date_derniere_activite) for s in eleve.sessions]
+    return max(dates)
+
+
+def purger_eleves_inactifs(db: Session | None = None) -> int:
+    """Efface definitivement (cascade) tout eleve SANS AUCUNE activite depuis
+    RETENTION_INACTIVITE_JOURS : ni session de jeu, ni tentative. Couvre aussi
+    une classe entiere devenue inactive (chacun de ses eleves est purge). Un
+    eleve ARCHIVE n'y echappe pas : l'archivage est reversible, pas une
+    conservation indefinie. Renvoie le nombre d'eleves purges.
+
+    Appelee au demarrage (comme la purge des demos). `db` injectable pour les
+    tests. Reutilise le helper de suppression en cascade partage avec le droit a
+    l'effacement (donnees liees + sessions de jeu)."""
+    proprietaire = db is None
+    session = db or database.SessionLocal()
+    try:
+        seuil = datetime.now(timezone.utc) - timedelta(days=RETENTION_INACTIVITE_JOURS)
+        # Materialise la liste AVANT de supprimer (on modifie ensuite la table).
+        inactifs = [
+            e for e in session.scalars(select(Eleve)).all()
+            if _derniere_activite_eleve(e) < seuil
+        ]
+        n = 0
+        for eleve in inactifs:
+            eleve_id, classe_id = eleve.id, eleve.classe_id
+            _effacer_eleve_en_cascade(session, eleve)
+            # Invalide les eventuels tokens de l'eleve/parent (au demarrage ils
+            # sont vides ; utile si la purge est declenchee a chaud, ex. en test).
+            for tok in [t for t, v in _TOKENS_ELEVE.items() if v == eleve_id]:
+                _TOKENS_ELEVE.pop(tok, None)
+            for tok in [t for t, v in _TOKENS_PARENT.items() if v == eleve_id]:
+                _TOKENS_PARENT.pop(tok, None)
+            logger.info(
+                "Purge retention : eleve inactif id=%s classe_id=%s efface "
+                "(aucune activite depuis %s jours).",
+                eleve_id, classe_id, RETENTION_INACTIVITE_JOURS,
+            )
+            n += 1
+        return n
+    finally:
+        if proprietaire:
+            session.close()
+
+
+def purger_sessions_anciennes(db: Session | None = None) -> int:
+    """Efface les sessions de jeu dont la derniere activite remonte a plus de
+    RETENTION_SESSION_JOURS, INDEPENDAMMENT de l'activite de l'eleve par ailleurs
+    (une session de plus de 2 ans est obsolete pour les tableaux de bord). Couvre
+    aussi les sessions ANONYMES de l'essai libre (eleve_id nul). Renvoie le nombre
+    de sessions purgees. Appelee au demarrage ; `db` injectable pour les tests."""
+    proprietaire = db is None
+    session = db or database.SessionLocal()
+    try:
+        seuil = datetime.now(timezone.utc) - timedelta(days=RETENTION_SESSION_JOURS)
+        anciennes = [
+            s for s in session.scalars(select(SessionJeu)).all()
+            if _en_utc(s.date_derniere_activite) < seuil
+        ]
+        for s in anciennes:
+            session.delete(s)
+        if anciennes:
+            session.commit()
+        n = len(anciennes)
+        if n:
+            logger.info(
+                "Purge retention : %s session(s) de jeu de plus de %s jours effacee(s).",
+                n, RETENTION_SESSION_JOURS,
+            )
+        return n
+    finally:
+        if proprietaire:
+            session.close()
+
+
+# ============================================================
 #  ADMINISTRATEUR D'ECOLE (vue etablissement + gestion des comptes)
 #  Tous ces endpoints exigent le role administrateur (administrateur_courant)
 #  ET operent STRICTEMENT dans l'ecole de l'appelant (admin.ecole_id) : jamais
@@ -811,19 +922,20 @@ def lister_enseignants_ecole(
 
 @router.post("/ecole/enseignants/inviter", status_code=201)
 def inviter_enseignant(
-    payload: InvitationCreation,
     admin: Annotated[Enseignant, Depends(administrateur_courant)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     """Genere un code d'invitation a usage unique pour rejoindre l'ecole comme
     enseignant simple. Le code est renvoye en clair a l'admin, qui le transmet
     au nouvel enseignant ; celui-ci le fournit a l'inscription (champ
-    code_invitation) pour etre rattache a l'ecole."""
+    code_invitation) pour etre rattache a l'ecole.
+
+    Aucune donnee sur le destinataire n'est demandee ni stockee (minimisation) :
+    n'importe quel identifiant peut consommer le code tant qu'il n'a pas servi."""
     for _ in range(25):  # retente en cas de collision de code (rare)
         invitation = InvitationEnseignant(
             ecole_id=admin.ecole_id,
             code=generer_code_invitation(),
-            email_invite=payload.email,
             invitee_par=admin.id,
         )
         db.add(invitation)
@@ -836,7 +948,6 @@ def inviter_enseignant(
         return {
             "id": invitation.id,
             "code": invitation.code,
-            "email": invitation.email_invite,
             "ecole_id": invitation.ecole_id,
         }
     raise HTTPException(status_code=500, detail="Impossible de generer un code d'invitation unique.")
@@ -904,16 +1015,16 @@ def supprimer_ecole_definitivement(
 
     # Capture des infos AVANT suppression (l'objet ecole devient inutilisable
     # apres). La cascade (sessions comprises) est deleguee au helper partage.
-    nom = ecole.nom
     ecole_id = ecole.id
     admin_id, admin_ident = admin.id, admin.identifiant
     nb_enseignants, nb_eleves = _effacer_ecole_en_cascade(db, ecole)
     # Le compte admin lui-meme vient d'etre supprime : on invalide ses tokens.
     for tok in [t for t, eid in _TOKENS_ENSEIGNANT.items() if eid == admin_id]:
         _TOKENS_ENSEIGNANT.pop(tok, None)
+    # Tracabilite RGPD : QUI/QUOI/QUAND via les ids, sans le nom de l'ecole en clair.
     logger.info(
-        "Effacement definitif ecole id=%s nom=%r (%s enseignants, %s eleves) par admin id=%s (%s)",
-        ecole_id, nom, nb_enseignants, nb_eleves, admin_id, admin_ident,
+        "Effacement definitif ecole id=%s (%s enseignants, %s eleves) par admin id=%s (%s)",
+        ecole_id, nb_enseignants, nb_eleves, admin_id, admin_ident,
     )
     return {"supprime": True, "ecole_id": ecole_id}
 
@@ -1131,16 +1242,15 @@ def supprimer_eleve_definitivement(
             ),
         )
 
-    prenom = eleve.prenom
-    # Sessions d'abord (FK ON DELETE SET NULL les rendrait anonymes mais
-    # persistantes) : on les efface pour ne laisser aucune trace residuelle.
-    db.execute(delete(SessionJeu).where(SessionJeu.eleve_id == eleve_id))
-    db.delete(eleve)  # cascade : progression, assignations, personnage
-    db.commit()
-    # Tracabilite RGPD (journal serveur, invisible de l'utilisateur).
+    # Cascade (donnees liees + sessions de jeu) deleguee au helper partage avec
+    # la purge de retention automatique.
+    _effacer_eleve_en_cascade(db, eleve)
+    # Tracabilite RGPD (journal serveur, invisible de l'utilisateur) : on garde
+    # QUI a supprime QUOI et QUAND (ids + horodatage du log), sans exposer le
+    # prenom de l'enfant en clair dans les logs bruts (l'id suffit a tracer).
     logger.info(
-        "Effacement definitif eleve id=%s prenom=%r classe_id=%s par enseignant id=%s (%s)",
-        eleve_id, prenom, classe_id, enseignant.id, enseignant.identifiant,
+        "Effacement definitif eleve id=%s classe_id=%s par enseignant id=%s (%s)",
+        eleve_id, classe_id, enseignant.id, enseignant.identifiant,
     )
     return {"supprime": True, "eleve_id": eleve_id}
 

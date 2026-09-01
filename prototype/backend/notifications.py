@@ -442,17 +442,37 @@ def _appel_mistral_rapport(prompt: str) -> str:
     return (reponse.choices[0].message.content or "").strip()
 
 
-def _donnees_rapport(resume: dict, alerte: dict, fenetre_jours: int) -> tuple[str, set[str]]:
+def _designation_eleve(destinataire: str) -> str:
+    """Terme GENERIQUE designant l'eleve dans le prompt LLM, jamais son vrai
+    prenom : le nom reel ne doit pas quitter le serveur vers un tiers. Le prenom
+    n'apparait qu'a l'affichage final (frontend), ou le LLM n'intervient plus."""
+    return "votre enfant" if destinataire == "parent" else "l'eleve"
+
+
+def _donnees_rapport(
+    resume: dict, alerte: dict, fenetre_jours: int, destinataire: str
+) -> tuple[str, set[str]]:
     """Construit le bloc de donnees VERIFIEES fourni au LLM, et l'ensemble des
     nombres autorises : exactement ceux qui apparaissent dans ce bloc. Tout
-    autre nombre dans la sortie sera considere comme invente."""
-    prenom = resume.get("prenom") or "L'eleve"
+    autre nombre dans la sortie sera considere comme invente.
+
+    ANONYMISATION : l'eleve est designe par un terme generique (l'eleve / votre
+    enfant), jamais par son prenom reel -- le prompt part vers des LLM tiers."""
+    designation = _designation_eleve(destinataire)
+    # Les messages d'alerte (destines a l'affichage UI) embarquent le vrai
+    # prenom : on le remplace par la designation generique AVANT de les mettre
+    # dans le prompt tiers. Le prenom source n'est PAS modifie ailleurs.
+    prenom_reel = resume.get("prenom") or ""
+
+    def _sans_prenom(texte: str) -> str:
+        return texte.replace(prenom_reel, designation) if prenom_reel else texte
+
     travailles = resume.get("concepts_travailles", [])
     maitrises = resume.get("nouvellement_maitrises", [])
     difficiles = resume.get("en_difficulte", [])
 
     lignes = [
-        f"Prenom de l'eleve : {prenom}",
+        f"Eleve concerne (a designer ainsi, sans autre nom) : {designation}",
         f"Periode couverte : les {fenetre_jours} derniers jours",
         f"Nombre de notions travaillees sur la periode : {len(travailles)}",
     ]
@@ -472,7 +492,7 @@ def _donnees_rapport(resume: dict, alerte: dict, fenetre_jours: int) -> tuple[st
         lignes.append("Notions en difficulte : aucune sur la periode")
     if alerte.get("active"):
         lignes.append("Alertes detectees par le systeme (regles) :")
-        lignes.extend(f"- {a['message']}" for a in alerte.get("alertes", []))
+        lignes.extend(f"- {_sans_prenom(a['message'])}" for a in alerte.get("alertes", []))
     else:
         lignes.append("Alerte de blocage : aucune")
 
@@ -550,7 +570,7 @@ def generer_rapport_ia(
 
     resume = generer_resume_hebdomadaire(db, eleve_id, fenetre_jours=fenetre_jours)
     alerte = detecter_alerte_blocage(db, eleve_id)
-    bloc, nombres_autorises = _donnees_rapport(resume, alerte, fenetre_jours)
+    bloc, nombres_autorises = _donnees_rapport(resume, alerte, fenetre_jours, destinataire)
     prompt = _prompt_rapport(bloc, destinataire)
 
     resultat = _generer_texte_rapport(prompt, nombres_autorises)

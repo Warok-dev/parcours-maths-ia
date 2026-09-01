@@ -377,10 +377,12 @@ class InvitationEnseignant(Base):
     Un administrateur en genere une : elle porte un code a usage unique (haute
     entropie, comme le code parent) que le nouvel enseignant fournit a
     l'inscription pour etre rattache a l'ecole (au lieu de fonder la sienne).
-    L'email/identifiant vise est purement indicatif (aide-memoire de l'admin) :
-    n'importe quel identifiant peut consommer le code tant qu'il n'a pas servi.
+    N'importe quel identifiant peut consommer le code tant qu'il n'a pas servi.
     Le code est stocke en clair : ce n'est pas un secret d'authentification mais
-    un jeton d'enrolement a usage unique, revele par l'admin puis consomme."""
+    un jeton d'enrolement a usage unique, revele par l'admin puis consomme.
+
+    (Aucun email/destinataire n'est stocke : l'ancien champ email_invite, simple
+    aide-memoire non necessaire, a ete retire par minimisation des donnees.)"""
 
     __tablename__ = "invitation_enseignant"
 
@@ -389,8 +391,6 @@ class InvitationEnseignant(Base):
         ForeignKey("ecole.id", ondelete="CASCADE"), nullable=False, index=True
     )
     code: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
-    # Aide-memoire non contraignant (a qui l'admin destine l'invitation).
-    email_invite: Mapped[str | None] = mapped_column(String(180), nullable=True)
     # L'admin qui a emis l'invitation (indicatif ; SET NULL s'il part).
     invitee_par: Mapped[int | None] = mapped_column(
         ForeignKey("enseignant.id", ondelete="SET NULL"), nullable=True
@@ -624,6 +624,16 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
                     )
                 )
         _migrer_unicite_progression(eng, inspector)
+    if "invitation_enseignant" in tables:
+        colonnes = {c["name"] for c in inspector.get_columns("invitation_enseignant")}
+        if "email_invite" in colonnes:
+            # Minimisation des donnees : l'ancien aide-memoire email_invite est
+            # retire. DROP COLUMN est supporte par PostgreSQL et par SQLite
+            # >= 3.35 (le sqlite3 embarque de Python 3.13 est bien au-dela).
+            with eng.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE invitation_enseignant DROP COLUMN email_invite")
+                )
 
 
 def init_db(target_engine: Engine | None = None) -> Engine:
