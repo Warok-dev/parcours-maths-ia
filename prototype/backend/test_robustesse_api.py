@@ -4,16 +4,15 @@ de taille sur les entrees libres."""
 
 from __future__ import annotations
 
-import shutil
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session, sessionmaker
 
 import main
 from generation.substitution import generer_exercice, patterns_disponibles_pour_niveau
+from database import create_db_engine, init_db
 from main import CacheBorne, app
 
 
@@ -47,11 +46,13 @@ class CacheBorneTests(unittest.TestCase):
 
 class SessionApresEvictionTests(unittest.TestCase):
     """Une session dont l'exercice a ete evince du cache memoire continue de
-    fonctionner : l'exercice est relu depuis le fichier de session."""
+    fonctionner : l'exercice est relu depuis l'etat persiste de la session."""
 
     def setUp(self) -> None:
-        self.dossier = Path(tempfile.mkdtemp())
-        self.patch = patch.object(main, "SESSIONS_DIR", self.dossier)
+        self.engine = create_db_engine("sqlite://")
+        init_db(self.engine)
+        fabrique = sessionmaker(bind=self.engine, expire_on_commit=False, class_=Session)
+        self.patch = patch.object(main, "FABRIQUE_ETAT_SESSIONS", fabrique)
         self.patch.start()
         main.EXERCICE_CACHE.clear()
         main.SESSION_STATE.clear()
@@ -59,7 +60,7 @@ class SessionApresEvictionTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.patch.stop()
-        shutil.rmtree(self.dossier, ignore_errors=True)
+        self.engine.dispose()
         main.EXERCICE_CACHE.clear()
         main.SESSION_STATE.clear()
 
@@ -89,6 +90,37 @@ class SessionApresEvictionTests(unittest.TestCase):
         etat = self.client.get(f"/session/{demarrage['session_id']}")
         self.assertEqual(etat.status_code, 200)
         self.assertIn("exercice_courant", etat.json())
+
+    def test_partie_survit_a_un_redemarrage(self) -> None:
+        demarrage = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"}).json()
+        # Redemarrage : plus rien en memoire, l'etat est relu en base.
+        main.EXERCICE_CACHE.clear()
+        main.SESSION_STATE.clear()
+        exercice = demarrage["exercice"]
+        reponse = self.client.post(
+            "/evaluer",
+            json={
+                "session_id": demarrage["session_id"],
+                "exercice_id": exercice["id"],
+                "reponse_eleve": "999999",
+            },
+        )
+        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(reponse.json()["statut"], "incorrect")
+
+    def test_purge_des_parties_inactives(self) -> None:
+        import database
+
+        ancien = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"}).json()
+        recent = self.client.post("/session/demarrer", json={"niveau_scolaire": "CE1"}).json()
+        with main.FABRIQUE_ETAT_SESSIONS() as db:
+            ligne = db.get(database.EtatSessionJeu, ancien["session_id"])
+            ligne.maj_a -= (main.SESSION_MAX_AGE_DAYS + 1) * 86400
+            db.commit()
+        self.assertEqual(main._cleanup_old_sessions(), 1)
+        main.SESSION_STATE.clear()
+        self.assertEqual(self.client.get(f"/session/{ancien['session_id']}").status_code, 404)
+        self.assertEqual(self.client.get(f"/session/{recent['session_id']}").status_code, 200)
 
     def test_get_exercices_ne_fait_pas_grossir_le_cache_sans_fin(self) -> None:
         with patch.object(main.EXERCICE_CACHE, "taille_max", 50):

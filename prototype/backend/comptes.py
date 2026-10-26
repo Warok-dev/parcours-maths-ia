@@ -143,71 +143,95 @@ DUREE_TOKEN_PARENT = timedelta(hours=24)
 
 
 class _MagasinJetons:
-    """Jetons opaques d'un type de compte : jeton -> (id du titulaire, expiration).
+    """Jetons opaques d'un type de compte, persistes en base (table `jeton`).
 
     Point de passage unique pour emettre, resoudre et REVOQUER : chaque action
     qui retire un droit (archivage, nouveau PIN, nouveau code parent,
-    suppression, deconnexion) invalide aussitot les jetons concernes."""
+    suppression, deconnexion) invalide aussitot les jetons concernes. Seule
+    l'empreinte SHA-256 du jeton est stockee. Chaque operation d'ecriture
+    commit elle-meme : un jeton emis ou revoque l'est durablement."""
 
-    def __init__(self, duree: timedelta) -> None:
+    def __init__(self, type_compte: str, duree: timedelta) -> None:
+        self.type_compte = type_compte
         self.duree = duree
-        self._jetons: dict[str, tuple[int, datetime]] = {}
 
-    def emettre(self, titulaire_id: int) -> str:
-        self._purger_expires()
+    @staticmethod
+    def empreinte(jeton: str) -> str:
+        return hashlib.sha256(jeton.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _maintenant() -> int:
+        return int(datetime.now(timezone.utc).timestamp())
+
+    def emettre(self, db: Session, titulaire_id: int) -> str:
+        maintenant = self._maintenant()
+        # Menage opportuniste des jetons expires (tous types) : la table ne
+        # grossit pas indefiniment, sans tache planifiee.
+        db.execute(delete(database.Jeton).where(database.Jeton.expire_a <= maintenant))
         jeton = secrets.token_urlsafe(32)
-        self._jetons[jeton] = (titulaire_id, datetime.now(timezone.utc) + self.duree)
+        db.add(
+            database.Jeton(
+                empreinte=self.empreinte(jeton),
+                type_compte=self.type_compte,
+                titulaire_id=titulaire_id,
+                expire_a=maintenant + int(self.duree.total_seconds()),
+            )
+        )
+        db.commit()
         return jeton
 
-    def resoudre(self, jeton: str | None) -> int | None:
+    def resoudre(self, db: Session, jeton: str | None) -> int | None:
         """Id du titulaire, ou None si le jeton est absent, inconnu ou expire."""
         if not jeton:
             return None
-        entree = self._jetons.get(jeton)
-        if entree is None:
+        ligne = db.get(database.Jeton, self.empreinte(jeton))
+        if ligne is None or ligne.type_compte != self.type_compte:
             return None
-        titulaire_id, expiration = entree
-        if expiration <= datetime.now(timezone.utc):
-            self._jetons.pop(jeton, None)
+        if ligne.expire_a <= self._maintenant():
+            db.delete(ligne)
+            db.commit()
             return None
-        return titulaire_id
+        return ligne.titulaire_id
 
-    def revoquer(self, jeton: str | None) -> bool:
-        return bool(jeton) and self._jetons.pop(jeton, None) is not None
+    def revoquer(self, db: Session, jeton: str | None) -> bool:
+        if not jeton:
+            return False
+        resultat = db.execute(
+            delete(database.Jeton).where(
+                database.Jeton.empreinte == self.empreinte(jeton),
+                database.Jeton.type_compte == self.type_compte,
+            )
+        )
+        db.commit()
+        return bool(resultat.rowcount)
 
-    def revoquer_pour(self, titulaire_id: int) -> int:
+    def revoquer_pour(self, db: Session, titulaire_id: int) -> int:
         """Revoque TOUS les jetons d'un titulaire ; renvoie leur nombre."""
-        cibles = [j for j, (tid, _exp) in self._jetons.items() if tid == titulaire_id]
-        for jeton in cibles:
-            self._jetons.pop(jeton, None)
-        return len(cibles)
-
-    def vider(self) -> None:
-        self._jetons.clear()
-
-    def _purger_expires(self) -> None:
-        maintenant = datetime.now(timezone.utc)
-        for jeton in [j for j, (_tid, exp) in self._jetons.items() if exp <= maintenant]:
-            self._jetons.pop(jeton, None)
+        resultat = db.execute(
+            delete(database.Jeton).where(
+                database.Jeton.type_compte == self.type_compte,
+                database.Jeton.titulaire_id == titulaire_id,
+            )
+        )
+        db.commit()
+        return resultat.rowcount or 0
 
 
-_TOKENS_ENSEIGNANT = _MagasinJetons(DUREE_TOKEN_ENSEIGNANT)  # -> enseignant_id
-_TOKENS_ELEVE = _MagasinJetons(DUREE_TOKEN_ELEVE)  # -> eleve_id
-_TOKENS_PARENT = _MagasinJetons(DUREE_TOKEN_PARENT)  # -> eleve_id (lecture seule)
+_TOKENS_ENSEIGNANT = _MagasinJetons("enseignant", DUREE_TOKEN_ENSEIGNANT)
+_TOKENS_ELEVE = _MagasinJetons("eleve", DUREE_TOKEN_ELEVE)
+_TOKENS_PARENT = _MagasinJetons("parent", DUREE_TOKEN_PARENT)
 
 
 def _reset_tokens() -> None:
-    """Utilitaire de test : vide les stores de tokens."""
-    _TOKENS_ENSEIGNANT.vider()
-    _TOKENS_ELEVE.vider()
-    _TOKENS_PARENT.vider()
+    """Conserve pour compatibilite des tests : les jetons vivent desormais en
+    base, et chaque test travaille sur sa propre base en memoire."""
 
 
-def revoquer_acces_eleve(eleve_id: int, parent: bool = True) -> None:
+def revoquer_acces_eleve(db: Session, eleve_id: int, parent: bool = True) -> None:
     """Coupe les sessions ouvertes d'un eleve (et, par defaut, de son parent)."""
-    _TOKENS_ELEVE.revoquer_pour(eleve_id)
+    _TOKENS_ELEVE.revoquer_pour(db, eleve_id)
     if parent:
-        _TOKENS_PARENT.revoquer_pour(eleve_id)
+        _TOKENS_PARENT.revoquer_pour(db, eleve_id)
 
 
 # --- Mot de passe (bcrypt) ---
@@ -288,13 +312,13 @@ def enseignant_courant(
     db: Annotated[Session, Depends(get_db)],
 ) -> Enseignant:
     token = creds.credentials if creds else None
-    enseignant_id = _TOKENS_ENSEIGNANT.resoudre(token)
+    enseignant_id = _TOKENS_ENSEIGNANT.resoudre(db, token)
     if enseignant_id is None:
         raise HTTPException(status_code=401, detail="Authentification enseignant requise.")
     enseignant = db.get(Enseignant, enseignant_id)
     if enseignant is None:
         # Token pointant vers un enseignant supprime : session invalide.
-        _TOKENS_ENSEIGNANT.revoquer(token)
+        _TOKENS_ENSEIGNANT.revoquer(db, token)
         raise HTTPException(status_code=401, detail="Session enseignant invalide.")
     return enseignant
 
@@ -320,9 +344,9 @@ def _acces_eleve_autorise(db: Session, token: str | None, eleve: Eleve) -> bool:
     stricte) pour verrouiller la frontiere multi-tenant."""
     if not token:
         return False
-    if _TOKENS_ELEVE.resoudre(token) == eleve.id:
+    if _TOKENS_ELEVE.resoudre(db, token) == eleve.id:
         return True
-    enseignant_id = _TOKENS_ENSEIGNANT.resoudre(token)
+    enseignant_id = _TOKENS_ENSEIGNANT.resoudre(db, token)
     if enseignant_id is None:
         return False
     enseignant = db.get(Enseignant, enseignant_id)
@@ -332,13 +356,14 @@ def _acces_eleve_autorise(db: Session, token: str | None, eleve: Eleve) -> bool:
     return classe.enseignant_id == enseignant.id and classe.ecole_id == enseignant.ecole_id
 
 
-def eleve_id_depuis_token(token: str | None) -> int | None:
-    """Resout un token eleve en eleve_id (ou None si absent/inconnu)."""
-    return _TOKENS_ELEVE.resoudre(token)
+def eleve_id_depuis_token(db: Session, token: str | None) -> int | None:
+    """Resout un token eleve en eleve_id (ou None si absent/inconnu/expire)."""
+    return _TOKENS_ELEVE.resoudre(db, token)
 
 
 def eleve_id_optionnel(
     creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> int | None:
     """Dependance OPTIONNELLE : renvoie l'eleve_id si un token eleve valide est
     fourni, sinon None (mode invite). Ne leve jamais : le flux invite reste
@@ -346,7 +371,7 @@ def eleve_id_optionnel(
 
     NB : un token PARENT n'est PAS un token eleve -> il renvoie None ici, donc il
     ne peut jamais lier une session de jeu a un eleve (aucune ecriture possible)."""
-    return eleve_id_depuis_token(creds.credentials if creds else None)
+    return eleve_id_depuis_token(db, creds.credentials if creds else None)
 
 
 def parent_eleve_courant(
@@ -358,13 +383,13 @@ def parent_eleve_courant(
     Le token parent est en lecture seule et strictement limite a UN eleve : il
     n'ouvre aucun autre endpoint (ni gestion de classe, ni autres eleves)."""
     token = creds.credentials if creds else None
-    eleve_id = _TOKENS_PARENT.resoudre(token)
+    eleve_id = _TOKENS_PARENT.resoudre(db, token)
     if eleve_id is None:
         raise HTTPException(status_code=401, detail="Acces parent requis.")
     eleve = db.get(Eleve, eleve_id)
     if eleve is None:
         # Eleve supprime entre-temps : le token ne vaut plus rien.
-        _TOKENS_PARENT.revoquer(token)
+        _TOKENS_PARENT.revoquer(db, token)
         raise HTTPException(status_code=401, detail="Acces parent invalide.")
     return eleve
 
@@ -494,9 +519,9 @@ def _effacer_ecole_en_cascade(db: Session, ecole: Ecole) -> tuple[int, int]:
     db.delete(ecole)  # cascade : enseignants -> classes -> eleves -> progressions...
     db.commit()
     for enseignant_id in ids_enseignants:
-        _TOKENS_ENSEIGNANT.revoquer_pour(enseignant_id)
+        _TOKENS_ENSEIGNANT.revoquer_pour(db, enseignant_id)
     for eleve_id in ids_eleves:
-        revoquer_acces_eleve(eleve_id)
+        revoquer_acces_eleve(db, eleve_id)
     return nb_enseignants or 0, nb_eleves or 0
 
 
@@ -510,7 +535,7 @@ def _effacer_eleve_en_cascade(db: Session, eleve: Eleve) -> None:
     db.execute(delete(SessionJeu).where(SessionJeu.eleve_id == eleve_id))
     db.delete(eleve)  # cascade : progression, assignations, personnage
     db.commit()
-    revoquer_acces_eleve(eleve_id)
+    revoquer_acces_eleve(db, eleve_id)
 
 
 def _enseignant_public(enseignant: Enseignant) -> dict:
@@ -650,7 +675,7 @@ def connexion_enseignant(
         # Message identique dans les deux cas : ne pas reveler quel identifiant existe.
         raise HTTPException(status_code=401, detail="Identifiant ou mot de passe incorrect.")
 
-    token = _TOKENS_ENSEIGNANT.emettre(enseignant.id)
+    token = _TOKENS_ENSEIGNANT.emettre(db, enseignant.id)
     return {
         "token": token,
         "enseignant": _enseignant_public(enseignant),
@@ -663,13 +688,14 @@ def connexion_enseignant(
 @router.post("/deconnexion", status_code=204, response_class=Response)
 def deconnexion(
     creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     """Revoque le jeton presente, quel que soit son type (enseignant, eleve,
     parent). Idempotent : un jeton absent, inconnu ou deja expire renvoie aussi
     204 (rien a reveler, et le client peut toujours oublier son jeton)."""
     jeton = creds.credentials if creds else None
     for magasin in (_TOKENS_ENSEIGNANT, _TOKENS_ELEVE, _TOKENS_PARENT):
-        magasin.revoquer(jeton)
+        magasin.revoquer(db, jeton)
     return Response(status_code=204)
 
 
@@ -820,7 +846,7 @@ def creer_demo(
     db.refresh(ecole)
 
     # Connexion immediate : on delivre un token comme /enseignant/connexion.
-    token = _TOKENS_ENSEIGNANT.emettre(admin.id)
+    token = _TOKENS_ENSEIGNANT.emettre(db, admin.id)
     logger.info(
         "Creation demo ecole id=%s (expire %s) admin id=%s (%s)",
         ecole.id, ecole.expire_le.isoformat(), admin.id, identifiant,
@@ -1266,7 +1292,7 @@ def reinitialiser_pin_eleve(
     db.commit()
     # Un PIN regenere l'est souvent parce que l'ancien a fuite : les sessions
     # ouvertes avec lui sont coupees (le parent, lui, garde son acces).
-    revoquer_acces_eleve(eleve.id, parent=False)
+    revoquer_acces_eleve(db, eleve.id, parent=False)
     return {"id": eleve.id, "prenom": eleve.prenom, "classe_id": classe.id, "pin": pin}
 
 
@@ -1292,7 +1318,7 @@ def regenerer_code_parent(
     db.commit()
     # Comme annonce : l'ancien code ne donne plus acces, y compris aux parents
     # deja connectes avec lui.
-    _TOKENS_PARENT.revoquer_pour(eleve.id)
+    _TOKENS_PARENT.revoquer_pour(db, eleve.id)
     return {
         "id": eleve.id,
         "prenom": eleve.prenom,
@@ -1319,7 +1345,7 @@ def retirer_eleve(
     eleve.archive = True
     db.commit()
     # Retire de la classe = plus de session eleve ni parent ouverte.
-    revoquer_acces_eleve(eleve.id)
+    revoquer_acces_eleve(db, eleve.id)
     return Response(status_code=204)
 
 
@@ -1783,7 +1809,7 @@ def connexion_eleve(
         eleve.pin_verrouille_jusqu = None
         db.commit()
 
-    token = _TOKENS_ELEVE.emettre(eleve.id)
+    token = _TOKENS_ELEVE.emettre(db, eleve.id)
     return {
         "token": token,
         "eleve": {
@@ -1880,7 +1906,7 @@ def _eleve_du_propre_token(
     if eleve is None:
         raise HTTPException(status_code=404, detail="Eleve introuvable.")
     token = creds.credentials if creds else None
-    if not token or _TOKENS_ELEVE.resoudre(token) != eleve_id:
+    if not token or _TOKENS_ELEVE.resoudre(db, token) != eleve_id:
         raise HTTPException(status_code=403, detail="Acces non autorise a ce personnage.")
     return eleve
 
@@ -1942,7 +1968,7 @@ def acces_parent(
     if eleve is None:
         raise HTTPException(status_code=403, detail="Code d'acces parent invalide.")
 
-    token = _TOKENS_PARENT.emettre(eleve.id)
+    token = _TOKENS_PARENT.emettre(db, eleve.id)
     return {
         "token": token,
         "eleve": {

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import time
 from collections import OrderedDict
@@ -17,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from diagnostic import diagnostiquer_erreur
@@ -40,6 +39,7 @@ from comptes import (
     marquer_assignations_terminees,
     router as comptes_router,
 )
+import database
 from database import Eleve, Progression, SessionJeu, init_db
 from rate_limit import (
     LIMITE_IA,
@@ -53,7 +53,6 @@ from tutor import TutorServiceError, build_tutor_reply
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-SESSIONS_DIR = DATA_DIR / "sessions"
 SESSION_MAX_AGE_DAYS = 7
 SESSION_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 ALLOWED_LEVELS = {"CE1", "CE2", "CE3", "CE4", "CE5", "CE6"}
@@ -159,6 +158,7 @@ async def lifespan(_app: FastAPI):
     Le lifespan ne s'ouvre PAS pendant les tests (TestClient instancie sans
     `with`), qui restent donc non brides et gerent leur propre base de test."""
     init_db()
+    _cleanup_old_sessions()
     _cleanup_demos_expirees()
     _cleanup_retention()
     activer_selon_env()
@@ -231,18 +231,47 @@ def load_json(name: str) -> list[dict] | dict:
         return json.load(file)
 
 
-def _session_file_path(session_id: str) -> Path | None:
-    # Les ids sont des uuid4().hex : tout autre format est rejete, ce qui
-    # empeche au passage toute traversee de chemin via l'URL.
-    if not SESSION_ID_PATTERN.fullmatch(session_id):
+def _id_session_valide(session_id: str) -> bool:
+    # Les ids sont des uuid4().hex : tout autre format est rejete d'emblee.
+    return bool(SESSION_ID_PATTERN.fullmatch(session_id or ""))
+
+
+# Fabrique de sessions SQLAlchemy pour l'etat des parties. Surchargeable en
+# test (base en memoire). Volontairement distincte de get_db : la persistance
+# d'une partie est appelee depuis des helpers sans requete HTTP sous la main.
+FABRIQUE_ETAT_SESSIONS = database.SessionLocal
+_TABLES_ETAT_PRETES: set[int] = set()
+
+
+def _ouvrir_etat() -> Session:
+    """Session BD pour l'etat des parties ; cree la table au premier usage si
+    besoin (les tests n'ouvrent pas le lifespan qui appelle init_db)."""
+    db = FABRIQUE_ETAT_SESSIONS()
+    moteur = db.get_bind()
+    if id(moteur) not in _TABLES_ETAT_PRETES:
+        database.EtatSessionJeu.__table__.create(moteur, checkfirst=True)
+        _TABLES_ETAT_PRETES.add(id(moteur))
+    return db
+
+
+def _lire_etat(session_id: str) -> dict | None:
+    """Contenu persiste d'une partie ({session, exercices}) ou None."""
+    if not _id_session_valide(session_id):
         return None
-    return SESSIONS_DIR / f"{session_id}.json"
+    try:
+        with _ouvrir_etat() as db:
+            ligne = db.get(database.EtatSessionJeu, session_id)
+            contenu = ligne.contenu if ligne is not None else None
+        return json.loads(contenu) if contenu else None
+    except Exception:  # noqa: BLE001 - lecture best-effort, jamais fatale
+        logging.warning("Etat de session %s illisible.", session_id, exc_info=True)
+        return None
 
 
 def _save_session(session: dict) -> None:
-    """Persiste la session et son exercice courant (ecriture atomique)."""
-    path = _session_file_path(session["session_id"])
-    if path is None:
+    """Persiste en base la session et ses exercices courants."""
+    session_id = session["session_id"]
+    if not _id_session_valide(session_id):
         return
     exercices = {}
     # L'exercice de confiance est persiste avec l'exercice normal : sinon un
@@ -255,26 +284,26 @@ def _save_session(session: dict) -> None:
         exercice = _exercice_de_session(session, exercice_id)
         if exercice is not None:
             exercices[exercice_id] = exercice
-    payload = {"session": session, "exercices": exercices}
+    contenu = json.dumps({"session": session, "exercices": exercices}, ensure_ascii=False)
     try:
-        SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_suffix(".json.tmp")
-        temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-        os.replace(temp_path, path)
-    except OSError:
-        # Persistance en echec : la partie continue sur l'etat memoire.
-        pass
+        with _ouvrir_etat() as db:
+            db.merge(
+                database.EtatSessionJeu(
+                    session_id=session_id, contenu=contenu, maj_a=int(time.time())
+                )
+            )
+            db.commit()
+    except Exception:  # noqa: BLE001 - la partie continue sur l'etat memoire
+        logging.warning("Etat de session %s non persiste.", session_id, exc_info=True)
 
 
 def _load_session_from_disk(session_id: str) -> dict | None:
-    path = _session_file_path(session_id)
-    if path is None or not path.is_file():
-        return None
+    """Recharge une partie persistee (apres redemarrage ou eviction du cache)."""
+    payload = _lire_etat(session_id)
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
         session = payload["session"]
         exercices = payload.get("exercices", {})
-    except (OSError, ValueError, KeyError, TypeError):
+    except (KeyError, TypeError, AttributeError):
         return None
     EXERCICE_CACHE.update(exercices)
     SESSION_STATE[session_id] = session
@@ -283,37 +312,34 @@ def _load_session_from_disk(session_id: str) -> dict | None:
 
 def _exercice_de_session(session: dict, exercice_id: str | None) -> dict | None:
     """Exercice d'une session, meme s'il a ete evince du cache memoire : on le
-    relit alors dans le fichier de la session (qui persiste l'exercice courant
-    et l'eventuel exercice de confiance)."""
+    relit alors dans l'etat persiste de la session (qui contient l'exercice
+    courant et l'eventuel exercice de confiance)."""
     if not exercice_id:
         return None
     exercice = EXERCICE_CACHE.get(exercice_id)
     if exercice is not None:
         return exercice
-    path = _session_file_path(session["session_id"])
-    if path is None or not path.is_file():
-        return None
-    try:
-        exercices = json.loads(path.read_text(encoding="utf-8")).get("exercices", {})
-    except (OSError, ValueError, AttributeError):
-        return None
+    payload = _lire_etat(session["session_id"]) or {}
+    exercices = payload.get("exercices") if isinstance(payload, dict) else None
     exercice = exercices.get(exercice_id) if isinstance(exercices, dict) else None
     if exercice is not None:
         EXERCICE_CACHE[exercice_id] = exercice
     return exercice
 
 
-def _cleanup_old_sessions() -> None:
-    """Au demarrage : supprime les fichiers de session de plus de 7 jours."""
-    if not SESSIONS_DIR.is_dir():
-        return
-    cutoff = time.time() - SESSION_MAX_AGE_DAYS * 86400
-    for path in SESSIONS_DIR.glob("*.json"):
-        try:
-            if path.stat().st_mtime < cutoff:
-                path.unlink()
-        except OSError:
-            pass
+def _cleanup_old_sessions() -> int:
+    """Au demarrage : supprime l'etat des parties inactives depuis 7 jours."""
+    seuil = int(time.time()) - SESSION_MAX_AGE_DAYS * 86400
+    try:
+        with _ouvrir_etat() as db:
+            resultat = db.execute(
+                delete(database.EtatSessionJeu).where(database.EtatSessionJeu.maj_a < seuil)
+            )
+            db.commit()
+            return resultat.rowcount or 0
+    except Exception:  # noqa: BLE001 - le nettoyage ne doit jamais bloquer le boot
+        logging.warning("Purge des vieilles parties ignoree.", exc_info=True)
+        return 0
 
 
 def _cleanup_demos_expirees() -> None:
@@ -361,7 +387,6 @@ def _cleanup_retention() -> None:
         )
 
 
-_cleanup_old_sessions()
 
 
 def load_exercices(niveau: str) -> list[dict]:
