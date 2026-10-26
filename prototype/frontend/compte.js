@@ -20,7 +20,7 @@
    s'exporte en Node pour les tests (test_compte.js).
    ============================================================ */
 (function () {
-  const API_BASE = "https://parcours-maths-ia.onrender.com";
+  const API_BASE = (globalThis.PARCOURS_CONFIG?.API_BASE || "https://parcours-maths-ia.onrender.com");
   const STORAGE_KEY = "parcours_compte_v1";
 
   /* ---------- Coeur pur (testable sans navigateur) ---------- */

@@ -22,7 +22,7 @@
 (function () {
   const STORAGE_KEY = "parcours_voix_muet_v1";
   const LANG = "fr-FR";
-  const BACKEND_URL = "https://parcours-maths-ia.onrender.com/synthese-vocale";
+  const BACKEND_URL = `${(globalThis.PARCOURS_CONFIG?.API_BASE || "https://parcours-maths-ia.onrender.com")}/synthese-vocale`;
   const BACKEND_TIMEOUT_MS = 6000;
 
   /* Dependances resolues paresseusement : le navigateur passe par window,

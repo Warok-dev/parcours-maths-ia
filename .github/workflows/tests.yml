@@ -1,0 +1,80 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-sqlite:
+    name: Backend (SQLite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototype/backend
+    env:
+      BCRYPT_ROUNDS: "4"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: prototype/backend/.python-version
+          cache: pip
+          cache-dependency-path: prototype/backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -p "test_*.py"
+
+  backend-postgres:
+    name: Backend (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: parcours
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: prototype/backend
+    env:
+      BCRYPT_ROUNDS: "4"
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/parcours
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: prototype/backend/.python-version
+          cache: pip
+          cache-dependency-path: prototype/backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Parcours complet sur PostgreSQL
+        run: RATE_LIMIT_ENABLED=0 python scripts/verifier_postgres.py
+      - name: Suite complete (moteur par defaut sur PostgreSQL)
+        run: python -m unittest discover -p "test_*.py"
+
+  frontend:
+    name: Frontend (Node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototype/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests unitaires
+        run: |
+          status=0
+          for t in test_*.js; do
+            echo "::group::$t"
+            node "$t" || status=1
+            echo "::endgroup::"
+          done
+          exit $status

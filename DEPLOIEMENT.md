@@ -151,34 +151,20 @@ https://<votre-service>.onrender.com/health
 
 ## Étape 3 — Configurer et déployer le frontend
 
-Le frontend appelle actuellement le backend sur **`http://127.0.0.1:8000`** (adresse
-codée en dur pour le développement local). Avant de le mettre en ligne, il faut
-remplacer cette adresse par l'URL publique du backend Render.
+L'adresse du backend est centralisée dans **`prototype/frontend/config.js`** :
 
-Fichiers et lignes à modifier dans `prototype/frontend/` :
+- page servie **en local** (`localhost`, `127.0.0.1`, fichier ouvert) → `http://127.0.0.1:8000` ;
+- **partout ailleurs** → la constante `API_PRODUCTION` (`https://parcours-maths-ia.onrender.com`).
 
-| Fichier          | Ligne | Variable / usage                              |
-|------------------|-------|-----------------------------------------------|
-| `map.js`         | 1     | `const API_BASE_URL = "http://127.0.0.1:8000";` |
-| `compte.js`      | 23    | `const API_BASE = "http://127.0.0.1:8000";`   |
-| `enseignant.js`  | 20    | `const API_BASE = "http://127.0.0.1:8000";`   |
-| `parent.js`      | 17    | `const API_BASE = "http://127.0.0.1:8000";`   |
-| `chat.js`        | 236   | `fetch("http://127.0.0.1:8000/tuteur/aide", …)` |
-| `speech.js`      | 25    | `const BACKEND_URL = "http://127.0.0.1:8000/synthese-vocale";` |
-
-Remplacer chaque occurrence de `http://127.0.0.1:8000` par l'URL Render, par ex.
-`https://parcours-maths-api.onrender.com`. Un simple rechercher-remplacer global
-de la chaîne `http://127.0.0.1:8000` dans le dossier `prototype/frontend/` suffit.
+Si votre service Render porte un autre nom, modifiez **uniquement** `API_PRODUCTION`
+dans `config.js`. Pour tester une autre instance sans rien modifier, ajoutez
+`?api=https://<autre-backend>` à l'adresse de la page.
 
 Ensuite, héberger le dossier `prototype/frontend/` comme **site statique** :
 
 - **Sur Render** : **New +** → **Static Site**, Root Directory `prototype/frontend`,
   Build Command vide, Publish Directory `.`.
 - ou **Netlify / Vercel / GitHub Pages** : glisser-déposer / pointer sur `prototype/frontend/`.
-
-> Astuce : plutôt que d'éditer les URLs à la main à chaque déploiement, vous
-> pouvez à terme centraliser l'adresse du backend dans une seule constante
-> partagée. Ce n'est pas requis pour déployer, juste un confort de maintenance.
 
 ---
 
@@ -194,6 +180,24 @@ Ensuite, héberger le dossier `prototype/frontend/` comme **site statique** :
 | `MISTRAL_API_KEY`                | Recommandée | Mistral — fournisseur de **repli** pour le tuteur ET la génération narrative. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Facultative | Chemin du fichier JSON du compte de service Google (synthèse vocale). Via **Secret File** Render (voir §2.3). Absente → voix native du navigateur en repli. |
 | `RATE_LIMIT_ENABLED`             | Facultative | `1` par défaut (limitation de débit active). Mettre `0` uniquement pour désactiver le rate limiting. |
+| `TRUSTED_PROXY_HOPS`             | **Recommandée** | Nombre de proxys de confiance devant l'API (Render : normalement `1`). Sert à lire la vraie IP du client dans `X-Forwarded-For`. À `0` (défaut), tous les utilisateurs partagent l'IP du proxy pour les limites de débit. Voir « Calibrer l'IP client » ci-dessous. |
+| `RATE_LIMIT_LOG_IP`              | Facultative | `1` journalise `X-Forwarded-For` et l'IP retenue (calibrage ponctuel, à retirer ensuite). |
+| `RATE_LIMIT_GENERALE`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_AUTH_IP`, `RATE_LIMIT_REJOINDRE`, `RATE_LIMIT_IA`, `RATE_LIMIT_TTS`, `RATE_LIMIT_DEMO`, `RATE_LIMIT_INSCRIPTION` | Facultatives | Surcharge des limites (format `"600/minute"`). Les valeurs par défaut sont dimensionnées pour une classe d'une trentaine d'élèves derrière une seule IP. |
+| `BCRYPT_ROUNDS`                  | Facultative | Coût bcrypt (12 par défaut). **Ne pas baisser en production** : `4` est réservé aux tests/CI. |
+
+### Calibrer l'IP client (`TRUSTED_PROXY_HOPS`)
+
+Render ajoute l'IP du client **à la fin** de `X-Forwarded-For` sans nettoyer ce
+que le client a pu y mettre en tête : seule l'entrée écrite par l'infrastructure
+est fiable, d'où la lecture « N-ième en partant de la fin ».
+
+1. Déployer avec `TRUSTED_PROXY_HOPS=1` et `RATE_LIMIT_LOG_IP=1`.
+2. Ouvrir le jeu depuis votre navigateur, puis chercher dans les logs Render une
+   ligne `IP client : x-forwarded-for=[...] ... -> <ip>`.
+3. Si `<ip>` est bien votre IP publique (comparez avec un site « quelle est mon
+   IP »), c'est réglé. Sinon, ajustez `TRUSTED_PROXY_HOPS` (2, 3…) jusqu'à
+   retrouver votre IP.
+4. Retirer `RATE_LIMIT_LOG_IP`.
 
 **À propos des clés IA** : le tuteur et la génération d'énoncés narratifs essaient
 les fournisseurs dans l'ordre Gemini → Groq → Mistral et prennent le premier qui
@@ -288,31 +292,28 @@ changer), à faire une fois :
    chaud et répond immédiatement aux vrais utilisateurs.
 
 > Remarques :
-> - `/health` ne touche **pas** la base et ne consomme quasiment aucune ressource :
->   c'est l'endpoint prévu pour ça.
-> - Ce keep-alive garde Render éveillé ; il maintient aussi indirectement l'activité
->   suffisante pour limiter la suspension Neon. Si vous voulez être certain que Neon
->   reste chaud, un second monitor sur un endpoint qui lit la base (ex. une page du
->   frontend qui déclenche un appel authentifié) peut compléter, mais ce n'est en
->   général pas nécessaire pour l'expérience élève.
+> - `/health` exécute un `SELECT 1` : le ping garde donc éveillés **à la fois**
+>   Render et la base Neon. Il renvoie `503` si la base est injoignable (utile pour
+>   être alerté). `HEAD /health` est aussi accepté.
 > - Cela consomme des heures d'instance Render (le service ne dort plus). Sur le
 >   plan gratuit, garder un œil sur le quota mensuel d'heures.
 - **Données vraiment persistantes = uniquement PostgreSQL/Neon.** Le disque de
   Render est **éphémère** : il est remis à zéro à chaque redéploiement/réveil.
   Concrètement :
   - Les **comptes, classes, élèves, progressions** vivent dans Neon → **persistants**. ✅
-  - Les **jetons de connexion** sont gardés en mémoire du backend → un redémarrage
-    déconnecte les utilisateurs (ils se reconnectent, sans perte de données).
-  - Les **fichiers de session de jeu en cours** (`data/sessions/*.json`) sont sur le
-    disque éphémère → une partie *en cours* peut être perdue à un redémarrage. Les
-    résultats déjà enregistrés (progressions) restent, eux, dans Neon.
+  - Les **jetons de connexion** (empreinte SHA-256 seulement) sont en base →
+    un redémarrage ne déconnecte personne. ✅
+  - L'**état des parties en cours** (table `etat_session_jeu`) est en base → une
+    partie survit au réveil du service. Les parties inactives depuis 7 jours sont
+    purgées au démarrage. ✅
+  - Rien d'important ne dépend du disque de Render.
 - **Quotas des API IA** : les offres gratuites Gemini/Groq/Mistral ont des limites
   de débit. La bascule automatique entre fournisseurs aide à absorber un quota
   atteint sur l'un d'eux.
 
 ---
 
-## Développement local (inchangé)
+## Développement local
 
 Rien ne change pour développer en local : **sans** `DATABASE_URL` ni
 `PARCOURS_DATABASE_URL`, le backend utilise automatiquement une base **SQLite** dans
@@ -324,26 +325,36 @@ cd prototype/backend
 uvicorn main:app --reload      # http://127.0.0.1:8000
 ```
 
-Lancer la suite de tests (utilise SQLite en mémoire) :
+Lancer la suite de tests (SQLite en mémoire ; `BCRYPT_ROUNDS=4` la rend ~15 fois
+plus rapide, à n'utiliser que pour les tests) :
 
 ```bash
 cd prototype/backend
-python -m unittest discover -p "test_*.py"
+BCRYPT_ROUNDS=4 python -m unittest discover -p "test_*.py"
 ```
+
+Le frontend appelle automatiquement le backend local quand la page est servie en
+local (voir `config.js`) : le développement ne touche jamais la base de production.
 
 ---
 
 ## État de la vérification de compatibilité PostgreSQL
 
-- ✅ **Tests existants** : les 296 tests passent avec le repli SQLite (comportement
-  de développement strictement inchangé).
-- ✅ **Compatibilité du schéma** : le DDL généré par SQLAlchemy a été compilé en
-  **dialecte PostgreSQL** (types de colonnes, `SERIAL`, `TIMESTAMP WITH TIME ZONE`,
-  `BOOLEAN`, clés étrangères `ON DELETE CASCADE/SET NULL`, contraintes d'unicité,
-  index) — aucun type ni valeur par défaut incompatible.
+- ✅ **Vrai PostgreSQL 16** : la suite complète passe avec le moteur par défaut
+  pointé sur PostgreSQL, et `scripts/verifier_postgres.py` y rejoue un parcours
+  complet (inscription, classe, verrou PIN, partie relue après redémarrage, accès
+  parent, révocation, démo). L'intégration continue exécute les deux à chaque push.
+- ✅ **Migration d'une base existante** : un schéma créé par une version antérieure
+  (cas de la base Neon déjà en service) est mis à niveau au démarrage
+  (`init_db`) : nouvelles colonnes et tables ajoutées, appel idempotent.
 - ✅ **URL PostgreSQL** : lecture de `DATABASE_URL`, priorité sur l'ancien
   `PARCOURS_DATABASE_URL`, et correction automatique du préfixe `postgres://`.
-- ⏳ **Connexion réelle à un PostgreSQL** : non testée localement faute de Docker/
-  serviceur PostgreSQL sur la machine de développement. **À confirmer lors du
-  premier déploiement** via l'étape « Vérifications après déploiement » ci-dessus
-  (l'endpoint `/health` répond et un compte créé persiste dans Neon).
+
+Pour vérifier une base **jetable** à la main :
+
+```bash
+cd prototype/backend
+DATABASE_URL=postgresql://... RATE_LIMIT_ENABLED=0 python scripts/verifier_postgres.py
+```
+
+> Ne lancez jamais ce script sur la base de production : il y crée des comptes de test.

@@ -233,7 +233,7 @@ async function askTutor(question) {
   const token = window.ParcoursCompte?.getToken?.();
   let response;
   try {
-    response = await fetch("https://parcours-maths-ia.onrender.com/tuteur/aide", {
+    response = await fetch(`${(globalThis.PARCOURS_CONFIG?.API_BASE || "https://parcours-maths-ia.onrender.com")}/tuteur/aide`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
