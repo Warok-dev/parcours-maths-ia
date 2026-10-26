@@ -43,6 +43,7 @@ import database
 from database import Eleve, Progression, SessionJeu, init_db
 from rate_limit import (
     LIMITE_IA,
+    LIMITE_TTS,
     activer_selon_env,
     gestion_depassement,
     limite,
@@ -1346,7 +1347,7 @@ def tuteur_aide(
 @app.post("/synthese-vocale")
 def synthese_vocale(
     payload: SpeechRequest,
-    _rl: Annotated[None, Depends(limite(LIMITE_IA, "synthese_vocale"))] = None,
+    _rl: Annotated[None, Depends(limite(LIMITE_TTS, "synthese_vocale"))] = None,
 ) -> dict:
     """Synthese vocale neurale (Google TTS) d'un texte : reponse du tuteur ou
     enonce d'exercice. Renvoie l'audio MP3 en base64.

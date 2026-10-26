@@ -34,7 +34,16 @@ from sqlalchemy.orm import Session
 import database
 import export_excel
 import notifications
-from rate_limit import LIMITE_AUTH, LIMITE_DEMO, LIMITE_IA, limite
+from rate_limit import (
+    LIMITE_AUTH,
+    LIMITE_AUTH_IP,
+    LIMITE_DEMO,
+    LIMITE_IA,
+    LIMITE_INSCRIPTION,
+    LIMITE_REJOINDRE,
+    limite,
+    par_chemin,
+)
 from database import (
     ROLE_ADMINISTRATEUR,
     ROLE_ENSEIGNANT,
@@ -603,7 +612,9 @@ def _progression_payload(db: Session, eleve: Eleve) -> dict:
 # ============================================================
 @router.post("/enseignant/inscription", status_code=201)
 def inscription_enseignant(
-    payload: EnseignantInscription, db: Annotated[Session, Depends(get_db)]
+    payload: EnseignantInscription,
+    db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_INSCRIPTION, "inscription"))] = None,
 ) -> dict:
     deja = db.scalars(
         select(Enseignant).where(Enseignant.identifiant == payload.identifiant)
@@ -1735,11 +1746,12 @@ def lister_assignations_classe(
 def rejoindre_classe(
     code_classe: str,
     db: Annotated[Session, Depends(get_db)],
-    _rl: Annotated[None, Depends(limite(LIMITE_AUTH, "rejoindre_classe"))] = None,
+    _rl: Annotated[None, Depends(limite(LIMITE_REJOINDRE, "rejoindre_classe"))] = None,
 ) -> dict:
     """Entree publique : liste les prenoms d'une classe a partir de son code.
-    Limitee comme une authentification (LIMITE_AUTH) : sans cela, on pourrait
-    essayer des codes en rafale et collecter les prenoms d'enfants."""
+    Limitee par IP (LIMITE_REJOINDRE, assez large pour qu'une classe entiere
+    tape le meme code) : avec ~4.10^8 codes possibles par niveau, c'est
+    largement suffisant contre l'enumeration des prenoms d'enfants."""
     code_classe = normaliser_code_classe(code_classe)
     classe = db.scalars(select(Classe).where(Classe.code_classe == code_classe)).first()
     if classe is None:
@@ -1765,7 +1777,10 @@ def connexion_eleve(
     eleve_id: int,
     payload: EleveConnexion,
     db: Annotated[Session, Depends(get_db)],
-    _rl: Annotated[None, Depends(limite(LIMITE_AUTH, "connexion_eleve"))] = None,
+    _rl: Annotated[
+        None, Depends(limite(LIMITE_AUTH, "connexion_eleve", par_chemin("eleve_id")))
+    ] = None,
+    _rl_ip: Annotated[None, Depends(limite(LIMITE_AUTH_IP, "connexion_eleve_ip"))] = None,
 ) -> dict:
     eleve = db.get(Eleve, eleve_id)
     # Anti-usurpation : l'id doit appartenir a la classe du code fourni ET le PIN
