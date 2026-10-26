@@ -89,6 +89,7 @@ _PREFIXES_ENFANT = (
     "/eleve",  # dont /eleve/{id}/connexion (pave PIN)
     "/carte",
     "/themes",
+    "/classe/rejoindre",  # saisie du code de classe par l'enfant
 )
 
 _MESSAGE_ENFANT = "Oh la la, tu vas un peu trop vite ! Attends quelques secondes, puis reessaie."

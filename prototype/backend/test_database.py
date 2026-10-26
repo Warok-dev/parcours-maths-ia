@@ -201,7 +201,7 @@ class DatabaseModelTests(unittest.TestCase):
 
         codes = {generer_code_classe("CE1") for _ in range(50)}
         for code in codes:
-            self.assertRegex(code, r"^CE1-[A-Z]+-\d{2}$")
+            self.assertRegex(code, r"^CE1-[A-Z]+-[A-HJKMNP-Z2-9]{5}$")
         self.assertGreater(len(codes), 1)  # aleatoire : plusieurs codes distincts
 
     # ---------- init_db idempotent ----------

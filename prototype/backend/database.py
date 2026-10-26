@@ -15,7 +15,7 @@ ON DELETE SET NULL pour les sessions (elles survivent en anonymes).
 from __future__ import annotations
 
 import os
-import random
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -79,7 +79,7 @@ ROLE_ADMINISTRATEUR = "administrateur"
 ROLE_ENSEIGNANT = "enseignant"
 ROLES_ENSEIGNANT = (ROLE_ADMINISTRATEUR, ROLE_ENSEIGNANT)
 
-# Animaux pour les codes de classe lisibles par les enfants (ex. CE1-RENARD-42).
+# Animaux pour les codes de classe lisibles par les enfants (ex. CE1-RENARD-K7P2M).
 _ANIMAUX_CODE = (
     "RENARD", "HIBOU", "OURS", "LOUP", "CERF", "LYNX", "AIGLE", "CASTOR",
     "BLAIREAU", "LOUTRE", "HERISSON", "ECUREUIL", "FAUCON", "MARMOTTE",
@@ -90,14 +90,27 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def generer_code_classe(niveau_scolaire: str) -> str:
-    """Code de classe aleatoire, ex. 'CE1-RENARD-42'.
+# Suffixe aleatoire du code de classe : alphabet sans caracteres ambigus (0/O,
+# 1/I/L) pour la dictee en classe. 5 caracteres sur 31 x 14 animaux donnent
+# ~4.10^8 codes par niveau (contre 1 260 avec l'ancien suffixe a 2 chiffres) :
+# le code ne peut plus etre devine par enumeration, alors que
+# GET /classe/rejoindre/{code} revele les prenoms des eleves.
+_ALPHABET_CODE_CLASSE = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+LONGUEUR_SUFFIXE_CODE_CLASSE = 5
 
-    L'unicite est garantie par la contrainte SQL sur la colonne ; l'appelant
-    (futur endpoint) retentera en cas de collision, rare vu l'espace.
+
+def generer_code_classe(niveau_scolaire: str) -> str:
+    """Code de classe aleatoire et non devinable, ex. 'CE1-RENARD-K7P2M'.
+
+    Tire avec `secrets` (generateur cryptographique), jamais `random`. L'unicite
+    est garantie par la contrainte SQL sur la colonne ; l'appelant retente en
+    cas de collision, rarissime vu l'espace.
     """
-    animal = random.choice(_ANIMAUX_CODE)
-    return f"{niveau_scolaire}-{animal}-{random.randint(10, 99)}"
+    animal = secrets.choice(_ANIMAUX_CODE)
+    suffixe = "".join(
+        secrets.choice(_ALPHABET_CODE_CLASSE) for _ in range(LONGUEUR_SUFFIXE_CODE_CLASSE)
+    )
+    return f"{niveau_scolaire}-{animal}-{suffixe}"
 
 
 class Base(DeclarativeBase):
@@ -225,6 +238,16 @@ class Eleve(Base):
     # Unique + index : recherche directe du parent par son code (via son hash).
     code_parent_hash: Mapped[str | None] = mapped_column(
         String(64), nullable=True, unique=True, index=True
+    )
+    # Verrouillage anti force brute du PIN, PAR ELEVE (en plus de la limite par
+    # IP) : apres trop d'echecs consecutifs, la connexion est suspendue un
+    # moment, quelle que soit l'IP de l'attaquant. Remis a zero au succes et a
+    # la reinitialisation du PIN par l'enseignant.
+    echecs_pin: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    pin_verrouille_jusqu: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     date_creation: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
@@ -561,6 +584,22 @@ def _migrer_colonnes_manquantes(eng: Engine) -> None:
                     text(
                         "CREATE UNIQUE INDEX IF NOT EXISTS ix_eleve_code_parent_hash "
                         "ON eleve (code_parent_hash)"
+                    )
+                )
+        # SQL valide a la fois sous SQLite ET PostgreSQL : la base Neon de
+        # production existe deja, ces deux colonnes doivent donc pouvoir y etre
+        # ajoutees au demarrage (contrairement aux blocs plus anciens).
+        if "echecs_pin" not in colonnes:
+            with eng.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE eleve ADD COLUMN echecs_pin INTEGER NOT NULL DEFAULT 0")
+                )
+        if "pin_verrouille_jusqu" not in colonnes:
+            with eng.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE eleve ADD COLUMN pin_verrouille_jusqu "
+                        "TIMESTAMP WITH TIME ZONE"
                     )
                 )
         if "archive" not in colonnes:

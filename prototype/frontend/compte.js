@@ -237,7 +237,7 @@
     loginBody.innerHTML = `
       <form id="login-code-form" class="login-form" autocomplete="off">
         <label class="login-label" for="login-code-input">Code de ta classe</label>
-        <input id="login-code-input" class="login-input" type="text" placeholder="CE1-RENARD-42"
+        <input id="login-code-input" class="login-input" type="text" placeholder="CE1-RENARD-K7P2M"
           autocomplete="off" aria-label="Code de la classe" />
         <div class="login-form-actions">
           <button type="submit" class="btn-primary">Voir ma classe</button>

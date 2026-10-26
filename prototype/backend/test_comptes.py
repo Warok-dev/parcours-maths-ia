@@ -132,7 +132,7 @@ class ComptesIntegrationTests(unittest.TestCase):
         self._inscrire()
         token = self._token()
         classe = self._creer_classe(token, "Les Renards", "CE1")
-        self.assertRegex(classe["code_classe"], r"^CE1-[A-Z]+-\d{2}$")
+        self.assertRegex(classe["code_classe"], r"^CE1-[A-Z]+-[A-HJKMNP-Z2-9]{5}$")
 
         response = self.client.get("/classe", headers=self._auth(token))
         self.assertEqual(response.status_code, 200)
