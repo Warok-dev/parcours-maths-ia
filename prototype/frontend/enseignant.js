@@ -244,6 +244,12 @@
     });
   }
 
+  async function regenererCodeClasse(classeId) {
+    const classe = await appel(`/classe/${classeId}/code`, { method: "POST" });
+    await chargerClasses();
+    return classe;
+  }
+
   async function creerClasse({ nom, niveau_scolaire }) {
     const classe = await appel("/classe", {
       method: "POST",
@@ -939,6 +945,9 @@
           <button type="button" id="ens-assigner" class="btn-primary">Assigner un travail</button>
           <button type="button" id="ens-export-excel" class="ghost-button">Exporter en Excel</button>
           <button type="button" class="ghost-button teacher-copy" data-code="${classe.code_classe}">Copier le code ${classe.code_classe}</button>
+          <span class="teacher-code-actions">
+            <button type="button" id="ens-nouveau-code" class="ghost-button" title="Remplacer le code (l'ancien ne permettra plus de rejoindre la classe)">Nouveau code</button>
+          </span>
         </span>
       </div>
       <h2 class="teacher-subtitle">${echapper(classe.nom)} <span class="hud-level">${classe.niveau_scolaire}</span></h2>
@@ -958,6 +967,9 @@
     body.querySelector("#ens-export-excel").addEventListener("click", () => exporterExcel(classe));
     body.querySelector("#ens-assigner").addEventListener("click", () => vueAssignerTravail(classeId, classe, eleves));
     body.querySelector(".teacher-copy").addEventListener("click", () => copierCode(classe.code_classe));
+    body.querySelector("#ens-nouveau-code").addEventListener("click", (event) =>
+      demanderNouveauCode(classeId, event.currentTarget),
+    );
     body.querySelectorAll(".teacher-remove").forEach((bouton) => {
       bouton.addEventListener("click", () => demanderRetrait(classeId, bouton));
     });
@@ -1293,6 +1305,30 @@
      l'ancien code (l'eleve ne pourra plus se connecter avec), on demande donc
      validation. Au succes, le nouveau PIN s'affiche dans la meme popup que la
      creation (une seule fois), puis on rafraichit la liste. */
+  /* Confirmation en ligne du remplacement du code de classe : les eleves
+     deja connectes le restent, mais l'ancien code ne permet plus d'entrer. */
+  function demanderNouveauCode(classeId, bouton) {
+    const zone = bouton.closest(".teacher-code-actions");
+    zone.innerHTML = `
+      <span class="teacher-confirm-label">Remplacer le code ? L'ancien ne permettra plus de rejoindre la classe.</span>
+      <button type="button" class="btn-primary teacher-confirm-oui">Confirmer</button>
+      <button type="button" class="ghost-button teacher-confirm-non">Annuler</button>
+    `;
+    zone.querySelector(".teacher-confirm-non").addEventListener("click", () =>
+      vueClasseDetail(classeId),
+    );
+    zone.querySelector(".teacher-confirm-oui").addEventListener("click", async () => {
+      setStatut("Génération du nouveau code...");
+      try {
+        const classe = await regenererCodeClasse(classeId);
+        await vueClasseDetail(classeId);
+        setStatut(`Nouveau code à partager : ${classe.code_classe}`, "succes");
+      } catch (error) {
+        setStatut(error.message, "erreur");
+      }
+    });
+  }
+
   function demanderReinitPin(classeId, bouton) {
     const eleveId = Number(bouton.dataset.eleveId);
     const prenom = bouton.dataset.prenom;

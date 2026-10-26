@@ -1207,6 +1207,37 @@ def creer_classe(
     raise HTTPException(status_code=500, detail="Impossible de generer un code de classe unique.")
 
 
+@router.post("/classe/{classe_id}/code")
+def regenerer_code_classe(
+    classe_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Remplace le code de classe par un nouveau (protege : proprietaire).
+
+    Utile si le code a circule hors de la classe, ou pour une classe creee
+    avec l'ancien format court (devinable). L'ancien code cesse aussitot de
+    permettre de rejoindre la classe ; les eleves deja connectes le restent
+    (leur jeton ne depend pas du code)."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    ancien = classe.code_classe
+    for _ in range(25):
+        classe.code_classe = generer_code_classe(classe.niveau_scolaire)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+            continue
+        db.refresh(classe)
+        logger.info(
+            "Code de classe regenere classe_id=%s par enseignant id=%s (ancien format court : %s)",
+            classe.id, enseignant.id, len(ancien.rsplit("-", 1)[-1]) <= 2,
+        )
+        return _classe_dict(classe)
+    raise HTTPException(status_code=500, detail="Impossible de generer un code de classe unique.")
+
+
 @router.get("/classe")
 def lister_classes(
     enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
