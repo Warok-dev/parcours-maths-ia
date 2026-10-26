@@ -28,9 +28,8 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from functools import lru_cache
 
-import google.generativeai as genai
+import gemini
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -389,25 +388,19 @@ RAPPORT_PROVIDERS = (
 )
 
 
-@lru_cache(maxsize=1)
-def _modele_gemini_rapport() -> genai.GenerativeModel:
-    api_key = tutor.ensure_tutor_configured()
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(tutor.MODEL_NAME, system_instruction=_SYSTEME_RAPPORT)
-
-
 def _appel_gemini_rapport(prompt: str) -> str:
     """Priorite 1 : Gemini. Timeout explicite obligatoire (meme fix que le
-    tuteur) : sans lui le SDK attend son defaut de 600 s et bloque tout le
-    fallback quand Gemini traine en limite de quota."""
-    modele = _modele_gemini_rapport()
-    reponse = modele.generate_content(
+    tuteur) : un Gemini qui traine en limite de quota ne bloque pas le
+    fallback."""
+    return gemini.generer(
         prompt,
-        generation_config={"temperature": 0.4, "max_output_tokens": RAPPORT_MAX_OUTPUT_TOKENS},
-        request_options={"timeout": RAPPORT_TIMEOUT_SECONDS},
-    )
-    texte = getattr(reponse, "text", None)
-    return texte.strip() if isinstance(texte, str) else ""
+        api_key=tutor.ensure_tutor_configured(),
+        modele=tutor.MODEL_NAME,
+        system_instruction=_SYSTEME_RAPPORT,
+        temperature=0.4,
+        max_output_tokens=RAPPORT_MAX_OUTPUT_TOKENS,
+        timeout_secondes=RAPPORT_TIMEOUT_SECONDS,
+    ).texte
 
 
 def _appel_groq_rapport(prompt: str) -> str:

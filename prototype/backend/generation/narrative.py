@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 from uuid import uuid4
 
-import google.generativeai as genai
+import gemini
 
 from generation.substitution import (
     generer_exercice as generer_exercice_procedural,
@@ -514,37 +514,29 @@ def _ensure_env_loaded() -> None:
             os.environ[key] = value
 
 
-@lru_cache(maxsize=1)
-def _build_model() -> genai.GenerativeModel:
-    api_key = ensure_tutor_configured()
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_INSTRUCTION)
-
-
 def _call_model_json(prompt: str) -> dict[str, str]:
-    """Priorite 1 : Gemini (comportement historique)."""
-    model = _build_model()
-    response = model.generate_content(
+    """Priorite 1 : Gemini (comportement historique), sortie JSON contrainte."""
+    reponse = gemini.generer(
         prompt,
-        generation_config={
-            "temperature": 0.2,
-            "max_output_tokens": MAX_OUTPUT_TOKENS,
-            "response_mime_type": "application/json",
-            "response_schema": {
-                "type": "object",
-                "required": list(STRICT_KEYS),
-                "properties": {
-                    "personnage": {"type": "string"},
-                    "objet": {"type": "string"},
-                    "action": {"type": "string"},
-                    "question": {"type": "string"},
-                },
+        api_key=ensure_tutor_configured(),
+        modele=MODEL_NAME,
+        system_instruction=SYSTEM_INSTRUCTION,
+        temperature=0.2,
+        max_output_tokens=MAX_OUTPUT_TOKENS,
+        timeout_secondes=PROVIDER_TIMEOUT_SECONDS,
+        response_mime_type="application/json",
+        response_json_schema={
+            "type": "object",
+            "required": list(STRICT_KEYS),
+            "properties": {
+                "personnage": {"type": "string"},
+                "objet": {"type": "string"},
+                "action": {"type": "string"},
+                "question": {"type": "string"},
             },
         },
-        request_options={"timeout": PROVIDER_TIMEOUT_SECONDS},
     )
-    text = getattr(response, "text", "") or ""
-    return _parse_llm_json(text)
+    return _parse_llm_json(reponse.texte)
 
 
 @lru_cache(maxsize=1)
