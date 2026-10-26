@@ -347,8 +347,22 @@
     }
   }
 
+  /* Revoque le jeton cote serveur (POST /deconnexion). Sans attendre la
+     reponse : la deconnexion locale ne doit jamais dependre du reseau. */
+  function revoquerJeton(jeton) {
+    if (!jeton || typeof fetch !== "function") {
+      return;
+    }
+    fetch(`${API_BASE}/deconnexion`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${jeton}` },
+      keepalive: true,
+    }).catch(() => {});
+  }
+
   function deconnecter() {
     arreterRafraichissementTableauBord();
+    revoquerJeton(token);
     token = null;
     enseignant = null;
     classes = [];
