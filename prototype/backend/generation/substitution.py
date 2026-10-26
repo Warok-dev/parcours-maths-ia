@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from math import gcd
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 CATALOG_PATH = Path(__file__).resolve().parents[3] / "pattern_catalog.json"
 LEVEL_MAP = {"CE1": "N1", "CE2": "N2", "CE3": "N3", "CE4": "N4", "CE5": "N5", "CE6": "N6"}
@@ -94,7 +95,7 @@ def _build_exercise(
 ) -> dict:
     pattern_def = PATTERN_DEFS[pattern_name]
     return {
-        "id": f"{niveau}-{pattern_name}-{random.randint(1, 999999):06d}",
+        "id": f"{niveau}-{pattern_name}-{uuid4().hex}",
         "niveau_scolaire": niveau,
         "matiere": "mathematiques",
         "pattern": {

@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import time
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,7 +14,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import select, text
@@ -97,10 +98,50 @@ CONFIANCE_PATTERNS_SIMPLES = [
     "multiplication_par_10",
     "moitie_via_2xn",
 ]
+
+
+class CacheBorne(OrderedDict):
+    """Dictionnaire LRU de taille bornee : au-dela de `taille_max` entrees, la
+    moins recemment utilisee est oubliee. Evite qu'un serveur qui tourne
+    longtemps (ou qu'un client qui spamme GET /exercices) n'accumule sans fin
+    exercices et sessions en memoire. Oublier une entree est sans danger : la
+    verite des sessions (et de leurs exercices) est sur disque et rechargee a
+    la demande (voir _exercice_de_session)."""
+
+    def __init__(self, taille_max: int) -> None:
+        super().__init__()
+        self.taille_max = taille_max
+
+    def __getitem__(self, cle):
+        valeur = super().__getitem__(cle)
+        self.move_to_end(cle)
+        return valeur
+
+    def get(self, cle, defaut=None):
+        if cle in self:
+            return self[cle]
+        return defaut
+
+    def __setitem__(self, cle, valeur) -> None:
+        super().__setitem__(cle, valeur)
+        self.move_to_end(cle)
+        while len(self) > self.taille_max:
+            self.popitem(last=False)
+
+
 # Caches memoire de travail ; la verite persistante des sessions est sur
 # disque (un JSON par session dans data/sessions/), rechargee a la demande.
-EXERCICE_CACHE: dict[str, dict] = {}
-SESSION_STATE: dict[str, dict] = {}
+EXERCICE_CACHE_TAILLE_MAX = 5000
+SESSION_STATE_TAILLE_MAX = 2000
+EXERCICE_CACHE: CacheBorne = CacheBorne(EXERCICE_CACHE_TAILLE_MAX)
+SESSION_STATE: CacheBorne = CacheBorne(SESSION_STATE_TAILLE_MAX)
+
+# --- Bornes des entrees libres (anti abus de cout IA / TTS) -------------
+QUESTION_TUTEUR_MAX = 500  # caracteres : une question d'enfant tient en une ligne
+TEXTE_TTS_MAX = 1000  # caracteres : un enonce ou une reponse du tuteur
+PATTERNS_CIBLES_MAX = 50  # une revision n'en garde de toute facon que 6
+IDENTIFIANT_MAX = 120  # exercice_id, pattern, lecon_id, theme...
+REPONSE_MAX = 200  # reponse d'eleve
 
 # Rend visibles les logs INFO applicatifs (ex : quel fournisseur narratif a
 # repondu) dans la console uvicorn pendant le developpement.
@@ -147,38 +188,41 @@ app.add_middleware(
 app.include_router(comptes_router)
 
 
+Identifiant = Annotated[str, Field(max_length=IDENTIFIANT_MAX)]
+
+
 class SessionStartRequest(BaseModel):
     niveau_scolaire: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
-    lecon_id: str | None = None
-    theme: str | None = None
+    lecon_id: Identifiant | None = None
+    theme: Identifiant | None = None
 
 
 class RevisionStartRequest(BaseModel):
     niveau_scolaire: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
-    patterns_cibles: list[str]
-    theme: str | None = None
+    patterns_cibles: list[Identifiant] = Field(max_length=PATTERNS_CIBLES_MAX)
+    theme: Identifiant | None = None
 
 
 class EvaluationRequest(BaseModel):
-    exercice_id: str
-    session_id: str | None = None
+    exercice_id: Identifiant
+    session_id: Identifiant | None = None
     niveau: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"] | None = None
-    reponse_eleve: str | None = None
-    reponse_donnee: str | None = None
+    reponse_eleve: Annotated[str, Field(max_length=REPONSE_MAX)] | None = None
+    reponse_donnee: Annotated[str, Field(max_length=REPONSE_MAX)] | None = None
 
 
 class TutorRequest(BaseModel):
-    exercice_id: str
+    exercice_id: Identifiant
     niveau: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
-    question: str
-    session_id: str | None = None
+    question: str = Field(min_length=1, max_length=QUESTION_TUTEUR_MAX)
+    session_id: Identifiant | None = None
 
 
 class SpeechRequest(BaseModel):
-    texte: str
+    texte: str = Field(max_length=TEXTE_TTS_MAX)
     # Ton de la voix : le tuteur (le hibou) ou la lecture d'un enonce. Optionnel
     # (defaut = enonce). Toute autre valeur retombe sur le profil par defaut.
-    source: str | None = None
+    source: Identifiant | None = None
 
 
 def load_json(name: str) -> list[dict] | dict:
@@ -208,8 +252,9 @@ def _save_session(session: dict) -> None:
     if confiance is not None:
         ids.append(confiance.get("exercice_id"))
     for exercice_id in ids:
-        if exercice_id and exercice_id in EXERCICE_CACHE:
-            exercices[exercice_id] = EXERCICE_CACHE[exercice_id]
+        exercice = _exercice_de_session(session, exercice_id)
+        if exercice is not None:
+            exercices[exercice_id] = exercice
     payload = {"session": session, "exercices": exercices}
     try:
         SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -234,6 +279,28 @@ def _load_session_from_disk(session_id: str) -> dict | None:
     EXERCICE_CACHE.update(exercices)
     SESSION_STATE[session_id] = session
     return session
+
+
+def _exercice_de_session(session: dict, exercice_id: str | None) -> dict | None:
+    """Exercice d'une session, meme s'il a ete evince du cache memoire : on le
+    relit alors dans le fichier de la session (qui persiste l'exercice courant
+    et l'eventuel exercice de confiance)."""
+    if not exercice_id:
+        return None
+    exercice = EXERCICE_CACHE.get(exercice_id)
+    if exercice is not None:
+        return exercice
+    path = _session_file_path(session["session_id"])
+    if path is None or not path.is_file():
+        return None
+    try:
+        exercices = json.loads(path.read_text(encoding="utf-8")).get("exercices", {})
+    except (OSError, ValueError, AttributeError):
+        return None
+    exercice = exercices.get(exercice_id) if isinstance(exercices, dict) else None
+    if exercice is not None:
+        EXERCICE_CACHE[exercice_id] = exercice
+    return exercice
 
 
 def _cleanup_old_sessions() -> None:
@@ -542,7 +609,7 @@ def _maybe_inserer_confiance(session: dict) -> dict | None:
 
 
 def _progression_payload(session: dict) -> dict:
-    exercice = EXERCICE_CACHE.get(session["exercice_id_courant"])
+    exercice = _exercice_de_session(session, session["exercice_id_courant"])
     current_level = session["niveau_resolution_courant"]
     payload = {
         "session_id": session["session_id"],
@@ -577,7 +644,7 @@ def _progression_payload(session: dict) -> dict:
     # inchanges) pour qu'il reprenne exactement au meme point ensuite.
     confiance = session.get("exercice_confiance")
     exercice_confiance = (
-        EXERCICE_CACHE.get(confiance["exercice_id"]) if confiance is not None else None
+        _exercice_de_session(session, confiance["exercice_id"]) if confiance is not None else None
     )
     payload["exercice_confiance_actif"] = exercice_confiance is not None
     if exercice_confiance is not None:
@@ -688,6 +755,9 @@ def _ensure_current_exercise(session: dict, exercice_id: str) -> dict:
     attendu = confiance["exercice_id"] if confiance is not None else session["exercice_id_courant"]
     if exercice_id != attendu:
         raise HTTPException(status_code=409, detail="Exercice courant invalide pour cette session.")
+    exercice = _exercice_de_session(session, exercice_id)
+    if exercice is not None:
+        return exercice
     return get_exercice_by_id(session["niveau_scolaire"], exercice_id)
 
 
@@ -830,7 +900,7 @@ def _apply_confidence_evaluation(session: dict, exercice: dict, reponse: str) ->
     session["exercice_confiance"] = None
     response["statut"] = "confiance_reussie"
     response["progression"] = _progression_payload(session)
-    exercice_normal = EXERCICE_CACHE.get(session["exercice_id_courant"])
+    exercice_normal = _exercice_de_session(session, session["exercice_id_courant"])
     if exercice_normal is not None:
         response["exercice_suivant"] = exercice_normal
     return response
@@ -1067,7 +1137,7 @@ def demarrer_session(
         _lier_session_a_eleve(db, session, eleve_id, niveau)
     return {
         "session_id": session["session_id"],
-        "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
+        "exercice": _exercice_de_session(session, session["exercice_id_courant"]),
         "progression": _progression_payload(session),
     }
 
@@ -1104,7 +1174,7 @@ def demarrer_session_revision(
         _lier_session_a_eleve(db, session, eleve_id, niveau)
     return {
         "session_id": session["session_id"],
-        "exercice": EXERCICE_CACHE[session["exercice_id_courant"]],
+        "exercice": _exercice_de_session(session, session["exercice_id_courant"]),
         "progression": _progression_payload(session),
     }
 

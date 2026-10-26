@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 import google.generativeai as genai
 
@@ -696,7 +697,7 @@ def _build_exercise(
     pattern_def = PATTERN_DEFS[pattern_name]
     equivalences = [str(valeur)] if not isinstance(valeur, list) else [", ".join(map(str, valeur))]
     return {
-        "id": f"{niveau}-{pattern_name}-{random.randint(1, 999999):06d}",
+        "id": f"{niveau}-{pattern_name}-{uuid4().hex}",
         "niveau_scolaire": niveau,
         "matiere": "mathematiques",
         "pattern": {
