@@ -77,6 +77,24 @@
     return true;
   }
 
+  /* Valeur numérique d'une réponse (miroir de _nombre côté backend) : virgule
+     ou point décimal, zéros non significatifs, espaces de milliers. null si
+     la réponse n'est pas un nombre seul. */
+  const NOMBRE = /^[+-]?\d+(?:[.,]\d+)?$/;
+  const NOMBRE_MILLIERS = /^[+-]?\d{1,3}(?: \d{3})+(?:[.,]\d+)?$/;
+  function nombre(texte) {
+    let t = String(texte).replace(/[\u00a0\u202f\u2009]/g, " ").trim();
+    if (NOMBRE_MILLIERS.test(t)) {
+      t = t.replace(/ /g, "");
+    }
+    return NOMBRE.test(t) ? Number(t.replace(",", ".")) : null;
+  }
+
+  function nombresEgaux(reponseNorm, candidats) {
+    const valeur = nombre(reponseNorm);
+    return valeur !== null && candidats.some((candidat) => nombre(candidat) === valeur);
+  }
+
   /* Vrai si la réponse de l'élève est correcte pour cet exercice mis en cache.
      reponse_attendue.valeur est déjà présent dans l'exercice : aucun serveur
      n'est nécessaire pour une comparaison aussi simple. */
@@ -94,6 +112,9 @@
       correct =
         multiplicationsEquivalentes(reponseNorm, attenduNorm) ||
         equivalences.some((equivalence) => multiplicationsEquivalentes(reponseNorm, equivalence));
+    }
+    if (!correct) {
+      correct = nombresEgaux(reponseNorm, [attenduNorm, ...equivalences]);
     }
     return correct;
   }
