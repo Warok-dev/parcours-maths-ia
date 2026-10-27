@@ -23,8 +23,10 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     create_engine,
     event,
@@ -392,6 +394,40 @@ class Personnage(Base):
     )
 
     eleve: Mapped["Eleve"] = relationship(back_populates="personnage")
+
+
+class Jeton(Base):
+    """Jeton de connexion opaque (enseignant, eleve ou parent), persiste en base.
+
+    En base plutot qu'en memoire : un redemarrage du serveur (mise en veille de
+    l'hebergeur, redeploiement) ne deconnecte plus personne, et plusieurs
+    workers partagent les memes jetons. Seule l'EMPREINTE SHA-256 du jeton est
+    stockee : une fuite de la base ne donne aucun jeton utilisable.
+    L'expiration est un horodatage Unix (entier) : comparaison triviale et
+    identique sous SQLite et PostgreSQL."""
+
+    __tablename__ = "jeton"
+    __table_args__ = (Index("ix_jeton_type_titulaire", "type_compte", "titulaire_id"),)
+
+    empreinte: Mapped[str] = mapped_column(String(64), primary_key=True)
+    type_compte: Mapped[str] = mapped_column(String(12), nullable=False)
+    titulaire_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    expire_a: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+
+class EtatSessionJeu(Base):
+    """Etat d'une partie en cours (progression + exercices courants), en JSON.
+
+    Remplace les fichiers data/sessions/*.json : le disque des hebergeurs
+    gratuits est ephemere, une partie en cours survit desormais a un
+    redemarrage. Distinct de SessionJeu (ligne de suivi d'un eleve connecte) :
+    ici sont aussi stockees les parties invitees, anonymes."""
+
+    __tablename__ = "etat_session_jeu"
+
+    session_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    contenu: Mapped[str] = mapped_column(Text, nullable=False)
+    maj_a: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
 
 class InvitationEnseignant(Base):
