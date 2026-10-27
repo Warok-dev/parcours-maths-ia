@@ -103,7 +103,7 @@ class NotificationsTests(unittest.TestCase):
         with self.Session() as db:
             resume = notifications.generer_resume_hebdomadaire(db, self.eleve_id)
         self.assertEqual(resume["concepts_travailles"], [])
-        self.assertIn("n'a pas travaille", resume["texte"])
+        self.assertIn("n'a pas travaillé", resume["texte"])
 
     def test_resume_fenetre_bornee(self) -> None:
         # Juste avant la limite des 7 jours : inclus ; juste apres : exclu.
