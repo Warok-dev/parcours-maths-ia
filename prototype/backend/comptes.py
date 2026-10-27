@@ -115,6 +115,21 @@ _TENTATIVES_PAR_MAITRISE = {1: 3, 2: 2, 3: 1}
 #    INDEPENDAMMENT de l'activite de l'eleve par ailleurs : au-dela de 2 ans une
 #    session est de toute facon obsolete pour les tableaux de bord (couvre aussi
 #    les sessions anonymes de l'essai libre, eleve_id nul).
+# --- Verrouillage du PIN eleve (anti force brute, par eleve) ---
+# Le PIN n'a que 10 000 valeurs : la limite par IP seule ne suffit pas (un
+# attaquant multiplie les IP). Apres PIN_ECHECS_MAX echecs consecutifs, la
+# connexion de CET eleve est suspendue PIN_VERROU_MINUTES. Soit au plus
+# ~20 essais/heure par eleve : plusieurs semaines pour parcourir l'espace,
+# largement de quoi voir l'anomalie. L'enseignant debloque en reinitialisant
+# le PIN. Le verrou court limite la gene si quelqu'un verrouille un eleve
+# volontairement.
+PIN_ECHECS_MAX = 5
+PIN_VERROU_MINUTES = 15
+MESSAGE_PIN_VERROUILLE = (
+    "Trop d'essais avec ce code secret. Attends un petit moment, "
+    "ou demande a ton enseignant de t'aider."
+)
+
 RETENTION_INACTIVITE_JOURS = 730  # 2 ans
 RETENTION_SESSION_JOURS = 730  # 2 ans
 
@@ -183,6 +198,12 @@ def hash_code_parent(code: str) -> str:
     (impossible avec bcrypt sale). Le code reste haché, jamais stocke en clair.
     L'entropie elevee du code (8 caracteres) rend ce hash rapide sans danger."""
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+
+def normaliser_code_classe(code: str) -> str:
+    """Code de classe tel que stocke : sans espaces autour, en majuscules (un
+    enfant peut taper 'ce1-renard-k7p2m')."""
+    return code.strip().upper()
 
 
 # --- Dependance session BD (surchargeable en test via dependency_overrides) ---
@@ -1161,6 +1182,9 @@ def reinitialiser_pin_eleve(
         raise HTTPException(status_code=404, detail="Eleve introuvable dans cette classe.")
     pin = generer_pin()
     eleve.pin_hash = hash_mot_de_passe(pin)
+    # Nouveau PIN = ardoise propre : l'eleve verrouille peut se reconnecter.
+    eleve.echecs_pin = 0
+    eleve.pin_verrouille_jusqu = None
     db.commit()
     return {"id": eleve.id, "prenom": eleve.prenom, "classe_id": classe.id, "pin": pin}
 
@@ -1596,7 +1620,15 @@ def lister_assignations_classe(
 #  ELEVE : entree publique par code de classe, puis connexion
 # ============================================================
 @router.get("/classe/rejoindre/{code_classe}")
-def rejoindre_classe(code_classe: str, db: Annotated[Session, Depends(get_db)]) -> dict:
+def rejoindre_classe(
+    code_classe: str,
+    db: Annotated[Session, Depends(get_db)],
+    _rl: Annotated[None, Depends(limite(LIMITE_AUTH, "rejoindre_classe"))] = None,
+) -> dict:
+    """Entree publique : liste les prenoms d'une classe a partir de son code.
+    Limitee comme une authentification (LIMITE_AUTH) : sans cela, on pourrait
+    essayer des codes en rafale et collecter les prenoms d'enfants."""
+    code_classe = normaliser_code_classe(code_classe)
     classe = db.scalars(select(Classe).where(Classe.code_classe == code_classe)).first()
     if classe is None:
         raise HTTPException(status_code=404, detail="Aucune classe ne correspond a ce code.")
@@ -1627,13 +1659,43 @@ def connexion_eleve(
     # Anti-usurpation : l'id doit appartenir a la classe du code fourni ET le PIN
     # doit correspondre. Meme 403 pour "id inconnu", "mauvais code" et "mauvais
     # PIN" (pas d'enumeration : on ne revele pas laquelle des conditions echoue).
+    refus = HTTPException(status_code=403, detail="Eleve, code de classe ou code secret invalide.")
     if (
         eleve is None
         or eleve.archive  # un eleve retire de la classe ne peut plus se connecter
-        or eleve.classe.code_classe != payload.code_classe
-        or not verifier_pin(payload.pin, eleve.pin_hash)
+        or eleve.classe.code_classe != normaliser_code_classe(payload.code_classe)
     ):
-        raise HTTPException(status_code=403, detail="Eleve, code de classe ou code secret invalide.")
+        raise refus
+
+    # Verrou par eleve : on refuse AVANT de verifier le PIN (aucun essai ne
+    # compte pendant le verrou, et on economise un bcrypt).
+    maintenant = datetime.now(timezone.utc)
+    if eleve.pin_verrouille_jusqu is not None:
+        fin = _en_utc(eleve.pin_verrouille_jusqu)
+        if fin > maintenant:
+            restant = max(1, int((fin - maintenant).total_seconds()))
+            raise HTTPException(
+                status_code=429,
+                detail=MESSAGE_PIN_VERROUILLE,
+                headers={"Retry-After": str(restant)},
+            )
+
+    if not verifier_pin(payload.pin, eleve.pin_hash):
+        eleve.echecs_pin = (eleve.echecs_pin or 0) + 1
+        if eleve.echecs_pin >= PIN_ECHECS_MAX:
+            eleve.echecs_pin = 0
+            eleve.pin_verrouille_jusqu = maintenant + timedelta(minutes=PIN_VERROU_MINUTES)
+            logger.warning(
+                "PIN eleve id=%s verrouille %s min apres %s echecs.",
+                eleve.id, PIN_VERROU_MINUTES, PIN_ECHECS_MAX,
+            )
+        db.commit()
+        raise refus
+
+    if eleve.echecs_pin or eleve.pin_verrouille_jusqu is not None:
+        eleve.echecs_pin = 0
+        eleve.pin_verrouille_jusqu = None
+        db.commit()
 
     token = secrets.token_urlsafe(32)
     _TOKENS_ELEVE[token] = eleve.id
