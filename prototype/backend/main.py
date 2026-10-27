@@ -1368,8 +1368,13 @@ def synthese_vocale(
     except (TTSServiceError, TTSConfigurationError) as exc:
         # Panne du fournisseur OU credentials absents : dans les deux cas la
         # synthese neurale est indisponible -> 503, et le frontend retombe sur
-        # la voix native du navigateur.
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        # la voix native du navigateur. Message FIXE : le detail de l'exception
+        # (chemin absolu du fichier de credentials sur le serveur, message du
+        # SDK) reste dans les journaux et ne part jamais au client.
+        logging.warning("Synthese vocale indisponible : %s", exc)
+        raise HTTPException(
+            status_code=503, detail="La synthèse vocale est indisponible pour le moment."
+        ) from exc
 
     return {
         "audio_base64": audio_base64,

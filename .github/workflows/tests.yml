@@ -9,6 +9,18 @@ permissions:
   contents: read
 
 jobs:
+  secrets:
+    name: Aucun secret versionné
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # tout l'historique : une clé retirée reste lisible dans Git
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python prototype/backend/scripts/verifier_secrets.py --historique
+
   backend-sqlite:
     name: Backend (SQLite)
     runs-on: ubuntu-latest
