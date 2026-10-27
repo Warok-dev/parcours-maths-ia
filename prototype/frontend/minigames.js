@@ -25,6 +25,15 @@
    maitrise ni la progression.
    ============================================================ */
 (function () {
+  /* "jouer a" + nom du jeu, avec la contraction francaise : "au puzzle",
+     "aux cartes", "a la chasse", "a ton jardin". */
+  function aLeNom(nom) {
+    const n = String(nom || "").trim();
+    if (/^le\s/i.test(n)) return `au ${n.slice(3)}`;
+    if (/^les\s/i.test(n)) return `aux ${n.slice(4)}`;
+    return `à ${n}`;
+  }
+
   /* Probabilite de proposer apres un concept debloque : ni systematique
      (on ne ralentit pas un eleve presse), ni trop rare (l'effet de
      surprise doit exister). Parametrable. */
@@ -836,7 +845,7 @@
         .map(
           (c) => `
             <button class="memory-carte" type="button" data-id="${c.id}" aria-label="Carte à retourner">
-              <span class="memory-carte-dos" aria-hidden="true">?</span>
+              <span class="memory-carte-dos" aria-hidden="true">&#9733;</span>
               <span class="memory-carte-face">${c.texte}</span>
             </button>`,
         )
@@ -1582,7 +1591,7 @@
         card.innerHTML = `
           <p class="minigame-invite-eyebrow">Pause détente !</p>
           <div class="minigame-invite-emoji" aria-hidden="true">&#127881;</div>
-          <h2 class="minigame-invite-title">Tu veux jouer à ${minigame.nom} ?</h2>
+          <h2 class="minigame-invite-title">Tu veux jouer ${aLeNom(minigame.nom)}&nbsp;?</h2>
           <p class="minigame-invite-text">Juste pour s'amuser -- ta progression est mise de côté, elle t'attend.</p>
           <div class="minigame-invite-actions">
             <button id="minigame-invite-play" class="btn-primary" type="button">Jouer</button>
