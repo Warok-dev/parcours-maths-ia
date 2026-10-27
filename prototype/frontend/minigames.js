@@ -333,6 +333,58 @@
     return {};
   }
 
+  /* Le calcul a resoudre pour trouver la cible, selon l'age. Sans calcul, la
+     chasse n'etait qu'un exercice de reconnaissance de chiffres. Les petits
+     additionnent (somme <= 10 au CE1, <= 20 au CE2), les grands revoient leurs
+     tables. Niveau inconnu : pas de calcul (comportement d'origine). Tenu a
+     part de reglagesChasse pour que celui-ci reste centre sur le rythme. */
+  function calculChasse(niveau) {
+    const rang = niveauRang(niveau);
+    if (rang === 1) {
+      return { OPERATION: "addition", VALEUR_MIN: 2, VALEUR_MAX: 10 };
+    }
+    if (rang === 2) {
+      return { OPERATION: "addition", VALEUR_MIN: 4, VALEUR_MAX: 20 };
+    }
+    if (rang >= 3) {
+      return { OPERATION: "multiplication", VALEUR_MIN: 4, VALEUR_MAX: 81 };
+    }
+    return {};
+  }
+
+  /* Tire un calcul dont le resultat tombe dans [min, max]. Les leurres sont
+     les erreurs typiques d'un eleve (resultat +/- 1, une table a cote, a+b au
+     lieu de a x b) : attraper le bon nombre demande vraiment de calculer. */
+  function tirerCalculChasse(rnd, operation, min, max) {
+    const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+    let a = 1;
+    let b = 1;
+    for (let essai = 0; essai < 50; essai += 1) {
+      if (operation === "multiplication") {
+        a = ri(2, 9);
+        b = ri(2, 9);
+      } else {
+        a = ri(1, Math.max(1, max - 1));
+        b = ri(1, Math.max(1, max - a));
+      }
+      const r = operation === "multiplication" ? a * b : a + b;
+      if (r >= min && r <= max) {
+        break;
+      }
+    }
+    const resultat = operation === "multiplication" ? a * b : a + b;
+    const signe = operation === "multiplication" ? "×" : "+";
+    const leurres = operation === "multiplication"
+      ? [resultat - 1, resultat + 1, resultat + a, resultat - a, resultat + b, resultat - b, a + b]
+      : [resultat - 1, resultat + 1, resultat - 2, resultat + 2, Math.abs(a - b)];
+    const plafond = operation === "multiplication" ? 100 : max;
+    return {
+      expression: `${a} ${signe} ${b}`,
+      resultat,
+      leurres: leurres.filter((v) => v !== resultat && v >= 1 && v <= plafond),
+    };
+  }
+
   /* Construit une partie initiale (nombres + cible) sans aucun DOM.
      La cible est TOUJOURS presente parmi les nombres affiches, en au moins
      CIBLES_MIN exemplaires. Hasard injecte pour des parties reproductibles. */
@@ -340,14 +392,31 @@
     const cfg = { ...CHASSE, ...options };
     const rnd = typeof random === "function" ? random : Math.random;
     const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
-    const cible = ri(cfg.VALEUR_MIN, cfg.VALEUR_MAX);
+    const calcul = cfg.OPERATION
+      ? tirerCalculChasse(rnd, cfg.OPERATION, cfg.VALEUR_MIN, cfg.VALEUR_MAX)
+      : null;
+    const cible = calcul ? calcul.resultat : ri(cfg.VALEUR_MIN, cfg.VALEUR_MAX);
     const nbCibles = Math.min(cfg.NB_NOMBRES, ri(cfg.CIBLES_MIN, cfg.CIBLES_MAX));
     const valeurs = [];
     for (let i = 0; i < nbCibles; i += 1) {
       valeurs.push(cible);
     }
+    /* Leurres plausibles d'abord (sans doublon), puis du hasard. */
+    const leurres = calcul ? [...new Set(calcul.leurres)] : [];
+    while (valeurs.length < cfg.NB_NOMBRES && leurres.length) {
+      valeurs.push(leurres.splice(Math.floor(rnd() * leurres.length), 1)[0]);
+    }
+    let garde = 0;
     while (valeurs.length < cfg.NB_NOMBRES) {
-      valeurs.push(ri(cfg.VALEUR_MIN, cfg.VALEUR_MAX));
+      const v = ri(cfg.VALEUR_MIN, cfg.VALEUR_MAX);
+      garde += 1;
+      /* Avec un calcul, un leurre au hasard ne doit pas etre la cible : le
+         compteur "x/y trouves" resterait juste mais l'eleve serait trompe
+         sur le nombre de bonnes bulles. */
+      if (calcul && v === cible && garde < 100) {
+        continue;
+      }
+      valeurs.push(v);
     }
     /* Melange (Fisher-Yates) pour que les cibles ne soient pas groupees. */
     for (let i = valeurs.length - 1; i > 0; i -= 1) {
@@ -357,19 +426,40 @@
       valeurs[j] = tmp;
     }
     const marge = cfg.RAYON;
+    const places = [];
     const nombres = valeurs.map((valeur, id) => {
       const angle = rnd() * Math.PI * 2;
       const vitesse = cfg.VITESSE_MIN + rnd() * (cfg.VITESSE_MAX - cfg.VITESSE_MIN);
+      /* Position de depart sans chevauchement : des bulles empilees au
+         lancement se cachaient l'une l'autre. On garde le meilleur essai. */
+      let x = 0;
+      let y = 0;
+      let meilleure = -1;
+      for (let essai = 0; essai < 24; essai += 1) {
+        const cx = marge + rnd() * (cfg.LARGEUR - 2 * marge);
+        const cy = marge + rnd() * (cfg.HAUTEUR - 2 * marge);
+        const d = places.reduce((m, p) => Math.min(m, Math.hypot(p.x - cx, p.y - cy)), Infinity);
+        if (d > meilleure) {
+          meilleure = d;
+          x = cx;
+          y = cy;
+        }
+        if (d >= cfg.RAYON * 2.4) {
+          break;
+        }
+      }
+      places.push({ x, y });
       return {
         id,
         valeur,
-        x: marge + rnd() * (cfg.LARGEUR - 2 * marge),
-        y: marge + rnd() * (cfg.HAUTEUR - 2 * marge),
+        x,
+        y,
         vx: Math.cos(angle) * vitesse,
         vy: Math.sin(angle) * vitesse,
       };
     });
     return {
+      expression: calcul ? calcul.expression : null,
       cible,
       dureeMs: cfg.DUREE_MS,
       largeur: cfg.LARGEUR,
@@ -424,6 +514,37 @@
           n.vy = -Math.abs(n.vy);
         }
       }
+      /* Les bulles rebondissent aussi entre elles (choc elastique a masses
+         egales : on echange les vitesses le long de l'axe des centres). Sans
+         ca, deux bulles se superposaient et masquaient leur nombre. */
+      const actifs = state.nombres.filter((n) => !n.trouve);
+      for (let i = 0; i < actifs.length; i += 1) {
+        for (let j = i + 1; j < actifs.length; j += 1) {
+          const p = actifs[i];
+          const q = actifs[j];
+          const dx = q.x - p.x;
+          const dy = q.y - p.y;
+          const d = Math.hypot(dx, dy);
+          if (d === 0 || d >= rayon * 2) {
+            continue;
+          }
+          const nx = dx / d;
+          const ny = dy / d;
+          const rapprochement = (p.vx - q.vx) * nx + (p.vy - q.vy) * ny;
+          if (rapprochement > 0) {
+            p.vx -= rapprochement * nx;
+            p.vy -= rapprochement * ny;
+            q.vx += rapprochement * nx;
+            q.vy += rapprochement * ny;
+          }
+          /* On les ecarte juste assez pour qu'elles ne restent pas collees. */
+          const recul = (rayon * 2 - d) / 2;
+          p.x = Math.min(largeur - rayon, Math.max(rayon, p.x - nx * recul));
+          p.y = Math.min(hauteur - rayon, Math.max(rayon, p.y - ny * recul));
+          q.x = Math.min(largeur - rayon, Math.max(rayon, q.x + nx * recul));
+          q.y = Math.min(hauteur - rayon, Math.max(rayon, q.y + ny * recul));
+        }
+      }
       state.tempsRestantMs = Math.max(0, state.tempsRestantMs - dtMs);
       if (state.tempsRestantMs <= 0) {
         state.termine = true;
@@ -472,27 +593,90 @@
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
+  /* --- Petits outils de rendu partages par les mini-jeux --- */
+
+  /* Ecran tactile : on dit "touche" plutot que "clique". */
+  function estTactile() {
+    return typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  /* Une a trois etoiles selon la part reussie (0..1). Toujours au moins une :
+     un mini-jeu est une pause, on ne repart jamais les mains vides. */
+  function nbEtoilesFin(ratio) {
+    if (ratio >= 0.99) {
+      return 3;
+    }
+    return ratio >= 0.5 ? 2 : 1;
+  }
+
+  function etoilesFin(ratio) {
+    const n = nbEtoilesFin(ratio);
+    let html = "";
+    for (let i = 0; i < 3; i += 1) {
+      html += `<span class="fin-etoile${i < n ? " gagnee" : ""}" style="--i:${i}">&#9733;</span>`;
+    }
+    return `<div class="fin-etoiles" aria-label="${n} étoile${n > 1 ? "s" : ""} sur 3">${html}</div>`;
+  }
+
+  /* Pluie de confettis dans un conteneur (purement decorative, coupee par
+     prefers-reduced-motion cote CSS). */
+  function lancerConfettis(conteneur, nombre = 28) {
+    if (!conteneur || typeof document === "undefined") {
+      return;
+    }
+    const couches = document.createElement("div");
+    couches.className = "confettis";
+    couches.setAttribute("aria-hidden", "true");
+    const couleurs = ["#ffd76a", "#ff9db0", "#7fd18b", "#8fc9ff", "#c9a2ff", "#ffb36b"];
+    let html = "";
+    for (let i = 0; i < nombre; i += 1) {
+      const gauche = (i * 37) % 100;
+      const delai = ((i * 53) % 60) / 100;
+      const duree = 1.6 + ((i * 29) % 10) / 10;
+      const derive = ((i * 41) % 80) - 40;
+      html += `<i style="left:${gauche}%;background:${couleurs[i % couleurs.length]};animation-delay:${delai}s;animation-duration:${duree}s;--derive:${derive}px"></i>`;
+    }
+    couches.innerHTML = html;
+    conteneur.appendChild(couches);
+  }
+
   const MINIGAME_CHASSE = {
     id: "chasse-nombres",
     nom: "la chasse aux nombres",
+    emoji: "&#127880;",
+    accroche: "Éclate les bonnes bulles avant la fin du temps.",
     monter(zone, { terminer, niveau }) {
-      const config = genererConfig(Math.random, reglagesChasse(niveau));
+      /* Sur un ecran etroit (telephone en portrait), l'aire paysage 640x420
+         reduisait les bulles a ~30 px : trop petit pour un doigt d'enfant. On
+         passe alors a une aire portrait plus etroite, ou chaque bulle garde
+         ~55 px a l'ecran. */
+      const etroit = (zone.clientWidth || 640) < 520;
+      const format = etroit ? { LARGEUR: 380, HAUTEUR: 500 } : {};
+      const config = genererConfig(Math.random, { ...reglagesChasse(niveau), ...calculChasse(niveau), ...format });
       const partie = creerChasseNombres(config);
       const W = config.largeur;
       const H = config.hauteur;
       const R = config.rayon;
+      const tactile = estTactile();
+      const cibleHtml = config.expression
+        ? `<span class="chasse-cible-label">${tactile ? "Touche" : "Attrape"} le résultat de</span>
+           <span class="chasse-cible-valeur chasse-cible-calcul">${config.expression}</span>`
+        : `<span class="chasse-cible-label">${tactile ? "Touche" : "Attrape"} tous les</span>
+           <span class="chasse-cible-valeur">${config.cible}</span>`;
 
       zone.innerHTML = `
         <div class="chasse">
           <div class="chasse-header">
             <div class="chasse-cible">
-              <span class="chasse-cible-label">Attrape tous les</span>
-              <span class="chasse-cible-valeur">${config.cible}</span>
+              ${cibleHtml}
             </div>
             <div class="chasse-compteur" id="chasse-compteur">0/${partie.aTrouver()} trouvés</div>
           </div>
           <div class="chasse-timer"><div class="chasse-timer-bar" id="chasse-timer-bar"></div></div>
           <svg class="chasse-aire" id="chasse-aire" viewBox="0 0 ${W} ${H}"
+               style="aspect-ratio:${W} / ${H}"
                preserveAspectRatio="xMidYMid meet" aria-label="Aire de jeu : nombres flottants"></svg>
           <div class="chasse-fin hidden" id="chasse-fin"></div>
         </div>
@@ -513,17 +697,16 @@
         g.setAttribute("transform", `translate(${n.x.toFixed(1)}, ${n.y.toFixed(1)})`);
         g.dataset.id = String(n.id);
         const inner = document.createElementNS(SVG_NS, "g");
-        inner.setAttribute("class", "chasse-nombre-inner");
-        const c = document.createElementNS(SVG_NS, "circle");
-        c.setAttribute("r", String(R));
-        c.setAttribute("class", "chasse-nombre-bulle");
-        const t = document.createElementNS(SVG_NS, "text");
-        t.setAttribute("text-anchor", "middle");
-        t.setAttribute("dy", "0.34em");
-        t.setAttribute("class", "chasse-nombre-texte");
-        t.textContent = String(n.valeur);
-        inner.appendChild(c);
-        inner.appendChild(t);
+        /* Une teinte par bulle (indépendante de la valeur : la couleur ne
+           doit pas trahir la bonne réponse). */
+        inner.setAttribute("class", `chasse-nombre-inner teinte-${n.id % 5}`);
+        const taille = String(n.valeur).length;
+        inner.innerHTML = `
+          <circle class="chasse-nombre-halo" r="${R + 5}"></circle>
+          <circle class="chasse-nombre-bulle" r="${R}"></circle>
+          <ellipse class="chasse-nombre-reflet" cx="${-R * 0.38}" cy="${-R * 0.42}" rx="${R * 0.32}" ry="${R * 0.18}" transform="rotate(-35 ${-R * 0.38} ${-R * 0.42})"></ellipse>
+          <circle class="chasse-nombre-eclat" cx="${R * 0.45}" cy="${R * 0.4}" r="${R * 0.08}"></circle>
+          <text class="chasse-nombre-texte${taille > 2 ? " long" : ""}" text-anchor="middle" dy="0.35em">${n.valeur}</text>`;
         g.appendChild(inner);
         svg.appendChild(g);
         tokens.set(n.id, g);
@@ -549,6 +732,22 @@
           g.classList.add("trouve");
           tokens.delete(id);
           window.setTimeout(() => g.remove(), 260);
+          /* Petite gerbe + "+1" a l'endroit de la bulle eclatee. */
+          const pos = g.getAttribute("transform");
+          const gerbe = document.createElementNS(SVG_NS, "g");
+          gerbe.setAttribute("class", "chasse-gerbe");
+          gerbe.setAttribute("transform", pos);
+          let rayons = "";
+          for (let k = 0; k < 8; k += 1) {
+            const a = (k / 8) * Math.PI * 2;
+            rayons += `<circle class="chasse-gerbe-point" cx="${(Math.cos(a) * R * 1.25).toFixed(1)}" cy="${(Math.sin(a) * R * 1.25).toFixed(1)}" r="5"></circle>`;
+          }
+          gerbe.innerHTML = `<g class="chasse-gerbe-anneau">${rayons}</g><text class="chasse-plus-un" text-anchor="middle" dy="0.35em">+1</text>`;
+          svg.appendChild(gerbe);
+          window.setTimeout(() => gerbe.remove(), 900);
+          compteur.classList.remove("rebond");
+          void compteur.offsetWidth;
+          compteur.classList.add("rebond");
           majCompteur();
           window.ParcoursAudio?.playCorrect?.();
           if (partie.estTermine()) {
@@ -581,6 +780,7 @@
         }
         const frac = partie.dureeMs() ? Math.max(0, partie.tempsRestantMs() / partie.dureeMs()) : 0;
         timerBar.style.transform = `scaleX(${frac.toFixed(3)})`;
+        timerBar.parentElement.classList.toggle("presse", partie.tempsRestantMs() < 5000);
         if (partie.estTermine()) {
           finir();
           return;
@@ -603,22 +803,28 @@
         const total = partie.aTrouver();
         const bonus = partie.bonus();
         const pluriel = trouves > 1 ? "s" : "";
+        const titre = trouves >= total ? "Tous attrapés !" : "Bien joué !";
+        const rappel = config.expression
+          ? `<p class="chasse-fin-calcul">${config.expression} = <strong>${config.cible}</strong></p>`
+          : "";
         finBox.innerHTML = `
-          <div class="chasse-fin-carte">
-            <div class="chasse-fin-emoji" aria-hidden="true">&#127881;</div>
-            <h2 class="chasse-fin-titre">Bien joué !</h2>
+          <div class="chasse-fin-carte fin-carte">
+            ${etoilesFin(trouves / Math.max(1, total))}
+            <h2 class="chasse-fin-titre">${titre}</h2>
+            ${rappel}
             <p class="chasse-fin-detail">Tu as attrapé ${trouves} nombre${pluriel} sur ${total}.</p>
             <p class="chasse-fin-bonus">+${bonus} étoiles &#10024;</p>
             <button id="chasse-fin-btn" class="btn-primary" type="button">Revenir à l'aventure</button>
           </div>
         `;
         finBox.classList.remove("hidden");
+        lancerConfettis(finBox);
         const btn = finBox.querySelector("#chasse-fin-btn");
         btn.addEventListener("click", () => terminer(bonus));
         btn.focus();
         /* Retour automatique apres une courte celebration, si l'eleve ne
            clique pas lui-meme (terminer est idempotent cote orchestrateur). */
-        finTimer = window.setTimeout(() => terminer(bonus), 3200);
+        finTimer = window.setTimeout(() => terminer(bonus), 4500);
       }
 
       /* Nettoyage (demonter) : coupe la boucle, le minuteur et les ecouteurs. */
@@ -832,6 +1038,8 @@
   const MINIGAME_MEMORY = {
     id: "memory-tables",
     nom: "le memory des paires",
+    emoji: "&#127183;",
+    accroche: "Retourne les cartes et retrouve celles qui vont ensemble.",
     monter(zone, { terminer, niveau }) {
       const config = genererPaires(Math.random, reglagesMemory(niveau));
       const jeu = creerMemory(config);
@@ -844,9 +1052,9 @@
         .cartes()
         .map(
           (c) => `
-            <button class="memory-carte" type="button" data-id="${c.id}" aria-label="Carte à retourner">
+            <button class="memory-carte face-${c.face}" type="button" data-id="${c.id}" aria-label="Carte à retourner" style="--paire-teinte:${(c.paireId * 47) % 360}">
               <span class="memory-carte-dos" aria-hidden="true">&#9733;</span>
-              <span class="memory-carte-face">${c.texte}</span>
+              <span class="memory-carte-face"><span class="memory-carte-texte">${c.texte}</span></span>
             </button>`,
         )
         .join("");
@@ -855,7 +1063,10 @@
         <div class="memory">
           <div class="memory-header">
             <div class="memory-consigne">${consigne}</div>
-            <div class="memory-compteur" id="memory-compteur">0/${jeu.nbPaires()} paires</div>
+            <div class="memory-compteurs">
+              <div class="memory-essais" id="memory-essais">0 essai</div>
+              <div class="memory-compteur" id="memory-compteur">0/${jeu.nbPaires()} paires</div>
+            </div>
           </div>
           <div class="memory-grille" id="memory-grille" style="--memory-cols:${nbColonnes}">${cartesMarkup}</div>
           <div class="memory-fin hidden" id="memory-fin"></div>
@@ -864,6 +1075,7 @@
 
       const grille = zone.querySelector("#memory-grille");
       const compteur = zone.querySelector("#memory-compteur");
+      const essais = zone.querySelector("#memory-essais");
       const finBox = zone.querySelector("#memory-fin");
 
       let attenteTimer = null;
@@ -883,6 +1095,8 @@
 
       function majCompteur() {
         compteur.textContent = `${jeu.pairesTrouvees()}/${jeu.nbPaires()} paires`;
+        const n = jeu.coups();
+        essais.textContent = `${n} essai${n > 1 ? "s" : ""}`;
       }
 
       function onClick(event) {
@@ -904,8 +1118,13 @@
             finir();
           }
         } else if (res.etat === "rate") {
+          majCompteur();
+          res.cartes.forEach((cid) => grille.querySelector(`.memory-carte[data-id="${cid}"]`)?.classList.add("rate"));
           attenteTimer = window.setTimeout(() => {
-            jeu.resoudre().forEach(syncCarte);
+            jeu.resoudre().forEach((cid) => {
+              grille.querySelector(`.memory-carte[data-id="${cid}"]`)?.classList.remove("rate");
+              syncCarte(cid);
+            });
             attenteTimer = null;
           }, MEMORY.DELAI_RESOLUTION_MS);
         }
@@ -919,20 +1138,24 @@
         fini = true;
         grille.removeEventListener("click", onClick);
         const bonus = jeu.bonus();
+        /* Etoiles selon l'efficacite : n paires en n essais = parfait ; on
+           reste genereux (un memory sans erreur est rare a 8 ans). */
+        const efficacite = jeu.nbPaires() / Math.max(1, jeu.coups());
         finBox.innerHTML = `
-          <div class="memory-fin-carte">
-            <div class="memory-fin-emoji" aria-hidden="true">&#127882;</div>
+          <div class="memory-fin-carte fin-carte">
+            ${etoilesFin(efficacite >= 0.6 ? 1 : efficacite >= 0.35 ? 0.5 : 0)}
             <h2 class="memory-fin-titre">Bravo, tout retrouvé !</h2>
-            <p class="memory-fin-detail">Tu as reforme les ${jeu.nbPaires()} paires.</p>
+            <p class="memory-fin-detail">Tu as reformé les ${jeu.nbPaires()} paires en ${jeu.coups()} essais.</p>
             <p class="memory-fin-bonus">+${bonus} étoiles &#10024;</p>
-            <button id="memory-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
+            <button id="memory-fin-btn" class="btn-primary" type="button">Revenir à l'aventure</button>
           </div>
         `;
         finBox.classList.remove("hidden");
+        lancerConfettis(finBox);
         const btn = finBox.querySelector("#memory-fin-btn");
         btn.addEventListener("click", () => terminer(bonus));
         btn.focus();
-        finTimer = window.setTimeout(() => terminer(bonus), 3200);
+        finTimer = window.setTimeout(() => terminer(bonus), 4500);
       }
 
       return () => {
@@ -976,6 +1199,8 @@
     BONUS_BASE: 8,
     BONUS_PAR_PIECE: 6, /* par piece placee dans la session courante */
     BONUS_COMPLETION: 30, /* prime quand le puzzle entier est reconstitue */
+    PIECES_DEPART: 3, /* pieces offertes a l'ouverture d'un nouveau puzzle */
+    PIECES_PAR_PARTIE: 2, /* puis a chaque nouvelle partie */
   };
 
   /* Progression neuve : aucune piece debloquee ni placee. */
@@ -1100,6 +1325,8 @@
   const MINIGAME_PUZZLE = {
     id: "puzzle-carte",
     nom: "le puzzle de la carte",
+    emoji: "&#129513;",
+    accroche: "De nouvelles pièces t'attendent : complète l'image du monde.",
     monter(zone, { terminer, niveau }) {
       /* Reprise de la progression ; si le puzzle precedent etait complet, on
          repart sur un puzzle vierge. Puis on debloque UNE piece. */
@@ -1107,9 +1334,20 @@
       if (!progression || progression.complet) {
         progression = progressionVierge();
       }
-      const deblocage = debloquerPiece(progression, Math.random);
-      progression = deblocage.progression;
-      const nouvellePiece = deblocage.piece;
+      /* Une seule piece par partie donnait un mini-jeu de deux secondes. On en
+         debloque trois pour lancer un nouveau puzzle, puis deux a chaque
+         partie : le puzzle se complete en quatre pauses. */
+      const aDebloquer = (progression.debloquees || []).length === 0
+        ? PUZZLE.PIECES_DEPART
+        : PUZZLE.PIECES_PAR_PARTIE;
+      const nouvelles = new Set();
+      for (let k = 0; k < aDebloquer; k += 1) {
+        const deblocage = debloquerPiece(progression, Math.random);
+        progression = deblocage.progression;
+        if (deblocage.piece !== null) {
+          nouvelles.add(deblocage.piece);
+        }
+      }
       sauvegarderProgressionPuzzle(progression);
 
       const jeu = creerPuzzle(progression);
@@ -1150,7 +1388,7 @@
       const bacHtml = bac.length
         ? bac
             .map(
-              (id) => `<button class="puzzle-piece${id === nouvellePiece ? " nouvelle" : ""}" type="button" data-id="${id}" aria-label="Pièce de puzzle à placer">${pieceImg(id)}</button>`,
+              (id) => `<button class="puzzle-piece${nouvelles.has(id) ? " nouvelle" : ""}" type="button" data-id="${id}" aria-label="Pièce de puzzle à placer">${pieceImg(id)}</button>`,
             )
             .join("")
         : `<p class="puzzle-bac-vide">Tout est placé ! Reviens débloquer la pièce suivante.</p>`;
@@ -1163,11 +1401,15 @@
             <div class="puzzle-compteur" id="puzzle-compteur">${jeu.placees().length}/${total} pièces</div>
           </div>
           <div class="puzzle-plateau">
-            <div class="puzzle-cadre" id="puzzle-cadre" style="--rows:${rows}; --cols:${cols}; aspect-ratio:${PUZZLE.FRESQUE_W}/${PUZZLE.FRESQUE_H};">${slotsHtml}</div>
+            <div class="puzzle-cadre" id="puzzle-cadre" style="--rows:${rows}; --cols:${cols}; aspect-ratio:${PUZZLE.FRESQUE_W}/${PUZZLE.FRESQUE_H};">
+              <svg class="puzzle-fantome" viewBox="0 0 ${PUZZLE.FRESQUE_W} ${PUZZLE.FRESQUE_H}" preserveAspectRatio="none" aria-hidden="true"><use href="#puzzle-fresque-src" width="${PUZZLE.FRESQUE_W}" height="${PUZZLE.FRESQUE_H}"></use></svg>
+              ${slotsHtml}
+            </div>
+            <p class="puzzle-hint" id="puzzle-hint">${estTactile() ? "Touche une pièce, puis sa place dans le cadre." : "Choisis une pièce, puis clique sa place dans le cadre."}</p>
             <div class="puzzle-bac" id="puzzle-bac">${bacHtml}</div>
           </div>
           <div class="puzzle-actions">
-            <button id="puzzle-retour" class="puzzle-retour" type="button">Revenir a l'aventure</button>
+            <button id="puzzle-retour" class="puzzle-retour" type="button">Revenir à l'aventure</button>
           </div>
           <div class="puzzle-fin hidden" id="puzzle-fin"></div>
         </div>
@@ -1186,6 +1428,7 @@
       function deselectionner() {
         selection = null;
         bacNode.querySelectorAll(".puzzle-piece.selectionnee").forEach((b) => b.classList.remove("selectionnee"));
+        cadre.classList.remove("en-attente");
       }
 
       function onBacClick(event) {
@@ -1197,6 +1440,8 @@
         bacNode.querySelectorAll(".puzzle-piece").forEach((btn) => {
           btn.classList.toggle("selectionnee", Number(btn.dataset.id) === selection);
         });
+        /* Les emplacements libres s'eclairent : on voit ou poser la piece. */
+        cadre.classList.add("en-attente");
       }
 
       function onCadreClick(event) {
@@ -1223,14 +1468,19 @@
             finir();
           }
         } else {
-          /* Mauvais emplacement : la piece reste au bac, petite secousse. */
+          /* Mauvais emplacement : la piece reste au bac (toujours choisie,
+             pour reessayer sans la reprendre), l'emplacement fait "non". */
           const b = bacNode.querySelector(`.puzzle-piece[data-id="${pieceId}"]`);
           if (b) {
             b.classList.remove("rate");
             void b.offsetWidth;
             b.classList.add("rate");
           }
-          deselectionner();
+          if (!jeu.estPlacee(slotId)) {
+            slot.classList.remove("refuse");
+            void slot.offsetWidth;
+            slot.classList.add("refuse");
+          }
         }
       }
 
@@ -1246,17 +1496,18 @@
         sauvegarderProgressionPuzzle(jeu.progression()); /* complet=true persiste */
         const bonus = jeu.bonus();
         finBox.innerHTML = `
-          <div class="puzzle-fin-carte">
+          <div class="puzzle-fin-carte fin-carte">
             <div class="puzzle-fin-image">
               <svg viewBox="0 0 ${PUZZLE.FRESQUE_W} ${PUZZLE.FRESQUE_H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><use href="#puzzle-fresque-src" width="${PUZZLE.FRESQUE_W}" height="${PUZZLE.FRESQUE_H}"></use></svg>
             </div>
             <h2 class="puzzle-fin-titre">Carte du monde reconstituée !</h2>
             <p class="puzzle-fin-detail">Tu as replacé toutes les pièces. Un nouveau puzzle t'attend la prochaine fois.</p>
             <p class="puzzle-fin-bonus">+${bonus} étoiles &#10024;</p>
-            <button id="puzzle-fin-btn" class="btn-primary" type="button">Revenir a l'aventure</button>
+            <button id="puzzle-fin-btn" class="btn-primary" type="button">Revenir à l'aventure</button>
           </div>
         `;
         finBox.classList.remove("hidden");
+        lancerConfettis(finBox, 36);
         const btn = finBox.querySelector("#puzzle-fin-btn");
         btn.addEventListener("click", () => terminer(bonus));
         btn.focus();
@@ -1362,6 +1613,43 @@
     `,
   };
 
+  /* Decor fixe du jardin, dessine derriere les emplacements : haie, allee de
+     pierres, petite mare et touffes d'herbe. Avant, une pelouse unie avec des
+     cercles pointilles faisait plus formulaire que jardin. */
+  const DECOR_JARDIN = `
+    <rect x="0" y="0" width="460" height="300" fill="var(--grass)"></rect>
+    <g fill="var(--grass-light)" opacity="0.55">
+      <ellipse cx="90" cy="70" rx="80" ry="38"></ellipse>
+      <ellipse cx="370" cy="210" rx="90" ry="42"></ellipse>
+      <ellipse cx="250" cy="130" rx="60" ry="26"></ellipse>
+    </g>
+    <path d="M -10 262 C 90 238, 150 280, 240 256 S 390 232, 470 250" fill="none" stroke="var(--wood-light)" stroke-width="26" stroke-linecap="round" opacity="0.75"></path>
+    <g fill="var(--stone)" stroke="var(--stone-dark)" stroke-width="1.5">
+      <ellipse cx="40" cy="256" rx="11" ry="7"></ellipse>
+      <ellipse cx="96" cy="250" rx="10" ry="6"></ellipse>
+      <ellipse cx="152" cy="262" rx="11" ry="7"></ellipse>
+      <ellipse cx="210" cy="259" rx="10" ry="6"></ellipse>
+      <ellipse cx="270" cy="250" rx="11" ry="7"></ellipse>
+      <ellipse cx="330" cy="244" rx="10" ry="6"></ellipse>
+      <ellipse cx="392" cy="244" rx="11" ry="7"></ellipse>
+    </g>
+    <g>
+      <ellipse cx="420" cy="40" rx="34" ry="20" fill="var(--water)"></ellipse>
+      <ellipse cx="414" cy="35" rx="18" ry="8" fill="var(--water-light)" opacity="0.8"></ellipse>
+      <ellipse cx="432" cy="48" rx="6" ry="4" fill="var(--grass-dark)"></ellipse>
+    </g>
+    <g stroke="var(--grass-dark)" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.7">
+      <path d="M 30 140 l -3 -9 M 34 140 l 0 -11 M 38 140 l 3 -9"></path>
+      <path d="M 300 30 l -3 -9 M 304 30 l 0 -11 M 308 30 l 3 -9"></path>
+      <path d="M 180 200 l -3 -9 M 184 200 l 0 -11 M 188 200 l 3 -9"></path>
+      <path d="M 440 150 l -3 -9 M 444 150 l 0 -11 M 448 150 l 3 -9"></path>
+    </g>
+    <g>
+      <circle cx="18" cy="30" r="4" fill="#ff9db0"></circle><circle cx="18" cy="30" r="1.6" fill="#ffd66b"></circle>
+      <circle cx="446" cy="96" r="4" fill="#fffdf6"></circle><circle cx="446" cy="96" r="1.6" fill="#ffd66b"></circle>
+      <circle cx="226" cy="18" r="4" fill="#b98bd6"></circle><circle cx="226" cy="18" r="1.6" fill="#fffdf6"></circle>
+    </g>`;
+
   function objetDeco(id) {
     return DECO.CATALOGUE.find((o) => o.id === id) || null;
   }
@@ -1449,12 +1737,16 @@
   const MINIGAME_DECO = {
     id: "deco-jardin",
     nom: "ton petit jardin",
+    emoji: "&#127799;",
+    accroche: "Décore ton jardin avec les objets gagnés grâce à tes étoiles.",
     monter(zone, { terminer }) {
       /* Meme monnaie que la personnalisation : les etoiles CUMULEES. */
       const total = window.ParcoursPersonnage?.getEtat?.().etoiles_totales || 0;
       const deco = creerDeco(chargerDispositionDeco());
       const perso = window.ParcoursApp?.playerMarkup?.() || "";
 
+      const verbe = estTactile() ? "touche" : "clique";
+      const Verbe = verbe[0].toUpperCase() + verbe.slice(1);
       const objetSvg = (id) => `<svg viewBox="-30 -30 60 60" class="deco-objet-svg" aria-hidden="true">${DECO_SVG[id] || ""}</svg>`;
 
       let spotsHtml = "";
@@ -1466,9 +1758,11 @@
       const paletteHtml = DECO.CATALOGUE.map((objet) => {
         const debloque = estDebloqueDeco(objet, total);
         const restantes = etoilesRestantesDeco(objet, total);
+        const part = Math.min(1, total / objet.cout);
         const statut = debloque
           ? `<span class="deco-objet-nom">${objet.nom}</span>`
-          : `<span class="deco-objet-verrou">&#128274; ${restantes} &#9733;</span>`;
+          : `<span class="deco-objet-verrou" title="Encore ${restantes} étoiles">&#128274; ${restantes} &#9733;</span>
+             <span class="deco-objet-jauge" aria-hidden="true"><span style="width:${Math.round(part * 100)}%"></span></span>`;
         return `
           <button class="deco-objet${debloque ? "" : " verrouille"}" type="button" data-objet="${objet.id}" ${debloque ? "" : "disabled aria-disabled=\"true\""}>
             ${objetSvg(objet.id)}
@@ -1483,10 +1777,11 @@
             <div class="deco-etoiles">&#9733; ${total} étoiles</div>
           </div>
           <div class="deco-scene">
+            <svg class="deco-decor" viewBox="0 0 460 300" preserveAspectRatio="none" aria-hidden="true">${DECOR_JARDIN}</svg>
             <div class="deco-grille" id="deco-grille">${spotsHtml}</div>
             <div class="deco-perso"><svg viewBox="-26 -26 52 52" class="deco-perso-svg" aria-label="Ton personnage"><g class="player-token">${perso}</g></svg></div>
           </div>
-          <p class="deco-hint" id="deco-hint">Choisis un objet, puis clique un emplacement. (Gomme pour retirer.)</p>
+          <p class="deco-hint" id="deco-hint">Choisis un objet, puis ${verbe} un carré de terre. La gomme retire un objet.</p>
           <div class="deco-palette" id="deco-palette">
             ${paletteHtml}
             <button class="deco-objet deco-gomme" type="button" data-outil="retirer" aria-label="Retirer">
@@ -1495,7 +1790,7 @@
             </button>
           </div>
           <div class="deco-actions">
-            <button id="deco-retour" class="puzzle-retour" type="button">Retour a l'aventure</button>
+            <button id="deco-retour" class="puzzle-retour" type="button">Revenir à l'aventure</button>
           </div>
         </div>
       `;
@@ -1522,8 +1817,8 @@
         outil = b.dataset.outil ? b.dataset.outil : b.dataset.objet;
         majSelection();
         hint.textContent = outil === "retirer"
-          ? "Clique un objet du jardin pour le retirer."
-          : "Clique un emplacement pour y poser l'objet.";
+          ? `${Verbe} un objet du jardin pour le retirer.`
+          : `${Verbe} un carré de terre pour y poser l'objet.`;
       }
 
       function onGrilleClick(event) {
@@ -1590,9 +1885,10 @@
         }
         card.innerHTML = `
           <p class="minigame-invite-eyebrow">Pause détente !</p>
-          <div class="minigame-invite-emoji" aria-hidden="true">&#127881;</div>
+          <div class="minigame-invite-emoji" aria-hidden="true">${minigame.emoji || "&#127881;"}</div>
           <h2 class="minigame-invite-title">Tu veux jouer ${aLeNom(minigame.nom)}&nbsp;?</h2>
-          <p class="minigame-invite-text">Juste pour s'amuser -- ta progression est mise de côté, elle t'attend.</p>
+          ${minigame.accroche ? `<p class="minigame-invite-accroche">${minigame.accroche}</p>` : ""}
+          <p class="minigame-invite-text">Juste pour s'amuser : ta progression t'attend sur la carte.</p>
           <div class="minigame-invite-actions">
             <button id="minigame-invite-play" class="btn-primary" type="button">Jouer</button>
             <button id="minigame-invite-skip" class="ghost-button" type="button">Non merci, continuer</button>
@@ -1701,6 +1997,8 @@
     colonnesMemory,
     MEMORY,
     reglagesChasse,
+    calculChasse,
+    nbEtoilesFin,
     reglagesMemory,
     niveauRang,
     estPetitNiveau,

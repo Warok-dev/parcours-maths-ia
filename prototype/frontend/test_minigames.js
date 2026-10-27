@@ -1023,6 +1023,78 @@ function memoryFixe() {
   check(config.dureeMs === ce1.DUREE_MS, "CE1 : la duree suit le reglage (22 s)");
 }
 
+/* --- 15. Chasse avec calcul : la cible est le resultat, les leurres sont
+       des erreurs plausibles et jamais la cible --- */
+{
+  check(minigames.calculChasse("CE1").OPERATION === "addition", "CE1 : la chasse demande une addition");
+  check(minigames.calculChasse("CE4").OPERATION === "multiplication", "CE4 : la chasse revoit les tables");
+  check(Object.keys(minigames.calculChasse("inconnu")).length === 0, "niveau inconnu : pas de calcul");
+
+  for (const niveau of ["CE1", "CE2", "CE3", "CE6"]) {
+    for (let k = 0; k < 200; k += 1) {
+      const opts = { ...minigames.reglagesChasse(niveau), ...minigames.calculChasse(niveau) };
+      const cfg = minigames.genererConfig(Math.random, opts);
+      const [a, signe, b] = cfg.expression.split(" ");
+      const attendu = signe === "×" ? Number(a) * Number(b) : Number(a) + Number(b);
+      if (attendu !== cfg.cible) {
+        check(false, `${niveau} : l'expression ${cfg.expression} donne bien la cible ${cfg.cible}`);
+        break;
+      }
+      const nbCibles = cfg.nombres.filter((n) => n.valeur === cfg.cible).length;
+      if (nbCibles < minigames.CHASSE.CIBLES_MIN || nbCibles > minigames.CHASSE.CIBLES_MAX) {
+        check(false, `${niveau} : nombre de bonnes bulles borne (${nbCibles})`);
+        break;
+      }
+      if (niveau === "CE1" && !cfg.nombres.every((n) => n.valeur >= 1 && n.valeur <= 10)) {
+        check(false, "CE1 : toutes les bulles restent dans 1..10");
+        break;
+      }
+    }
+  }
+  check(true, "chasse avec calcul : 800 parties generees coherentes");
+}
+
+/* --- 16. Chasse : bulles espacees au depart et qui rebondissent entre elles --- */
+{
+  let minDepart = Infinity;
+  for (let k = 0; k < 50; k += 1) {
+    const cfg = minigames.genererConfig(Math.random, minigames.reglagesChasse("CE1"));
+    for (let i = 0; i < cfg.nombres.length; i += 1) {
+      for (let j = i + 1; j < cfg.nombres.length; j += 1) {
+        const p = cfg.nombres[i];
+        const q = cfg.nombres[j];
+        minDepart = Math.min(minDepart, Math.hypot(p.x - q.x, p.y - q.y));
+      }
+    }
+  }
+  check(minDepart >= minigames.CHASSE.RAYON * 2, "au depart, aucune bulle n'en recouvre une autre");
+
+  const jeu = minigames.creerChasseNombres({
+    cible: 3,
+    dureeMs: 10000,
+    largeur: 640,
+    hauteur: 420,
+    rayon: 34,
+    nombres: [
+      { id: 0, valeur: 3, x: 200, y: 200, vx: 60, vy: 0 },
+      { id: 1, valeur: 4, x: 280, y: 200, vx: -60, vy: 0 },
+    ],
+  });
+  for (let t = 0; t < 40; t += 1) {
+    jeu.avancer(25);
+  }
+  const [p, q] = jeu.nombres();
+  check(Math.hypot(p.x - q.x, p.y - q.y) >= 34 * 2 - 0.01, "deux bulles qui se foncent dessus ne se superposent pas");
+  check(p.vx < 0 && q.vx > 0, "apres le choc, elles repartent chacune de leur cote");
+}
+
+/* --- 17. Etoiles de fin : jamais zero, trois pour un sans-faute --- */
+{
+  check(minigames.nbEtoilesFin(0) === 1, "fin de mini-jeu : au moins une etoile");
+  check(minigames.nbEtoilesFin(0.5) === 2, "moitie reussie : deux etoiles");
+  check(minigames.nbEtoilesFin(1) === 3, "tout reussi : trois etoiles");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);
