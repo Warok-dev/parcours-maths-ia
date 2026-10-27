@@ -181,9 +181,29 @@ function logDebug(entry) {
 /* ============================================================
    FEEDBACK : bandeau overlay temporaire (2-3 s puis disparition)
    ============================================================ */
+let modalFeedbackEnAttente = null;
+
 function setFeedback(message, tone = "info") {
   window.clearTimeout(feedbackTimer);
   window.clearTimeout(feedbackLeaveTimer);
+  /* Popup d'exercice ouverte : le message s'affiche DANS la popup, juste
+     au-dessus de "Valider" (le bandeau du haut recouvrait le titre). */
+  const dansPopup = state.panelOpen ? document.getElementById("modal-feedback") : null;
+  if (state.panelOpen && !dansPopup && exerciseModal.classList.contains("is-preparing")) {
+    /* Popup en cours de montage : le message attend son emplacement. */
+    modalFeedbackEnAttente = { message, tone };
+    feedback.className = "feedback-banner hidden";
+    return;
+  }
+  if (dansPopup) {
+    feedback.className = "feedback-banner hidden";
+    dansPopup.textContent = message;
+    dansPopup.className = `modal-feedback ${tone}`;
+    /* Relance l'animation d'apparition a chaque nouveau message. */
+    void dansPopup.offsetWidth;
+    dansPopup.classList.add("visible");
+    return;
+  }
   feedback.textContent = message;
   feedback.className = `feedback-banner ${tone}`;
   const visibleFor = tone === "warning" || tone === "wait" ? 3200 : 2600;
@@ -758,6 +778,64 @@ const ASSETS = {
                 <circle cx="0" cy="2" r="2.4" class="door-lock-hole"></circle>
               </g>
             `
+        }
+      </g>
+    `;
+  },
+
+  /* Chateau vu du DESSUS, pour les routes tres inclinees (cartes orientees
+     gauche/droite) : il peut alors pivoter librement dans l'axe du chemin
+     sans paraitre renverse. Memes elements : muraille crenelee, tours a toit
+     conique (pans alternes) et fanion, porte a deux battants et cadenas. */
+  castleTop(isOpen) {
+    const merlons = (x0, x1, y) => {
+      const out = [];
+      for (let x = x0; x < x1 - 6; x += 15) {
+        out.push(`<rect x="${x}" y="${y}" width="9" height="7" rx="1.5" class="castle-merlon"></rect>`);
+      }
+      return out.join("");
+    };
+    const toitConique = (cx) => {
+      const pans = Array.from({ length: 8 }, (_, i) => {
+        const a1 = (Math.PI * 2 * i) / 8;
+        const a2 = (Math.PI * 2 * (i + 1)) / 8;
+        return `<path d="M ${cx} 0 L ${(cx + Math.cos(a1) * 34).toFixed(1)} ${(Math.sin(a1) * 34).toFixed(1)} L ${(cx + Math.cos(a2) * 34).toFixed(1)} ${(Math.sin(a2) * 34).toFixed(1)} Z" class="${i % 2 ? "castle-roof" : "castle-roof-alt"}"></path>`;
+      }).join("");
+      return `
+        <circle cx="${cx + 5}" cy="6" r="38" class="tree-shadow"></circle>
+        <circle cx="${cx}" cy="0" r="38" class="castle-tower-body"></circle>
+        ${pans}
+        <circle cx="${cx}" cy="0" r="4" class="castle-mast-top"></circle>
+        <path d="M ${cx} 0 l 22 -6 l -22 -6 Z" class="castle-banner"></path>
+      `;
+    };
+    return `
+      <g class="asset-castle">
+        <rect x="-150" y="-26" width="102" height="52" rx="5" class="castle-wall"></rect>
+        <rect x="48" y="-26" width="102" height="52" rx="5" class="castle-wall"></rect>
+        <rect x="-150" y="-10" width="102" height="20" class="castle-walkway"></rect>
+        <rect x="48" y="-10" width="102" height="20" class="castle-walkway"></rect>
+        ${merlons(-146, -50, -24)}${merlons(-146, -50, 17)}
+        ${merlons(52, 148, -24)}${merlons(52, 148, 17)}
+        ${toitConique(-118)}
+        ${toitConique(118)}
+        <rect x="-52" y="-30" width="104" height="60" rx="6" class="castle-gatehouse"></rect>
+        <rect x="-36" y="-30" width="72" height="60" class="castle-arch-inner"></rect>
+        <g class="gate-left">
+          <rect x="-36" y="-8" width="36" height="16" rx="3" class="door-panel"></rect>
+          <path d="M -24 -8 v 16 M -12 -8 v 16" class="door-plank"></path>
+        </g>
+        <g class="gate-right">
+          <rect x="0" y="-8" width="36" height="16" rx="3" class="door-panel"></rect>
+          <path d="M 24 -8 v 16 M 12 -8 v 16" class="door-plank"></path>
+        </g>
+        ${
+          isOpen
+            ? ""
+            : `<g class="door-lock" transform="translate(0, 1) scale(0.8)">
+                <path d="M -7 -6 a 7 7 0 0 1 14 0" class="door-lock-shackle"></path>
+                <rect x="-10" y="-6" width="20" height="16" rx="5" class="door-lock-body"></rect>
+              </g>`
         }
       </g>
     `;
@@ -1483,6 +1561,7 @@ function obstacleMarkerMarkup(obstacle, status) {
    Ramenee dans [-90, 90] : le chateau tourne pour faire face a la route sans
    jamais se renverser (il reste droit face au joueur). */
 const CASTLE_MAX_TILT = 18; /* degres */
+const CASTLE_DECALAGE_AVAL = 62; /* unites monde */
 
 function castleGateAngle(obstacle) {
   const scene = state.scene;
@@ -1518,11 +1597,20 @@ function obstacleSceneryMarkup(obstacle, status) {
          l'ecran) : au-dela d'une legere inclinaison il paraitrait renverse.
          On borne donc le pivot ; la route passe sous la muraille et ressort
          par la porte, alignee sur les clotures horizontales. */
-      const gateAngle = clamp(castleGateAngle(obstacle), -CASTLE_MAX_TILT, CASTLE_MAX_TILT);
+      const angleRoute = castleGateAngle(obstacle);
+      const vueDessus = Math.abs(angleRoute) > CASTLE_MAX_TILT + 12;
+      const gateAngle = vueDessus ? angleRoute : clamp(angleRoute, -CASTLE_MAX_TILT, CASTLE_MAX_TILT);
       return `
         ${fenceMarkup(Math.max(40, obstacle.x - 560), obstacle.x - 165, y)}
         ${fenceMarkup(obstacle.x + 165, Math.min(SCENE_WIDTH - 40, obstacle.x + 560), y)}
-        <g transform="translate(${obstacle.x}, ${y})${uprightSuffix()} rotate(${gateAngle.toFixed(1)})">${ASSETS.castle(done)}</g>
+        ${
+          vueDessus
+            ? `<g transform="translate(${obstacle.x}, ${y})${uprightSuffix()} rotate(${gateAngle.toFixed(1)})">${ASSETS.castleTop(done)}</g>`
+            : /* Vue de trois quarts : le chateau est decale vers l'AVAL de la
+                 route (native +y), pour que le joueur qui arrive par l'amont
+                 s'arrete devant la muraille au lieu de marcher dessus. */
+              `<g transform="translate(${obstacle.x}, ${y + CASTLE_DECALAGE_AVAL})${uprightSuffix()} rotate(${gateAngle.toFixed(1)})">${ASSETS.castle(done)}</g>`
+        }
         <g transform="translate(${obstacle.x + 150}, ${y + 52})${uprightSuffix()}">${ASSETS.npc("gardien")}</g>
       `;
     }
@@ -2035,8 +2123,8 @@ function updateSceneDynamics() {
   const target = interactionTarget();
   const hintVisible = state.nearObstacle && !state.panelOpen;
   if (hintNode && target) {
-    const hintY = target.kind === "stop" ? target.y - 84 : target.y - 152;
-    const hintTransform = `translate(${target.x.toFixed(1)}, ${hintY.toFixed(1)})${uprightSuffix()}`;
+    const hintY = target.kind === "stop" ? target.y - 128 : target.y - 168;
+    const hintTransform = `translate(${target.x.toFixed(1)}, ${hintY.toFixed(1)})${uprightSuffix()} scale(${estAppareilTactile ? 0.62 : 0.8})`;
     if (hintTransform !== dynamicsCache.hintTransform) {
       dynamicsCache.hintTransform = hintTransform;
       hintNode.setAttribute("transform", hintTransform);
@@ -2960,6 +3048,7 @@ function renderExerciseModal() {
             : `<input id="answer-input" name="answer" type="hidden" />
                <div id="mechanic-area" class="mechanic-area"></div>`
         }
+        <p id="modal-feedback" class="modal-feedback hidden" aria-live="polite"></p>
         <div class="exercise-actions">
           <button type="submit" class="btn-primary">Valider</button>
           ${
@@ -3017,6 +3106,13 @@ function renderExerciseModal() {
      durcissement d'angles que la carte et les mini-jeux. La palette suit deja
      par cascade. Fait apres le montage de la mecanique pour couvrir son SVG. */
   durcirAnglesRectsDom(exerciseModal);
+  /* Un message arrive pendant le montage differe (reponse fausse qui
+     re-rend la popup) : on l'affiche maintenant dans son emplacement. */
+  if (modalFeedbackEnAttente) {
+    const { message, tone } = modalFeedbackEnAttente;
+    modalFeedbackEnAttente = null;
+    setFeedback(message, tone);
+  }
   };
   /* Double rAF : le 1er laisse le navigateur PEINDRE la coquille, le 2nd
      execute le remplissage lourd juste apres cette peinture (sinon les deux

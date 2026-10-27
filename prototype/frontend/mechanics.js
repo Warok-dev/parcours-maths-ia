@@ -12,6 +12,12 @@
   const LOCK_MAX_DIGITS = 3;
   const BALANCE_MAX_CIBLE = 100;
 
+  /* Consignes adaptees a l'appareil : sur tablette/telephone il n'y a ni
+     fleches ni touche Entree. */
+  function estTactile() {
+    return typeof window !== "undefined" && Boolean(window.ParcoursTouch?.estTactile?.());
+  }
+
   /* Rang numerique du niveau scolaire (CE1 -> 1 ... CE6 -> 6). 0 si inconnu :
      dans ce cas AUCUNE restriction par age ne s'applique (comportement
      permissif, comme avant l'ajout de ces bornes). */
@@ -544,7 +550,11 @@
     let position = 0;
 
     container.innerHTML = `
-      <p class="mech-hint">Saute avec les flèches jusqu'au bon nombre, puis valide avec Entrée.</p>
+      <p class="mech-hint">${
+        estTactile()
+          ? "Touche le bon nombre sur la ligne, puis valide."
+          : "Saute avec les flèches jusqu'au bon nombre, puis valide avec Entrée."
+      }</p>
       <div class="mech-line" tabindex="0" data-mode="simple" aria-label="Ligne numérique">
         <div class="line-track">${lineTicksMarkup(ticks, new Set())}</div>
       </div>
@@ -603,7 +613,11 @@
     let activeWheel = 0;
 
     container.innerHTML = `
-      <p class="mech-hint">Tourne les molettes (haut/bas ou clic) pour former la réponse.</p>
+      <p class="mech-hint">${
+        estTactile()
+          ? "Touche les flèches des molettes pour former la réponse."
+          : "Tourne les molettes (haut/bas ou clic) pour former la réponse."
+      }</p>
       <div class="mech-lock" tabindex="0" aria-label="Cadenas à combinaison">
         <div class="lock-shackle" aria-hidden="true"></div>
         <div class="lock-body">
@@ -1363,8 +1377,8 @@
           <rect x="-40" y="72" width="80" height="10" rx="5" class="balance-socle"></rect>
           <g data-plate="left" class="balance-plate">
             <ellipse cx="0" cy="0" rx="46" ry="9" class="balance-bowl"></ellipse>
-            <text class="balance-plate-val" x="0" y="-16" text-anchor="middle">${cible}</text>
-            <text class="balance-plate-cap" x="0" y="22" text-anchor="middle">cible</text>
+            <text class="balance-plate-val" x="0" y="24" text-anchor="middle">${cible}</text>
+            <text class="balance-plate-cap" x="0" y="40" text-anchor="middle">cible</text>
           </g>
           <g data-plate="right" class="balance-plate">
             <ellipse cx="0" cy="0" rx="46" ry="9" class="balance-bowl"></ellipse>
