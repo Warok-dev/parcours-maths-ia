@@ -221,7 +221,7 @@ __marimo__/
 *.pptx
 ~$*.pptx
 
-# Sessions de jeu persistees (prototype)
+# Ancien stockage fichier des parties (remplace par la table etat_session_jeu)
 prototype/backend/data/sessions/
 
 # Base de donnees SQLite (comptes prof/eleve) — jamais commit

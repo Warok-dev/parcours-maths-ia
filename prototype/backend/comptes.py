@@ -3,8 +3,8 @@
 Isole du flux de jeu : ce module expose un APIRouter que main.py inclut, mais
 ne touche a AUCUN endpoint existant (session/evaluation). Le mot de passe
 enseignant est hashe avec bcrypt (jamais stocke en clair). Les tokens de
-session sont opaques et stockes cote serveur (en memoire, comme SESSION_STATE) :
-le plus simple a integrer proprement avec FastAPI.
+session sont opaques, expirent, et sont stockes cote serveur EN BASE (table
+jeton, empreinte SHA-256 seulement) : voir _MagasinJetons.
 
 Regles de securite :
 - un enseignant n'agit que sur SES classes (verifie a chaque endpoint protege) ;
@@ -18,6 +18,7 @@ import hashlib
 import io
 import json
 import logging
+import os
 import secrets
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
@@ -244,8 +245,16 @@ def revoquer_acces_eleve(db: Session, eleve_id: int, parent: bool = True) -> Non
 
 
 # --- Mot de passe (bcrypt) ---
+# Cout bcrypt : 12 par defaut (production). Les tests et la CI peuvent le
+# baisser (BCRYPT_ROUNDS=4, le minimum) : la suite cree des centaines de
+# comptes et passe alors de ~3 min a quelques dizaines de secondes. Les
+# empreintes restent verifiables quel que soit le cout choisi.
+BCRYPT_ROUNDS = max(4, min(31, int(os.environ.get("BCRYPT_ROUNDS", "12") or 12)))
+
+
 def hash_mot_de_passe(mot_de_passe: str) -> str:
-    return bcrypt.hashpw(mot_de_passe.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    sel = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+    return bcrypt.hashpw(mot_de_passe.encode("utf-8"), sel).decode("utf-8")
 
 
 def verifier_mot_de_passe(mot_de_passe: str, empreinte: str) -> bool:

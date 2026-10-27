@@ -14,7 +14,7 @@
    Node pour les tests (test_parent.js).
    ============================================================ */
 (function () {
-  const API_BASE = "https://parcours-maths-ia.onrender.com";
+  const API_BASE = (globalThis.PARCOURS_CONFIG?.API_BASE || "https://parcours-maths-ia.onrender.com");
   const STORAGE_KEY = "parcours_parent_v1";
 
   /* Libelles alignes sur le bilan eleve / l'espace enseignant. */

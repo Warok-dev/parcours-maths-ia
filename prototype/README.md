@@ -1,116 +1,46 @@
 # Prototype Parcours Maths IA
 
-Prototype web CE1/CE2 pour un jeu 2D de parcours mathematique.
+Ce dossier contient le code du jeu : l'API (`backend/`), le client web (`frontend/`) et le schéma d'un exercice (`schema/`). La vue d'ensemble se trouve dans le [README racine](../README.md), la mise en production dans [DEPLOIEMENT.md](../DEPLOIEMENT.md).
 
-## Etat actuel
+## Backend (`backend/`)
 
-- Backend FastAPI operationnel.
-- Generateur procedural operationnel pour 14 patterns de substitution issus du catalogue CE1/CE2.
-- Endpoint `POST /tuteur/aide` branche sur Gemini via `GEMINI_API_KEY`.
-- Generation narrative LLM non implementee : `backend/generation/narrative.py` reste un stub de demonstration.
-- Frontend statique HTML/CSS/JS vanilla pour la carte et l'affichage de l'exercice.
+| Module | Rôle |
+|---|---|
+| `main.py` | API de jeu : sessions, progression (détection de maîtrise, renforcement, apartés de confiance), évaluation, tuteur, synthèse vocale |
+| `comptes.py` | Comptes enseignant, élève et parent, écoles, classes, assignations, tableaux de bord, démo, RGPD (effacement, rétention), jetons |
+| `database.py` | Modèles SQLAlchemy et micro-migrations (SQLite en local, PostgreSQL en production) |
+| `generation/substitution.py` | Générateurs procéduraux (calcul, géométrie, mesures, graphiques), CE1 à CE6 |
+| `generation/narrative.py` | Énoncés narratifs par LLM, avec thèmes, contrôle des valeurs et repli procédural |
+| `tutor.py` | Tuteur IA (Gemini → Groq → Mistral), registre adapté à l'âge, filtrage des données personnelles |
+| `evaluation.py` / `diagnostic.py` | Correction tolérante (valeur numérique, commutativité, heures) et diagnostic d'erreur par règles |
+| `notifications.py` | Résumé hebdomadaire, alertes de blocage, rapports IA anonymisés |
+| `rate_limit.py` | Limites de débit (par IP réelle derrière le proxy, et par cible pour l'authentification) |
+| `tts.py` | Synthèse vocale Google, avec cache |
 
-## Stack
+La documentation interactive de l'API (Swagger) est servie sur `/docs` quand le serveur tourne.
 
-- Backend : FastAPI
-- Stockage : fichiers JSON dans `backend/data/`
-- Frontend : HTML, CSS, JavaScript vanilla
-- Tuteur IA : Google Gemini
+### Stockage
 
-## Arborescence
+Tout ce qui persiste est en base : comptes, classes, progressions, **jetons** (seule leur empreinte SHA-256 est stockée) et **état des parties en cours** (table `etat_session_jeu`). Un redémarrage du serveur ne déconnecte personne et ne perd aucune partie. Sans `DATABASE_URL`, une base SQLite est créée dans `backend/data/parcours.db`.
 
-```text
-prototype/
-|-- .env.example
-|-- README.md
-|-- backend/
-|   |-- data/
-|   |-- evaluation.py
-|   |-- generation/
-|   |-- main.py
-|   |-- requirements.txt
-|   `-- tutor.py
-|-- frontend/
-`-- schema/
-```
+## Frontend (`frontend/`)
 
-## Installation
+Le client est en JavaScript vanilla, sans étape de build. `index.html` charge les scripts dans l'ordre ; `config.js` doit passer en premier, car il choisit l'adresse du backend :
 
-Depuis `prototype/backend` :
+- **local** (`localhost`, `127.0.0.1`, fichier ouvert directement) : `http://127.0.0.1:8000` ;
+- **sinon** : le backend de production ;
+- **surcharge** : `?api=https://…` dans l'adresse de la page.
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+Chaque module a son fichier `test_*.js`, à lancer avec `node`.
 
-## Configuration Gemini
+## Lancer et tester
 
-Definir `GEMINI_API_KEY` dans l'environnement, ou copier `prototype/.env.example` vers `prototype/.env`.
+Voir le [README racine](../README.md#démarrer-en-local). En résumé :
 
-```powershell
-$env:GEMINI_API_KEY="votre_cle"
-```
-
-Important :
-- Les routes `GET /exercices/{niveau}`, `POST /evaluer` et `GET /carte/{niveau}` fonctionnent sans cle Gemini.
-- Seule la route `POST /tuteur/aide` depend de `GEMINI_API_KEY` et echouera a l'appel si la cle est absente ou invalide.
-
-## Lancer le serveur
-
-Depuis `prototype/backend` :
-
-```powershell
+```bash
+cd backend
 uvicorn main:app --reload
+BCRYPT_ROUNDS=4 python -m unittest discover -p "test_*.py"   # environ 15 s
 ```
 
-Routes principales :
-
-- `GET /health`
-- `POST /session/demarrer`
-- `POST /session/demarrer_revision` (revision ciblee : pool limite aux `patterns_cibles`)
-- `GET /exercices/CE1`
-- `GET /exercices/CE2`
-- `POST /evaluer`
-- `POST /tuteur/aide`
-- `GET /carte/CE1`
-- `GET /carte/CE2`
-- `GET /generation/demo/CE1`
-- `GET /generation/demo/CE2`
-
-## Tests
-
-Depuis `prototype/backend` :
-
-```powershell
-.venv\Scripts\python -m unittest generation.test_substitution
-.venv\Scripts\python -m unittest test_api
-```
-
-Couverture actuellement verifiee :
-
-- `generation.test_substitution` : 17 tests sur le generateur procedural et le dedoublonnage.
-- `test_api` : 4 tests sur `GET /exercices/{niveau}` et `POST /evaluer`.
-
-## Patterns proceduraux actuellement implementes
-
-- `multiplication_decomposee_chiffre_x_2chiffres`
-- `addition_repetee_vers_multiplication`
-- `partie_tout_soustraction_non_narratif`
-- `partie_tout_addition_non_narratif`
-- `moitie_via_2xn`
-- `addition_pas_a_pas_sans_retenue`
-- `multiplication_chiffre_x_multiple_de_10`
-- `multiplication_par_10`
-- `double_via_2xn`
-- `conversion_cm_mm_vers_mm`
-- `addition_2chiffres_sans_retenue`
-- `suite_multiples_de_10_a_completer`
-- `identifier_multiple_de_10`
-- `facteur_manquant_table_de_2`
-
-## Limites connues
-
-- La generation narrative LLM n'est pas encore connectee au vrai catalogue narratif.
-- La progression eleve et le deblocage de carte ne sont pas encore relies a un etat persistant.
-- Le cache des exercices generes est en memoire et est perdu au redemarrage du serveur.
+`BCRYPT_ROUNDS=4` baisse le coût de bcrypt pour les tests uniquement. En production, laissez la valeur par défaut (12).
