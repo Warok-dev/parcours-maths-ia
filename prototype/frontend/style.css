@@ -6975,3 +6975,209 @@ textarea {
 .teacher-subtitle + .teacher-barre {
   margin: 2px 0 10px;
 }
+
+/* ============================================================
+   MONDE VIVANT : decor enrichi, personnages, guidage
+   (meme palette que la scene : herbe, bois, creme, or, eau)
+   ============================================================ */
+
+/* Texture discrete du sol : brins et points d'herbe en motif. */
+.ground-texture {
+  pointer-events: none;
+}
+.motif-herbe-trait {
+  fill: none;
+  stroke: var(--grass-dark);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+.motif-herbe-point {
+  fill: var(--grass-light);
+  opacity: 0.7;
+}
+
+/* Les grandes taches de terrain faisaient "auréoles" : plus douces. */
+.ground-patch {
+  opacity: 0.32;
+}
+.ground-patch.dark {
+  opacity: 0.22;
+}
+
+/* Lisiere d'herbe foncee le long de la route : le chemin se detache mieux. */
+.road-fringe {
+  fill: none;
+  stroke: var(--grass-dark);
+  stroke-width: 112;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.35;
+}
+
+/* Trace guide vers l'obstacle en cours : cailloux dores. */
+.road-guide {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 34;
+  opacity: 0.95;
+}
+
+/* Sapins */
+.pine-back { fill: #3f8a49; }
+.pine-mid { fill: #4e9d55; }
+.pine-top { fill: #6cb766; }
+
+/* Arbres fruitiers */
+.fruit-canopy-back { fill: #4f9a45; }
+.fruit-canopy { fill: #62ad57; }
+.fruit-pomme { fill: #e0563f; stroke: #b23a22; stroke-width: 1; }
+.fruit-orange { fill: #f39a2e; stroke: #c96f12; stroke-width: 1; }
+
+/* Souches */
+.stump-root { fill: none; stroke: var(--wood-dark); stroke-width: 4; stroke-linecap: round; }
+.stump-bark { fill: var(--wood-dark); }
+.stump-wood { fill: #d9a86c; }
+.stump-ring { fill: none; stroke: #b98448; stroke-width: 1.4; }
+
+/* Champignons */
+.mushroom-cap { fill: #e0563f; stroke: #b23a22; stroke-width: 1.2; }
+.mushroom-dot { fill: #fff7ea; }
+
+/* Prairies fleuries */
+.meadow-ground { fill: var(--grass-light); opacity: 0.55; }
+.meadow-flower.jaune { fill: var(--gold); }
+.meadow-flower.blanc { fill: #fffaf0; }
+.meadow-flower.mauve { fill: #c79ad9; }
+
+/* Mares */
+.pond-shore { fill: #d9c79c; }
+.pond-water { fill: var(--water); }
+.pond-deep { fill: var(--water-dark); opacity: 0.35; }
+.pond-glint { fill: none; stroke: #ffffff; stroke-width: 3; stroke-linecap: round; opacity: 0.7; }
+.lily-pad { fill: #4f9a45; }
+.lily-flower { fill: #f4b8c4; }
+.reed { fill: none; stroke: #5d8a3a; stroke-width: 3; stroke-linecap: round; }
+
+/* Maisons du hameau */
+.house-shadow { fill: rgba(61, 44, 30, 0.2); }
+.house-roof { stroke: rgba(61, 44, 30, 0.45); stroke-width: 2.5; }
+.house-roof.tuiles { fill: #c8603a; }
+.house-roof.ardoise { fill: #6f8597; }
+.house-roof.chaume { fill: #d9b25a; }
+.house-roof-light { fill: rgba(255, 255, 255, 0.14); }
+.house-roof-lines { fill: none; stroke: rgba(61, 44, 30, 0.22); stroke-width: 2; }
+.house-ridge { stroke: rgba(61, 44, 30, 0.5); stroke-width: 4; stroke-linecap: round; }
+.house-chimney { fill: #b6aaa0; stroke: #7d6f63; stroke-width: 2; }
+.house-step { fill: #cfc2ad; }
+
+/* Meules de foin */
+.hay { fill: #e8c25d; stroke: #c49a32; stroke-width: 2; }
+.hay-spiral { fill: none; stroke: #c49a32; stroke-width: 1.6; }
+
+/* Lanternes et bornes du chemin */
+.lantern-post { fill: var(--wood-dark); }
+.lantern-cap { fill: #4a3a2c; }
+.lantern-glass { fill: #ffe08a; stroke: #4a3a2c; stroke-width: 2; }
+.borne-pierre { fill: #e9e3d6; stroke: #a99f8d; stroke-width: 2; }
+.borne-cap { fill: #d9603f; }
+.borne-plaque { fill: #fffaf0; stroke: #a99f8d; stroke-width: 1; }
+
+/* Visages (joueur et habitants) */
+.face-eye { fill: #3d2c1e; }
+.face-cheek { fill: #f4a3a3; opacity: 0.55; }
+.face-smile { fill: none; stroke: #3d2c1e; stroke-width: 1.4; stroke-linecap: round; }
+.player-hair-shine { fill: none; stroke: rgba(255, 255, 255, 0.35); stroke-width: 2; stroke-linecap: round; }
+.player-collar { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 2.4; stroke-linecap: round; }
+
+/* Habitants : un metier, une tenue */
+.npc-body.npc-gardien { fill: #6f8597; stroke: #4e6070; }
+.npc-body.npc-bucheron { fill: #c8503a; stroke: #8e3324; }
+.npc-body.npc-pecheur { fill: #3d9cd4; stroke: #2a6f99; }
+.npc-body.npc-voyageur { fill: #5f9b4f; stroke: #3f6e33; }
+.npc-casque { fill: #b8bfc7; stroke: #5d6a75; stroke-width: 1.6; }
+.npc-plumet { fill: #e0563f; }
+.npc-bonnet { fill: #3d6e9a; }
+.npc-bonnet-bord { fill: #2c5172; }
+.npc-bonnet-pompon { fill: #fffaf0; }
+.npc-casquette { fill: #ffc23e; }
+.npc-casquette-visiere { fill: #d9930f; }
+.npc-capuche { fill: #3f6e33; }
+.npc-sac { fill: var(--wood); stroke: var(--wood-dark); stroke-width: 1.6; }
+.npc-manche { fill: var(--wood); }
+.npc-fer { fill: #b8bfc7; stroke: #5d6a75; stroke-width: 1; }
+.npc-canne { stroke: var(--wood-dark); stroke-width: 2.4; stroke-linecap: round; }
+.npc-fil { fill: none; stroke: rgba(61, 44, 30, 0.45); stroke-width: 1; }
+
+/* Boussole de guidage (fleche au bord de l'ecran vers l'objectif) */
+.guide-boussole {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  pointer-events: none;
+  will-change: transform;
+}
+.guide-boussole svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 6px rgba(61, 44, 30, 0.35));
+}
+.boussole-fond {
+  fill: var(--cream);
+  stroke: var(--wood);
+  stroke-width: 3;
+}
+.boussole-fleche {
+  fill: var(--road);
+  stroke: var(--road-dark);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* Maison de trois quarts (remplace la vue toit seul) */
+.house-wall { fill: #f3e2c6; stroke: #b99a72; stroke-width: 2; }
+.house-door { fill: var(--wood); stroke: var(--wood-dark); stroke-width: 2; }
+.house-knob { fill: var(--gold); }
+.house-window { fill: #a5dcf7; stroke: var(--wood-dark); stroke-width: 2; }
+.house-window-bars { fill: none; stroke: var(--wood-dark); stroke-width: 1.4; }
+.house-roof { stroke: rgba(61, 44, 30, 0.5); stroke-width: 2.5; stroke-linejoin: round; }
+.house-roof-sud { stroke: none; opacity: 1; }
+.house-roof.tuiles { fill: #d46a42; }
+.house-roof-sud.tuiles { fill: #b9532f; }
+.house-roof.ardoise { fill: #7d93a6; }
+.house-roof-sud.ardoise { fill: #627789; }
+.house-roof.chaume { fill: #e2bd63; }
+.house-roof-sud.chaume { fill: #c9a14a; }
+
+/* Arbres et buissons d'origine : contour et relief, pour qu'ils ne se
+   fondent plus dans l'herbe (ils ressemblaient a des taches). */
+.tree-canopy-back {
+  fill: #4a9445;
+  stroke: #3a7a37;
+  stroke-width: 2.5;
+}
+.tree-canopy {
+  fill: #5fae55;
+}
+.tree-canopy-light {
+  fill: #86c977;
+}
+.bush-leaf {
+  fill: #5aa64f;
+  stroke: #3f8a49;
+  stroke-width: 2;
+}
+.bush-leaf-light {
+  fill: #84c873;
+}
+
+.grass-tuft.clair {
+  stroke: var(--grass-light);
+  opacity: 0.9;
+}
