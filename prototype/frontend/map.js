@@ -416,20 +416,64 @@ const ASSETS = {
       <ellipse cx="0" cy="2" rx="19" ry="15" class="player-body"></ellipse>
       <circle cx="-19" cy="2" r="6.5" class="player-hand left"></circle>
       <circle cx="19" cy="2" r="6.5" class="player-hand right"></circle>
+      <path d="M -11 6 q 11 7 22 0" class="player-collar"></path>
       <circle cx="0" cy="-3" r="12.5" class="player-head"></circle>
-      <path d="M -12 -6 a 12.5 12.5 0 0 1 24 0 q -6 -7 -12 -7 q -6 0 -12 7 Z" class="player-hair"></path>
+      <path d="M -12.4 -4 a 12.5 12.5 0 0 1 24.8 0 q -3 -3.4 -6.4 -2.6 q -2.4 -3.6 -6 -3.2 q -3.6 -0.4 -6 3.2 q -3.4 -0.8 -6.4 2.6 Z" class="player-hair"></path>
+      <path d="M -5 -12.6 q 3 -1.6 7 -0.6" class="player-hair-shine"></path>
+      <circle cx="-4.4" cy="2.4" r="1.7" class="face-eye"></circle>
+      <circle cx="4.4" cy="2.4" r="1.7" class="face-eye"></circle>
+      <circle cx="-7.6" cy="5" r="2.2" class="face-cheek"></circle>
+      <circle cx="7.6" cy="5" r="2.2" class="face-cheek"></circle>
+      <path d="M -2.2 5.6 q 2.2 1.8 4.4 0" class="face-smile"></path>
       ${accessoire("avant")}
     `;
   },
 
-  npc() {
+  /* Habitants des obstacles : meme gabarit (vu du dessus, face au sud), un
+     metier par type d'obstacle -- tenue et couvre-chef les distinguent. */
+  npc(metier = "villageois") {
+    const visage = `
+      <circle cx="-3.4" cy="1.4" r="1.4" class="face-eye"></circle>
+      <circle cx="3.4" cy="1.4" r="1.4" class="face-eye"></circle>
+      <circle cx="-6" cy="3.6" r="1.8" class="face-cheek"></circle>
+      <circle cx="6" cy="3.6" r="1.8" class="face-cheek"></circle>
+    `;
+    const couvreChef = {
+      gardien: `
+        <path d="M -10.4 -3 a 10.4 10.4 0 0 1 20.8 0 l -2 1.4 l -16.8 0 Z" class="npc-casque"></path>
+        <path d="M 0 -13.4 q 7 -6 12 -2 q -6 0 -10 4 Z" class="npc-plumet"></path>
+      `,
+      bucheron: `
+        <path d="M -9.8 -4 a 9.8 9.8 0 0 1 19.6 0 Z" class="npc-bonnet"></path>
+        <rect x="-10.4" y="-5" width="20.8" height="3.4" rx="1.7" class="npc-bonnet-bord"></rect>
+        <circle cx="0" cy="-13.2" r="2.6" class="npc-bonnet-pompon"></circle>
+      `,
+      pecheur: `
+        <path d="M -9.6 -4 a 9.6 9.6 0 0 1 19.2 0 Z" class="npc-casquette"></path>
+        <path d="M -8 -3.6 q 8 5 16 0 l 0 2 q -8 4 -16 0 Z" class="npc-casquette-visiere"></path>
+      `,
+      voyageur: `
+        <path d="M -12 2 a 12 12 0 0 1 24 0 q -2 -10 -12 -13 q -10 3 -12 13 Z" class="npc-capuche"></path>
+      `,
+      villageois: `
+        <path d="M -9 -5 a 9.5 9.5 0 0 1 18 0 q -4.5 -5.5 -9 -5.5 q -4.5 0 -9 5.5 Z" class="npc-hair"></path>
+      `,
+    };
+    const accessoire = {
+      bucheron: `<g transform="translate(16, 3) rotate(30)"><rect x="-1.4" y="-9" width="2.8" height="16" rx="1.2" class="npc-manche"></rect><path d="M -1.4 -9 l -6 -1 l 0 6 l 6 0 Z" class="npc-fer"></path></g>`,
+      pecheur: `<path d="M 17 0 L 30 -22" class="npc-canne"></path><path d="M 30 -22 q 6 8 3 18" class="npc-fil"></path>`,
+      voyageur: `<rect x="-8" y="-17" width="16" height="10" rx="4" class="npc-sac"></rect>`,
+    };
     return `
       <ellipse cx="0" cy="5" rx="15" ry="10" class="npc-shadow"></ellipse>
-      <ellipse cx="0" cy="1" rx="14" ry="11" class="npc-body"></ellipse>
+      ${metier === "voyageur" ? accessoire.voyageur : ""}
+      <ellipse cx="0" cy="1" rx="14" ry="11" class="npc-body npc-${metier}"></ellipse>
       <circle cx="-14" cy="1" r="4.5" class="npc-hand"></circle>
       <circle cx="14" cy="1" r="4.5" class="npc-hand"></circle>
       <circle cx="0" cy="-3" r="9.5" class="npc-head"></circle>
-      <path d="M -9 -5 a 9.5 9.5 0 0 1 18 0 q -4.5 -5.5 -9 -5.5 q -4.5 0 -9 5.5 Z" class="npc-hair"></path>
+      ${visage}
+      ${couvreChef[metier] || couvreChef.villageois}
+      ${metier === "bucheron" || metier === "pecheur" ? accessoire[metier] : ""}
     `;
   },
 
@@ -478,6 +522,140 @@ const ASSETS = {
       <ellipse cx="4" cy="5" rx="24" ry="15" class="tree-shadow"></ellipse>
       <ellipse cx="0" cy="0" rx="21" ry="15" class="deco-rock"></ellipse>
       <ellipse cx="14" cy="10" rx="7" ry="5" class="deco-rock-small"></ellipse>
+    `;
+  },
+
+  /* Sapin vu du dessus : etoiles de branches superposees. */
+  pine() {
+    const etoile = (r, ratio, pointes = 8) =>
+      Array.from({ length: pointes * 2 }, (_, i) => {
+        const a = (Math.PI * i) / pointes - Math.PI / 2;
+        const rr = i % 2 === 0 ? r : r * ratio;
+        return `${(Math.cos(a) * rr).toFixed(1)},${(Math.sin(a) * rr).toFixed(1)}`;
+      }).join(" ");
+    return `
+      <ellipse cx="7" cy="9" rx="30" ry="22" class="tree-shadow"></ellipse>
+      <polygon points="${etoile(32, 0.72)}" class="pine-back"></polygon>
+      <polygon points="${etoile(22, 0.7)}" class="pine-mid" transform="rotate(22)"></polygon>
+      <polygon points="${etoile(12, 0.66, 6)}" class="pine-top"></polygon>
+    `;
+  },
+
+  /* Arbre fruitier : couronne ronde + fruits (pommes ou oranges). */
+  fruitTree(variante = 0) {
+    const fruit = variante % 2 === 0 ? "fruit-pomme" : "fruit-orange";
+    return `
+      <ellipse cx="6" cy="8" rx="32" ry="24" class="tree-shadow"></ellipse>
+      <circle cx="0" cy="0" r="29" class="fruit-canopy-back"></circle>
+      <circle cx="-7" cy="-6" r="16" class="fruit-canopy"></circle>
+      <circle cx="9" cy="5" r="14" class="fruit-canopy"></circle>
+      <circle cx="-10" cy="-10" r="6" class="tree-canopy-light"></circle>
+      <circle cx="-12" cy="6" r="3.6" class="${fruit}"></circle>
+      <circle cx="10" cy="-12" r="3.6" class="${fruit}"></circle>
+      <circle cx="16" cy="8" r="3.6" class="${fruit}"></circle>
+      <circle cx="2" cy="14" r="3.6" class="${fruit}"></circle>
+      <circle cx="-2" cy="-16" r="3.2" class="${fruit}"></circle>
+    `;
+  },
+
+  stump() {
+    return `
+      <ellipse cx="4" cy="5" rx="17" ry="11" class="tree-shadow"></ellipse>
+      <path d="M -13 2 q -6 4 -10 2 M 13 3 q 5 5 9 3" class="stump-root"></path>
+      <circle cx="0" cy="0" r="13" class="stump-bark"></circle>
+      <circle cx="0" cy="0" r="10" class="stump-wood"></circle>
+      <circle cx="0" cy="0" r="6.4" class="stump-ring"></circle>
+      <circle cx="0" cy="0" r="2.6" class="stump-ring"></circle>
+    `;
+  },
+
+  mushrooms() {
+    return `
+      <ellipse cx="2" cy="4" rx="14" ry="7" class="tree-shadow"></ellipse>
+      <circle cx="-5" cy="0" r="7" class="mushroom-cap"></circle>
+      <circle cx="-7" cy="-2" r="1.4" class="mushroom-dot"></circle>
+      <circle cx="-3" cy="2" r="1.2" class="mushroom-dot"></circle>
+      <circle cx="-2.6" cy="-3.4" r="1" class="mushroom-dot"></circle>
+      <circle cx="7" cy="4" r="4.6" class="mushroom-cap"></circle>
+      <circle cx="6" cy="3" r="1" class="mushroom-dot"></circle>
+    `;
+  },
+
+  /* Petite prairie fleurie : une nappe d'herbe claire semee de fleurs. */
+  meadow(fleurs) {
+    const teintes = ["meadow-flower jaune", "meadow-flower blanc", "meadow-flower mauve"];
+    return `
+      <ellipse cx="0" cy="0" rx="68" ry="42" class="meadow-ground"></ellipse>
+      ${fleurs
+        .map((f) => `<circle cx="${f.dx}" cy="${f.dy}" r="3.2" class="${teintes[f.teinte]}"></circle>`)
+        .join("")}
+    `;
+  },
+
+  pond(rx, ry) {
+    return `
+      <ellipse cx="0" cy="0" rx="${rx + 12}" ry="${ry + 10}" class="pond-shore"></ellipse>
+      <ellipse cx="0" cy="0" rx="${rx}" ry="${ry}" class="pond-water"></ellipse>
+      <ellipse cx="${(-rx * 0.15).toFixed(1)}" cy="${(-ry * 0.1).toFixed(1)}" rx="${(rx * 0.7).toFixed(1)}" ry="${(ry * 0.6).toFixed(1)}" class="pond-deep"></ellipse>
+      <path d="M ${(-rx * 0.55).toFixed(1)} ${(-ry * 0.45).toFixed(1)} q ${(rx * 0.3).toFixed(1)} ${(-ry * 0.22).toFixed(1)} ${(rx * 0.6).toFixed(1)} 0" class="pond-glint"></path>
+      <g transform="translate(${(rx * 0.42).toFixed(1)}, ${(ry * 0.3).toFixed(1)})">
+        <path d="M 0 0 L 8 -3 A 9 9 0 1 1 8 3 Z" class="lily-pad"></path>
+      </g>
+      <g transform="translate(${(-rx * 0.35).toFixed(1)}, ${(ry * 0.38).toFixed(1)}) rotate(140)">
+        <path d="M 0 0 L 7 -2.6 A 7.4 7.4 0 1 1 7 2.6 Z" class="lily-pad"></path>
+        <circle cx="-2" cy="0" r="2.4" class="lily-flower"></circle>
+      </g>
+      <path d="M ${(rx * 0.86).toFixed(1)} ${(-ry * 0.5).toFixed(1)} l 4 -16 M ${(rx * 0.92).toFixed(1)} ${(-ry * 0.35).toFixed(1)} l 9 -13 M ${(rx * 0.8).toFixed(1)} ${(-ry * 0.3).toFixed(1)} l -2 -15" class="reed"></path>
+    `;
+  },
+
+  /* Maison du hameau, vue de trois quarts comme le chateau et la cabane :
+     un toit a deux pans (le pan sud plus sombre), puis la facade avec sa
+     porte et ses fenetres. Lisible d'un coup d'oeil comme "une maison". */
+  house(toit = 0) {
+    const toits = ["tuiles", "ardoise", "chaume"];
+    const t = toits[toit % 3];
+    return `
+      <ellipse cx="6" cy="40" rx="58" ry="12" class="house-shadow"></ellipse>
+      <rect x="-40" y="2" width="80" height="38" rx="3" class="house-wall"></rect>
+      <rect x="-9" y="16" width="18" height="24" rx="8" class="house-door"></rect>
+      <circle cx="5" cy="29" r="1.6" class="house-knob"></circle>
+      <rect x="-32" y="12" width="15" height="13" rx="2.5" class="house-window"></rect>
+      <rect x="17" y="12" width="15" height="13" rx="2.5" class="house-window"></rect>
+      <path d="M -24.5 12 v 13 M -32 18.5 h 15 M 24.5 12 v 13 M 17 18.5 h 15" class="house-window-bars"></path>
+      <rect x="22" y="-40" width="11" height="18" rx="2" class="house-chimney"></rect>
+      <path d="M -50 6 L -40 -30 L 40 -30 L 50 6 Z" class="house-roof ${t}"></path>
+      <path d="M -50 6 L -45 -12 L 45 -12 L 50 6 Z" class="house-roof-sud ${t}"></path>
+      <path d="M -42.5 -21 h 85 M -47.6 -3 h 95.2" class="house-roof-lines"></path>
+      <line x1="-40" y1="-30" x2="40" y2="-30" class="house-ridge"></line>
+    `;
+  },
+
+  hayBale() {
+    return `
+      <ellipse cx="3" cy="4" rx="17" ry="12" class="tree-shadow"></ellipse>
+      <circle cx="0" cy="0" r="14" class="hay"></circle>
+      <path d="M 0 0 m -2 0 a 2 2 0 1 1 4 0 a 5 5 0 1 1 -9 0 a 8 8 0 1 1 15 0 a 11 11 0 1 1 -21 0" class="hay-spiral"></path>
+    `;
+  },
+
+  /* Signaletique du bord de route, dessinee DEBOUT (redressee par l'appelant). */
+  lantern() {
+    return `
+      <ellipse cx="2" cy="1" rx="9" ry="4" class="tree-shadow"></ellipse>
+      <rect x="-2" y="-34" width="4" height="34" rx="2" class="lantern-post"></rect>
+      <path d="M -9 -36 h 18 l -3 -4 h -12 Z" class="lantern-cap"></path>
+      <rect x="-7" y="-50" width="14" height="14" rx="3" class="lantern-glass"></rect>
+      <path d="M -9 -50 h 18 l -4 -6 h -10 Z" class="lantern-cap"></path>
+    `;
+  },
+
+  milestone() {
+    return `
+      <ellipse cx="2" cy="1" rx="13" ry="5" class="tree-shadow"></ellipse>
+      <path d="M -10 0 v -18 a 10 10 0 0 1 20 0 v 18 Z" class="borne-pierre"></path>
+      <path d="M -10 -18 a 10 10 0 0 1 20 0 Z" class="borne-cap"></path>
+      <rect x="-5" y="-12" width="10" height="7" rx="2" class="borne-plaque"></rect>
     `;
   },
 
@@ -1268,7 +1446,7 @@ function obstacleSceneryMarkup(obstacle, status) {
         ${fenceMarkup(Math.max(40, obstacle.x - 560), obstacle.x - 165, y)}
         ${fenceMarkup(obstacle.x + 165, Math.min(SCENE_WIDTH - 40, obstacle.x + 560), y)}
         <g transform="translate(${obstacle.x}, ${y})${uprightSuffix()} rotate(${gateAngle.toFixed(1)})">${ASSETS.castle(done)}</g>
-        <g transform="translate(${obstacle.x + 150}, ${y + 52})${uprightSuffix()}">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x + 150}, ${y + 52})${uprightSuffix()}">${ASSETS.npc("gardien")}</g>
       `;
     }
     case "blocked_road": {
@@ -1300,7 +1478,7 @@ function obstacleSceneryMarkup(obstacle, status) {
               </g>
             `
         }
-        <g transform="translate(${obstacle.x - versCentre * 110}, ${y + 46})${uprightSuffix()}">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x - versCentre * 110}, ${y + 46})${uprightSuffix()}">${ASSETS.npc("bucheron")}</g>
       `;
     }
     case "broken_bridge":
@@ -1312,7 +1490,7 @@ function obstacleSceneryMarkup(obstacle, status) {
           <path d="M 90 ${y + 26} q 60 -14 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0 t 120 0" class="river-wave"></path>
         </g>
         <g transform="translate(${obstacle.x}, ${y})">${ASSETS.bridge(done)}</g>
-        <g transform="translate(${obstacle.x + 118}, ${y + 108})${uprightSuffix()}">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x + 118}, ${y + 108})${uprightSuffix()}">${ASSETS.npc("pecheur")}</g>
       `;
     case "crossroads":
       return `
@@ -1329,7 +1507,7 @@ function obstacleSceneryMarkup(obstacle, status) {
           <ellipse cx="${obstacle.x + 190}" cy="${y - 74}" rx="72" ry="30" class="mist"></ellipse>
           <ellipse cx="${obstacle.x + 240}" cy="${y - 120}" rx="56" ry="24" class="mist"></ellipse>
         </g>
-        <g transform="translate(${obstacle.x + 116}, ${y + 46})${uprightSuffix()}">${ASSETS.npc()}</g>
+        <g transform="translate(${obstacle.x + 116}, ${y + 46})${uprightSuffix()}">${ASSETS.npc("voyageur")}</g>
       `;
     default:
       return "";
@@ -1368,22 +1546,53 @@ function decorMarkup(scene) {
     ${decor.patches
       .map(
         (patch) =>
-          `<ellipse cx="${patch.x}" cy="${patch.y}" rx="${patch.rx}" ry="${patch.ry}" class="ground-patch ${patch.dark ? "dark" : ""}" opacity="0.4"></ellipse>`,
+          `<ellipse cx="${patch.x}" cy="${patch.y}" rx="${patch.rx}" ry="${patch.ry}" class="ground-patch ${patch.dark ? "dark" : ""}"></ellipse>`,
       )
       .join("")}
+    ${(decor.meadows || []).map((m) => `<g transform="translate(${m.x}, ${m.y})">${ASSETS.meadow(m.fleurs)}</g>`).join("")}
+    ${(decor.ponds || [])
+      .map((p) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)}) rotate(${p.tilt})">${ASSETS.pond(p.rx, p.ry)}</g>`)
+      .join("")}
   `;
+}
+
+/* Hameau : maisons (avec meule de foin) et signaletique du bord de route. */
+function villageMarkup(scene) {
+  const { decor } = scene;
+  const maisons = (decor.houses || [])
+    .map(
+      (h) => `
+      <g transform="translate(${h.x.toFixed(1)}, ${h.y.toFixed(1)})${uprightSuffix()}">${ASSETS.house(h.toit)}</g>
+      ${h.foin ? `<g transform="translate(${(h.x + h.foin.dx).toFixed(1)}, ${(h.y + h.foin.dy).toFixed(1)})">${ASSETS.hayBale()}</g>` : ""}
+    `,
+    )
+    .join("");
+  const bornes = (decor.roadsideMarkers || [])
+    .map(
+      (m) =>
+        `<g transform="translate(${m.x.toFixed(1)}, ${m.y.toFixed(1)})${uprightSuffix()}">${m.type === "borne" ? ASSETS.milestone() : ASSETS.lantern()}</g>`,
+    )
+    .join("");
+  return maisons + bornes;
 }
 
 function propsMarkup(scene) {
   const { decor } = scene;
   return `
     ${decor.tufts.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.grassTuft()}</g>`).join("")}
+    ${(decor.brins || [])
+      .map((p, i) => `<path d="M ${(p.x - 4).toFixed(0)} ${p.y.toFixed(0)} q -1 -6 2 -9 M ${(p.x + 1).toFixed(0)} ${(p.y + 1).toFixed(0)} q 1 -7 4 -9" class="${i % 3 === 0 ? "grass-tuft clair" : "grass-tuft"}"></path>`)
+      .join("")}
     ${decor.flowers
       .map((p, index) => `<g transform="translate(${p.x}, ${p.y})">${index % 3 === 0 ? ASSETS.flowerPink() : ASSETS.flower()}</g>`)
       .join("")}
+    ${(decor.mushrooms || []).map((p) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.mushrooms()}</g>`).join("")}
+    ${(decor.stumps || []).map((p) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.stump()}</g>`).join("")}
     ${decor.rocks.map((p) => `<g transform="translate(${p.x}, ${p.y})${uprightSuffix()}">${ASSETS.rock()}</g>`).join("")}
     ${decor.bushes.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.bush()}</g>`).join("")}
     ${decor.trees.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.tree()}</g>`).join("")}
+    ${(decor.fruitTrees || []).map((p, i) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.fruitTree(i)}</g>`).join("")}
+    ${(decor.pines || []).map((p) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.pine()}</g>`).join("")}
   `;
 }
 
@@ -1431,6 +1640,23 @@ function livingDecorMarkup(scene) {
   return bits.join("");
 }
 
+/* Trace guide : une ligne de cailloux dores sur le troncon de route qui mene
+   a l'obstacle en cours (depuis l'obstacle precedent, ou le depart). Statique
+   (aucune animation, donc aucun repaint de la carte) ; redessinee avec la
+   scene a chaque changement d'etape. */
+function guideTrailMarkup(scene) {
+  const obstacle = activeObstacle();
+  if (!obstacle || obstacleStatus(obstacle.index) !== "current") {
+    return "";
+  }
+  const depart = scene.routePoints[obstacle.index];
+  const arrivee = scene.routePoints[obstacle.index + 1];
+  if (!depart || !arrivee) {
+    return "";
+  }
+  return `<path d="${buildRoadPath([depart, arrivee])}" class="road-guide"></path>`;
+}
+
 function sceneMarkup(scene) {
   const roadPath = buildRoadPath(scene.routePoints);
   /* Tout le contenu de la scene est genere en coordonnees NATIVES puis pivote
@@ -1441,12 +1667,15 @@ function sceneMarkup(scene) {
     <rect x="0" y="0" width="${scene.width}" height="${scene.height}" class="ground"></rect>
     <g class="patch-layer">${decorMarkup(scene)}</g>
     <g class="road-layer">
+      <path d="${roadPath}" class="road-fringe"></path>
       <path d="${roadPath}" class="road-edge"></path>
       <path d="${roadPath}" class="road-surface"></path>
       <path d="${roadPath}" class="road-paving"></path>
       <path d="${roadPath}" class="road-paving offset" transform="translate(14, 10)"></path>
       <path d="${roadPath}" class="road-paving offset" transform="translate(-14, -8)"></path>
+      ${guideTrailMarkup(scene)}
     </g>
+    <g class="village-layer">${villageMarkup(scene)}</g>
     <g class="props-layer">${propsMarkup(scene)}</g>
     <g class="living-decor-layer">${livingDecorMarkup(scene)}</g>
     <g class="treasure-layer">${treasureMarkup()}</g>
@@ -3710,6 +3939,7 @@ function tick(timestamp) {
     if (Math.abs(target.x - state.camera.x) < 0.1) state.camera.x = target.x;
     if (Math.abs(target.y - state.camera.y) < 0.1) state.camera.y = target.y;
     applyCamera();
+    updateGuideCompass();
   }
 
   /* Position sauvegardee regulierement (le beforeunload couvre le reste). */
@@ -3719,6 +3949,64 @@ function tick(timestamp) {
   }
 
   animationFrameId = window.requestAnimationFrame(tick);
+}
+
+/* ============================================================
+   BOUSSOLE DE GUIDAGE
+   Quand l'objectif courant (obstacle ou prochain fanion) sort de l'ecran,
+   une fleche se colle au bord, du cote ou il se trouve, et pointe vers lui.
+   N'ecrit dans le DOM que si l'etat change (meme principe que dynamicsCache).
+   ============================================================ */
+const BOUSSOLE_MARGE = 46; /* px CSS entre la fleche et le bord de l'ecran */
+const boussoleCache = { visible: null, transform: "" };
+
+function updateGuideCompass() {
+  const node = document.getElementById("guide-boussole");
+  if (!node || !mapLayer.ready) {
+    return;
+  }
+  const cible = interactionTarget();
+  let visible = false;
+  let transform = boussoleCache.transform;
+  if (cible && !state.panelOpen) {
+    const camera = clampCamera(state.camera);
+    const point = toDisplay(cible);
+    const s = mapLayer.s;
+    const cx = mapLayer.viewW / 2;
+    const cy = mapLayer.viewH / 2;
+    const dx = (point.x - camera.x) * s;
+    const dy = (point.y - camera.y) * s;
+    /* Zone ou la fleche peut se poser : on evite le HUD en haut, le hibou en
+       bas a droite et, sur tablette/telephone, le pave directionnel en bas. */
+    const haut = 96;
+    const bas = mapLayer.viewH - (estAppareilTactile ? 236 : 110);
+    const gauche = BOUSSOLE_MARGE;
+    const droite = mapLayer.viewW - BOUSSOLE_MARGE;
+    const horsEcran =
+      cx + dx < BOUSSOLE_MARGE ||
+      cx + dx > mapLayer.viewW - BOUSSOLE_MARGE ||
+      cy + dy < BOUSSOLE_MARGE ||
+      cy + dy > mapLayer.viewH - BOUSSOLE_MARGE;
+    if (horsEcran && bas > haut) {
+      /* Point du rectangle autorise sur la droite centre -> cible. */
+      const kx = dx > 0 ? (droite - cx) / dx : dx < 0 ? (gauche - cx) / dx : Infinity;
+      const ky = dy > 0 ? (bas - cy) / dy : dy < 0 ? (haut - cy) / dy : Infinity;
+      const k = Math.max(0, Math.min(kx, ky));
+      const x = cx + dx * k;
+      const y = cy + dy * k;
+      const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) rotate(${angle.toFixed(0)}deg)`;
+      visible = true;
+    }
+  }
+  if (visible !== boussoleCache.visible) {
+    boussoleCache.visible = visible;
+    node.classList.toggle("hidden", !visible);
+  }
+  if (visible && transform !== boussoleCache.transform) {
+    boussoleCache.transform = transform;
+    node.style.transform = transform;
+  }
 }
 
 /* ============================================================

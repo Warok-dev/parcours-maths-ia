@@ -171,6 +171,14 @@
     <!-- ===== Ecran 3 : le jeu plein ecran ===== -->
     <section id="game-screen" class="screen game-screen hidden">
       <svg id="map" preserveAspectRatio="xMidYMid slice" aria-label="Carte du parcours"></svg>
+      <!-- Boussole : quand l'objectif (obstacle ou fanion) est hors de l'ecran,
+           une fleche au bord indique la direction a suivre. -->
+      <div id="guide-boussole" class="guide-boussole hidden" aria-hidden="true">
+        <svg viewBox="-24 -24 48 48">
+          <circle r="21" class="boussole-fond"></circle>
+          <path d="M 13 0 L -8 -11 L -3 0 L -8 11 Z" class="boussole-fleche"></path>
+        </svg>
+      </div>
 
       <!-- HUD coin haut-gauche : lecon en cours -->
       <div class="hud hud-top-left">

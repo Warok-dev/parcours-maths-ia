@@ -330,6 +330,14 @@
       .filter((obstacle) => obstacle.type === "broken_bridge")
       .map((obstacle) => obstacle.barrierY);
 
+    /* Mares deja posees : aucun element de decor ne doit tomber dedans. */
+    const ponds = [];
+    /* Chaque obstacle tend une barriere (cloture, haie, riviere) sur toute la
+       largeur a sa hauteur : les grands elements (maisons, mares) s'en ecartent. */
+    const surUneBarriere = (c, marge) => obstacles.some((o) => Math.abs(c.y - o.barrierY) < marge);
+    const dansUneMare = (c, marge = 30) =>
+      ponds.some((m) => distance(c, m) < Math.max(m.rx, m.ry) + 12 + marge);
+
     function placeMany(count, minRouteDist, minMutualDist, existing) {
       const points = [];
       let guard = 0;
@@ -343,6 +351,7 @@
         if (riverBands.some((bandY) => Math.abs(candidate.y - bandY) < RIVER_HALF_HEIGHT + 46)) continue;
         if (obstacles.some((obstacle) => distance(candidate, { x: obstacle.x, y: obstacle.barrierY }) < 210)) continue;
         if ([...existing, ...points].some((other) => distance(candidate, other) < minMutualDist)) continue;
+        if (dansUneMare(candidate)) continue;
         points.push(candidate);
       }
       return points;
@@ -373,7 +382,129 @@
       ry: 55 + rand() * 85,
       dark: rand() > 0.5,
     }));
-    return { trees, bushes, rocks, flowers, tufts, patches };
+
+    /* ---- Decor enrichi (passe "monde vivant") ----
+       Ajoute APRES le decor historique, avec le meme generateur : les
+       emplacements d'origine (arbres, buissons...) ne bougent donc pas. Chaque
+       famille evite la route, les obstacles, la riviere et le decor deja pose.
+       Les quantites suivent la meme densite plafonnee. */
+    const dejaPoses = [...trees, ...bushes, ...rocks];
+    /* Mares : grandes, donc placement dedie (loin de la route et des
+       obstacles, sans recouvrir un arbre deja pose, espacees entre elles). */
+    /* Trace REEL de la route (courbes echantillonnees) : la polyligne des
+       points de passage sous-estime l'ecart dans les virages. */
+    const echantillons = sampleRoad(routePoints, 10);
+    const distanceAuTrace = (c) => Math.min(...echantillons.map((q) => distance(c, q)));
+    const nbMares = Math.max(1, Math.round(density * 0.28));
+    for (let essai = 0; essai < nbMares * 60 && ponds.length < nbMares; essai += 1) {
+      const c = {
+        x: 160 + rand() * (SCENE_WIDTH - 320),
+        y: 220 + rand() * (height - 440),
+      };
+      if (distanceAuTrace(c) < 260) continue;
+      if (riverBands.some((bandY) => Math.abs(c.y - bandY) < RIVER_HALF_HEIGHT + 150)) continue;
+      if (obstacles.some((o) => distance(c, { x: o.x, y: o.barrierY }) < 320)) continue;
+      if (dejaPoses.some((o) => distance(c, o) < 135)) continue;
+      if (surUneBarriere(c, 150)) continue;
+      if (ponds.some((o) => distance(c, o) < 520)) continue;
+      ponds.push({
+        ...c,
+        rx: 70 + rand() * 40,
+        ry: 46 + rand() * 22,
+        tilt: Math.round(rand() * 40 - 20),
+      });
+    }
+    const pines = placeMany(Math.round(density * 1.6 * jitter()), 115, 80, dejaPoses);
+    const fruitTrees = placeMany(Math.round(density * 0.7 * jitter()), 125, 110, [...dejaPoses, ...pines]);
+    const stumps = placeMany(Math.round(density * 0.6 * jitter()), 80, 90, [...dejaPoses, ...pines, ...fruitTrees]);
+    const mushrooms = placeMany(Math.round(density * 1.1 * jitter()), 64, 70, [...dejaPoses, ...stumps]);
+    const meadows = placeMany(Math.round(density * 1.3 * jitter()), 72, 140, [...dejaPoses, ...pines, ...fruitTrees]).map((m) => ({
+      ...m,
+      fleurs: Array.from({ length: 6 + Math.floor(rand() * 5) }, () => ({
+        dx: Math.round((rand() - 0.5) * 110),
+        dy: Math.round((rand() - 0.5) * 70),
+        teinte: Math.floor(rand() * 3),
+      })),
+    }));
+
+    /* Hameau : quelques maisons au bord de la route (a distance du trace et
+       des obstacles), avec une meule de foin. Elles donnent des reperes et
+       l'impression d'un monde habite autour du chemin. */
+    const houses = [];
+    const occupes = [...dejaPoses, ...pines, ...fruitTrees, ...stumps];
+    const nbMaisons = Math.min(2 + Math.floor(rand() * 3), Math.max(2, Math.round(density * 0.6)));
+    for (let essai = 0; essai < nbMaisons * 30 && houses.length < nbMaisons; essai += 1) {
+      const i = 1 + Math.floor(rand() * (echantillons.length - 2));
+      const a = echantillons[i - 1];
+      const b = echantillons[i + 1];
+      const longueur = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const cote = rand() > 0.5 ? 1 : -1;
+      const ecart = 175 + rand() * 70;
+      const centre = {
+        x: echantillons[i].x + (-(b.y - a.y) / longueur) * ecart * cote,
+        y: echantillons[i].y + ((b.x - a.x) / longueur) * ecart * cote,
+      };
+      if (centre.x < 120 || centre.x > SCENE_WIDTH - 120 || centre.y < 160 || centre.y > height - 160) continue;
+      if (distanceAuTrace(centre) < 155) continue;
+      if (riverBands.some((bandY) => Math.abs(centre.y - bandY) < RIVER_HALF_HEIGHT + 90)) continue;
+      if (obstacles.some((o) => distance(centre, { x: o.x, y: o.barrierY }) < 280)) continue;
+      if (houses.some((h) => distance(centre, h) < 300)) continue;
+      if (dansUneMare(centre, 90)) continue;
+      if (surUneBarriere(centre, 130)) continue;
+      if (occupes.some((o) => distance(centre, o) < 95)) continue;
+      houses.push({
+        ...centre,
+        toit: Math.floor(rand() * 3),
+        angle: Math.round(rand() * 24 - 12),
+        foin: rand() > 0.35 ? { dx: cote * 78, dy: 34 + rand() * 20 } : null,
+      });
+    }
+
+    /* Bornes et lanternes le long de la route : elles rythment le chemin et
+       montrent qu'il continue meme quand l'obstacle est loin. */
+    const roadsideMarkers = [];
+    let parcouru = 0;
+    let prochain = 260;
+    let alterne = 1;
+    for (let i = 1; i < echantillons.length - 1; i += 1) {
+      parcouru += distance(echantillons[i], echantillons[i - 1]);
+      if (parcouru < prochain) continue;
+      prochain = parcouru + 380 + rand() * 120;
+      const a = echantillons[i - 1];
+      const b = echantillons[i + 1];
+      const longueur = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const point = {
+        x: echantillons[i].x + (-(b.y - a.y) / longueur) * 66 * alterne,
+        y: echantillons[i].y + ((b.x - a.x) / longueur) * 66 * alterne,
+      };
+      alterne = -alterne;
+      if (obstacles.some((o) => distance(point, { x: o.x, y: o.barrierY }) < 260)) continue;
+      if (riverBands.some((bandY) => Math.abs(point.y - bandY) < RIVER_HALF_HEIGHT + 30)) continue;
+      if (distance(point, { x: START_X, y: START_Y }) < 120) continue;
+      roadsideMarkers.push({ ...point, type: roadsideMarkers.length % 3 === 2 ? "borne" : "lanterne" });
+    }
+
+    /* Brins d'herbe epars : texture du sol a peu de frais (quelques petits
+       traits, pas de motif plein ecran qui coutait cher au rendu). */
+    const brins = placeMany(Math.round(density * 9 * jitter()), 52, 52, []);
+
+    return {
+      brins,
+      trees,
+      bushes,
+      rocks,
+      flowers,
+      tufts,
+      patches,
+      ponds,
+      pines,
+      fruitTrees,
+      stumps,
+      mushrooms,
+      meadows,
+      houses,
+      roadsideMarkers,
+    };
   }
 
   /* ============================================================

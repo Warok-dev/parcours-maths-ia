@@ -252,6 +252,37 @@ check(
   `4 directions produites : ${[...directionsVues].sort().join(",")}`,
 );
 
+/* --- Decor enrichi (monde vivant) : sur 200 graines, aucun element ne tombe
+       dans une mare ni sur la route, les maisons restent a l'ecart du trace
+       et des obstacles, et le volume total de decor reste borne. --- */
+{
+  let erreurs = 0;
+  let maxDecor = 0;
+  let avecMaison = 0;
+  for (let seed = 1; seed <= 200; seed += 1) {
+    const n = 2 + (seed % 8);
+    const scene = W.buildScene(Array.from({ length: n }, (_, i) => `c${i}`), seed);
+    const d = scene.decor;
+    const total = Object.values(d).reduce((somme, liste) => somme + liste.length, 0);
+    maxDecor = Math.max(maxDecor, total);
+    if (d.houses.length) avecMaison += 1;
+    const dansMare = (p) => d.ponds.some((m) => W.distance(p, m) < Math.max(m.rx, m.ry) + 12);
+    for (const famille of ["trees", "bushes", "rocks", "pines", "fruitTrees", "stumps", "mushrooms", "meadows", "brins"]) {
+      if (d[famille].some(dansMare)) erreurs += 1;
+    }
+    const route = W.sampleRoad(scene.routePoints, 18);
+    const prochesRoute = (p, seuil) => route.some((q) => W.distance(p, q) < seuil);
+    if (d.houses.some((h) => prochesRoute(h, 140) || dansMare(h))) erreurs += 1;
+    if (d.houses.some((h) => scene.obstacles.some((o) => W.distance(h, { x: o.x, y: o.barrierY }) < 270))) erreurs += 1;
+    if (d.ponds.some((m) => prochesRoute(m, 240))) erreurs += 1;
+    const surBarriere = (p, marge) => scene.obstacles.some((o) => Math.abs(p.y - o.barrierY) < marge);
+    if (d.houses.some((h) => surBarriere(h, 120)) || d.ponds.some((m) => surBarriere(m, 140))) erreurs += 1;
+  }
+  check(erreurs === 0, `decor enrichi coherent sur 200 graines (${erreurs} anomalie(s))`);
+  check(maxDecor <= 320, `volume de decor borne (max ${maxDecor} elements)`);
+  check(avecMaison >= 180, `un hameau sur la quasi-totalite des cartes (${avecMaison}/200)`);
+}
+
 console.log(`\n${scenesGenerees} scenes generees ; ${total - failures}/${total} verifications passent`);
 console.log(failures === 0 ? "TOUT VERT" : `${failures} ECHECS`);
 process.exit(failures === 0 ? 0 : 1);
