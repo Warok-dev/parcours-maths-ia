@@ -268,6 +268,18 @@ function exProcedural(pattern_name, variables, valeur, extra = {}) {
     check(!offline.estErreurReseau(null), "absence d'erreur = pas réseau");
   }
 
+  /* Comparaison par valeur numérique (miroir du backend). */
+  {
+    const ex = (valeur, extra = {}) => ({
+      reponse_attendue: { valeur, tolerance: { ignorer_espaces: true, ...extra } },
+    });
+    check(offline.evaluer(ex("8"), "08"), "08 vaut 8");
+    check(offline.evaluer(ex("3,5"), "3.50"), "3.50 vaut 3,5");
+    check(offline.evaluer(ex("1000", { ignorer_espaces: false }), "1 000"), "1 000 vaut 1000");
+    check(!offline.evaluer(ex("70"), "7"), "7 ne vaut pas 70");
+    check(!offline.evaluer(ex("12"), "12 cm"), "un nombre suivi d'une unité n'est pas interprété");
+  }
+
   console.log(`\n${total - failures}/${total} cas passent`);
   if (failures > 0) {
     process.exit(1);
