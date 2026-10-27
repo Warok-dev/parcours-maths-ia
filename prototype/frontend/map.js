@@ -700,35 +700,62 @@ const ASSETS = {
   /* Chateau : bande de muraille + 2 tours rondes + double porte en bois
      avec cadenas dore. La porte s'ouvre en pivotant (classes CSS). */
   castle(isOpen) {
+    /* Chateau de trois quarts : muraille crenelee, deux tours a toit pointu
+       avec fanion, et une grande porte voutee au milieu (la route la
+       traverse). Fermee : deux battants cloutes et un cadenas dore. Ouverte :
+       les battants se rabattent contre les murs (classes CSS) et laissent voir
+       la route. Les tours restent aux memes positions qu'avant (+-118). */
+    const creneaux = (x0, x1) => {
+      const out = [];
+      for (let x = x0; x < x1 - 4; x += 16) {
+        out.push(`<rect x="${x}" y="-34" width="10" height="12" rx="2" class="castle-merlon"></rect>`);
+      }
+      return out.join("");
+    };
+    const tour = (cx) => `
+      <g transform="translate(${cx}, 0)">
+        <rect x="-30" y="-44" width="60" height="78" rx="8" class="castle-tower-body"></rect>
+        <rect x="-30" y="-44" width="14" height="78" rx="6" class="castle-tower-light"></rect>
+        <path d="M -22 -8 h 8 M -6 4 h 10 M 8 -20 h 10 M -18 18 h 10 M 6 22 h 12" class="castle-bricks"></path>
+        <rect x="-6" y="-24" width="12" height="18" rx="6" class="castle-window"></rect>
+        <path d="M -36 -42 L 0 -92 L 36 -42 Z" class="castle-roof"></path>
+        <path d="M -36 -42 L 0 -92 L 0 -42 Z" class="castle-roof-light"></path>
+        <line x1="0" y1="-92" x2="0" y2="-112" class="castle-mast"></line>
+        <path d="M 0 -112 l 22 6 l -22 6 Z" class="castle-banner"></path>
+      </g>
+    `;
     return `
       <g class="asset-castle">
-        <rect x="-150" y="-30" width="102" height="60" rx="10" class="castle-wall"></rect>
-        <rect x="48" y="-30" width="102" height="60" rx="10" class="castle-wall"></rect>
-        <rect x="-138" y="-18" width="78" height="36" rx="8" class="castle-wall-inner"></rect>
-        <rect x="60" y="-18" width="78" height="36" rx="8" class="castle-wall-inner"></rect>
-        <circle cx="-118" cy="0" r="34" class="castle-tower"></circle>
-        <circle cx="-118" cy="0" r="18" class="castle-tower-top"></circle>
-        <circle cx="118" cy="0" r="34" class="castle-tower"></circle>
-        <circle cx="118" cy="0" r="18" class="castle-tower-top"></circle>
-        <path d="M -118 -34 l 22 -8 l -22 -8 Z" class="castle-banner"></path>
-        <path d="M 118 -34 l 22 -8 l -22 -8 Z" class="castle-banner"></path>
+        <ellipse cx="6" cy="40" rx="170" ry="16" class="tree-shadow"></ellipse>
+        <rect x="-150" y="-24" width="102" height="58" rx="4" class="castle-wall"></rect>
+        <rect x="48" y="-24" width="102" height="58" rx="4" class="castle-wall"></rect>
+        ${creneaux(-146, -50)}
+        ${creneaux(52, 148)}
+        <path d="M -140 -2 h 14 M -110 10 h 18 M -80 -6 h 16 M -132 22 h 16 M -70 18 h 12 M 62 -4 h 16 M 92 12 h 18 M 120 -6 h 14 M 70 22 h 14 M 108 24 h 12" class="castle-bricks"></path>
+        ${tour(-118)}
+        ${tour(118)}
+        <rect x="-52" y="-56" width="104" height="90" rx="8" class="castle-gatehouse"></rect>
+        ${creneaux(-50, 52).replace(/y="-34"/g, 'y="-66"')}
+        <path d="M -38 34 V -6 a 38 32 0 0 1 76 0 V 34 Z" class="castle-arch"></path>
+        <path d="M -32 34 V -4 a 32 27 0 0 1 64 0 V 34 Z" class="castle-arch-inner"></path>
         <g class="gate-left">
-          <rect x="-48" y="-9" width="48" height="18" rx="5" class="door-panel"></rect>
-          <line x1="-36" y1="-9" x2="-36" y2="9" class="door-plank"></line>
-          <line x1="-20" y1="-9" x2="-20" y2="9" class="door-plank"></line>
+          <path d="M -32 34 V -4 a 32 27 0 0 1 32 -27 V 34 Z" class="door-panel"></path>
+          <path d="M -24 -14 V 34 M -12 -24 V 34" class="door-plank"></path>
+          <path d="M -32 0 h 32 M -32 22 h 32" class="door-band"></path>
         </g>
         <g class="gate-right">
-          <rect x="0" y="-9" width="48" height="18" rx="5" class="door-panel"></rect>
-          <line x1="36" y1="-9" x2="36" y2="9" class="door-plank"></line>
-          <line x1="20" y1="-9" x2="20" y2="9" class="door-plank"></line>
+          <path d="M 32 34 V -4 a 32 27 0 0 0 -32 -27 V 34 Z" class="door-panel"></path>
+          <path d="M 24 -14 V 34 M 12 -24 V 34" class="door-plank"></path>
+          <path d="M 32 0 h -32 M 32 22 h -32" class="door-band"></path>
         </g>
         ${
           isOpen
             ? ""
             : `
-              <g class="door-lock">
+              <g class="door-lock" transform="translate(0, 10)">
                 <path d="M -7 -6 a 7 7 0 0 1 14 0" class="door-lock-shackle"></path>
                 <rect x="-10" y="-6" width="20" height="16" rx="5" class="door-lock-body"></rect>
+                <circle cx="0" cy="2" r="2.4" class="door-lock-hole"></circle>
               </g>
             `
         }
@@ -736,43 +763,76 @@ const ASSETS = {
     `;
   },
 
-  /* Cabane vue du dessus : toit a deux pans + cheminee. */
+  /* Cabane du bucheron, de trois quarts (meme convention que les maisons) :
+     murs en rondins, toit de bardeaux, porte, fenetre, cheminee de pierre,
+     et une pile de bois a cote. */
   cabin() {
+    const rondins = [0, 12, 24, 36]
+      .map((y) => `<rect x="-56" y="${y - 6}" width="112" height="12" rx="6" class="cabin-log"></rect>`)
+      .join("");
     return `
       <g class="asset-cabin">
-        <ellipse cx="8" cy="10" rx="66" ry="46" class="tree-shadow"></ellipse>
-        <rect x="-60" y="-45" width="120" height="90" rx="10" class="cabin-roof"></rect>
-        <rect x="-52" y="-37" width="104" height="36" rx="6" class="cabin-roof-half"></rect>
-        <rect x="-52" y="1" width="104" height="36" rx="6" class="cabin-roof-half"></rect>
-        <line x1="-56" y1="0" x2="56" y2="0" class="cabin-ridge"></line>
-        <rect x="26" y="-32" width="18" height="18" rx="4" class="cabin-chimney"></rect>
+        <ellipse cx="8" cy="44" rx="78" ry="14" class="tree-shadow"></ellipse>
+        <rect x="26" y="-58" width="16" height="34" rx="3" class="cabin-chimney"></rect>
+        <path d="M 28 -50 h 12 M 28 -40 h 12" class="cabin-chimney-joints"></path>
+        ${rondins}
+        <circle cx="-56" cy="0" r="6" class="cabin-log-end"></circle>
+        <circle cx="-56" cy="12" r="6" class="cabin-log-end"></circle>
+        <circle cx="-56" cy="24" r="6" class="cabin-log-end"></circle>
+        <circle cx="-56" cy="36" r="6" class="cabin-log-end"></circle>
+        <circle cx="56" cy="0" r="6" class="cabin-log-end"></circle>
+        <circle cx="56" cy="12" r="6" class="cabin-log-end"></circle>
+        <circle cx="56" cy="24" r="6" class="cabin-log-end"></circle>
+        <circle cx="56" cy="36" r="6" class="cabin-log-end"></circle>
+        <rect x="-12" y="10" width="24" height="32" rx="4" class="cabin-door"></rect>
+        <circle cx="6" cy="27" r="1.8" class="house-knob"></circle>
+        <rect x="-44" y="4" width="20" height="16" rx="3" class="house-window"></rect>
+        <path d="M -34 4 v 16 M -44 12 h 20" class="house-window-bars"></path>
+        <path d="M -68 -2 L -46 -50 L 46 -50 L 68 -2 Z" class="cabin-roof"></path>
+        <path d="M -68 -2 L -60 -20 L 60 -20 L 68 -2 Z" class="cabin-roof-front"></path>
+        <path d="M -55 -34 h 110 M -63 -12 h 126" class="cabin-shingles"></path>
+        <line x1="-46" y1="-50" x2="46" y2="-50" class="cabin-ridge"></line>
+        <g transform="translate(86, 30)">
+          <circle cx="-9" cy="6" r="7" class="cabin-log-end"></circle>
+          <circle cx="5" cy="6" r="7" class="cabin-log-end"></circle>
+          <circle cx="-2" cy="-6" r="7" class="cabin-log-end"></circle>
+        </g>
       </g>
     `;
   },
 
-  /* Pont vue du dessus : tablier a planches horizontales au-dessus de l'eau.
-     Casse = deux planches du milieu manquantes (pointilles). */
+  /* Pont de bois vu du dessus : tablier de planches cloutees, poteaux aux
+     angles et rambardes de corde. Casse : deux planches manquantes, bords
+     dechiquetes et l'eau visible dessous. Repare : planches neuves, plus
+     claires. */
   bridge(isRepaired) {
-    const midPlanks = isRepaired
-      ? `
-        <rect x="-40" y="-10" width="80" height="16" rx="4" class="bridge-plank"></rect>
-        <rect x="-40" y="10" width="80" height="16" rx="4" class="bridge-plank"></rect>
-      `
+    const planche = (y, extra = "") =>
+      `<g class="bridge-plank-group ${extra}"><rect x="-42" y="${y}" width="84" height="16" rx="3" class="bridge-plank"></rect><circle cx="-34" cy="${y + 8}" r="1.6" class="bridge-nail"></circle><circle cx="34" cy="${y + 8}" r="1.6" class="bridge-nail"></circle></g>`;
+    const milieu = isRepaired
+      ? `${planche(-10, "neuve")}${planche(10, "neuve")}`
       : `
-        <rect x="-40" y="-10" width="80" height="16" rx="4" class="bridge-plank ghost"></rect>
-        <rect x="-40" y="10" width="80" height="16" rx="4" class="bridge-plank ghost"></rect>
+        <rect x="-42" y="-10" width="84" height="36" class="bridge-gap"></rect>
+        <path d="M -42 -10 l 10 6 l 8 -5 l 9 7 l 7 -6 l 8 6 l 10 -5 l 9 6 l 8 -5 l 13 -4 V -12 H -42 Z" class="bridge-plank"></path>
+        <path d="M -42 26 l 12 -6 l 9 5 l 10 -7 l 9 6 l 8 -5 l 10 6 l 9 -5 l 17 6 V 28 H -42 Z" class="bridge-plank"></path>
+        <path d="M -36 6 q 8 -4 16 0 M 6 14 q 8 -4 16 0" class="bridge-gap-wave"></path>
       `;
+    const poteau = (x, y) => `<circle cx="${x}" cy="${y}" r="9" class="bridge-post"></circle><circle cx="${x}" cy="${y}" r="4" class="bridge-post-top"></circle>`;
     return `
       <g class="asset-bridge">
-        <rect x="-52" y="-78" width="104" height="156" rx="12" class="bridge-deck"></rect>
-        <rect x="-40" y="-70" width="80" height="16" rx="4" class="bridge-plank"></rect>
-        <rect x="-40" y="-50" width="80" height="16" rx="4" class="bridge-plank"></rect>
-        <rect x="-40" y="-30" width="80" height="16" rx="4" class="bridge-plank"></rect>
-        ${midPlanks}
-        <rect x="-40" y="30" width="80" height="16" rx="4" class="bridge-plank"></rect>
-        <rect x="-40" y="50" width="80" height="16" rx="4" class="bridge-plank"></rect>
-        <line x1="-52" y1="-76" x2="-52" y2="76" class="bridge-rail"></line>
-        <line x1="52" y1="-76" x2="52" y2="76" class="bridge-rail"></line>
+        <rect x="-50" y="-74" width="108" height="156" rx="6" class="bridge-shadow"></rect>
+        <rect x="-54" y="-80" width="108" height="160" rx="6" class="bridge-deck"></rect>
+        ${planche(-70)}${planche(-50)}${planche(-30)}
+        ${milieu}
+        ${planche(30)}${planche(50)}
+        <path d="M -54 -76 Q -60 -38 -54 0 Q -60 38 -54 76" class="bridge-rope"></path>
+        <path d="M 54 -76 Q 60 -38 54 0 Q 60 38 54 76" class="bridge-rope"></path>
+        ${poteau(-54, -76)}${poteau(54, -76)}${poteau(-54, 0)}${poteau(54, 0)}${poteau(-54, 76)}${poteau(54, 76)}
+        ${
+          isRepaired
+            ? ""
+            : `<g transform="translate(96, 40) rotate(24)" class="bridge-floating"><rect x="-26" y="-7" width="52" height="14" rx="3" class="bridge-plank"></rect></g>
+               <g transform="translate(-92, 18) rotate(-14)" class="bridge-floating"><rect x="-20" y="-6" width="40" height="12" rx="3" class="bridge-plank"></rect></g>`
+        }
       </g>
     `;
   },
@@ -820,16 +880,23 @@ const ASSETS = {
   signpost(isRevealed) {
     return `
       <g class="asset-signpost">
-        <ellipse cx="3" cy="34" rx="16" ry="7" class="tree-shadow"></ellipse>
-        <rect x="-5" y="-38" width="10" height="72" rx="4" class="signpost-pole"></rect>
-        <g transform="translate(0, -26)">
-          <path d="M -44 -12 h 74 l 14 12 l -14 12 h -74 Z" class="signpost-board"></path>
-          <text x="-8" y="8" text-anchor="middle" class="signpost-text">?</text>
+        <ellipse cx="3" cy="36" rx="20" ry="7" class="tree-shadow"></ellipse>
+        <path d="M -12 36 q 12 -8 24 0 Z" class="signpost-mound"></path>
+        <rect x="-5" y="-50" width="10" height="86" rx="4" class="signpost-pole"></rect>
+        <path d="M -2 -40 v 70" class="signpost-grain"></path>
+        <g transform="translate(0, -30)">
+          <path d="M -46 -13 h 76 l 15 13 l -15 13 h -76 Z" class="signpost-board"></path>
+          <path d="M -40 -5 h 64 M -40 5 h 58" class="signpost-grain"></path>
+          <circle cx="-40" cy="0" r="2" class="bridge-nail"></circle>
+          <text x="-6" y="8" text-anchor="middle" class="signpost-text">?</text>
         </g>
-        <g transform="translate(0, 6) scale(-1, 1)">
-          <path d="M -44 -12 h 74 l 14 12 l -14 12 h -74 Z" class="signpost-board"></path>
+        <g transform="translate(0, 4) scale(-1, 1)">
+          <path d="M -46 -13 h 76 l 15 13 l -15 13 h -76 Z" class="signpost-board ${isRevealed ? "revele" : ""}"></path>
+          <path d="M -40 -5 h 64 M -40 5 h 58" class="signpost-grain"></path>
+          <circle cx="-40" cy="0" r="2" class="bridge-nail"></circle>
           <text x="-6" y="8" text-anchor="middle" transform="scale(-1,1)" class="signpost-text">${isRevealed ? "→" : "..."}</text>
         </g>
+        <circle cx="0" cy="-52" r="6" class="signpost-cap"></circle>
       </g>
     `;
   },
@@ -903,13 +970,13 @@ function obstacleIconSvg(type, status) {
   const done = status === "done";
   switch (type) {
     case "castle_gate":
-      return `<svg viewBox="-95 -48 190 96" aria-hidden="true">${ASSETS.castle(done)}</svg>`;
+      return `<svg viewBox="-160 -118 320 166" aria-hidden="true"><g class="${done ? "obstacle-done" : ""}">${ASSETS.castle(done)}</g></svg>`;
     case "blocked_road":
-      return `<svg viewBox="-75 -60 150 120" aria-hidden="true">${ASSETS.cabin()}</svg>`;
+      return `<svg viewBox="-80 -66 182 124" aria-hidden="true">${ASSETS.cabin()}</svg>`;
     case "broken_bridge":
-      return `<svg viewBox="-70 -90 140 180" aria-hidden="true">${ASSETS.bridge(done)}</svg>`;
+      return `<svg viewBox="-70 -92 140 184" aria-hidden="true">${ASSETS.bridge(done)}</svg>`;
     case "crossroads":
-      return `<svg viewBox="-70 -60 140 110" aria-hidden="true">${ASSETS.signpost(done)}</svg>`;
+      return `<svg viewBox="-70 -66 140 112" aria-hidden="true">${ASSETS.signpost(done)}</svg>`;
     default:
       return "";
   }
@@ -1342,10 +1409,14 @@ function fenceMarkup(fromX, toX, y) {
   }
   const posts = [];
   for (let x = fromX + 20; x <= toX - 10; x += 64) {
-    posts.push(`<circle cx="${x}" cy="${y}" r="7" class="fence-post"></circle>`);
+    posts.push(
+      `<circle cx="${x + 3}" cy="${y + 4}" r="8" class="fence-post-shadow"></circle><circle cx="${x}" cy="${y}" r="7.5" class="fence-post"></circle><circle cx="${x}" cy="${y}" r="3.4" class="fence-post-top"></circle>`,
+    );
   }
   return `
-    <line x1="${fromX}" y1="${y}" x2="${toX}" y2="${y}" class="fence-rail"></line>
+    <line x1="${fromX}" y1="${y + 5}" x2="${toX}" y2="${y + 5}" class="fence-rail-shadow"></line>
+    <line x1="${fromX}" y1="${y - 4}" x2="${toX}" y2="${y - 4}" class="fence-rail"></line>
+    <line x1="${fromX}" y1="${y + 4}" x2="${toX}" y2="${y + 4}" class="fence-rail"></line>
     ${posts.join("")}
   `;
 }
@@ -1411,6 +1482,8 @@ function obstacleMarkerMarkup(obstacle, status) {
    frame ecran pour les directions), il suffit d'ajouter cette rotation apres.
    Ramenee dans [-90, 90] : le chateau tourne pour faire face a la route sans
    jamais se renverser (il reste droit face au joueur). */
+const CASTLE_MAX_TILT = 18; /* degres */
+
 function castleGateAngle(obstacle) {
   const scene = state.scene;
   if (!scene || !Array.isArray(scene.routePoints)) {
@@ -1441,7 +1514,11 @@ function obstacleSceneryMarkup(obstacle, status) {
          portail sur toutes les directions de carte. Les bannieres/tourelles
          suivent ce leger pivot (elles n'ont pas de haut/bas textuel) ; la
          plaque du nom et le PNJ, eux, gardent leur redressement propre. */
-      const gateAngle = castleGateAngle(obstacle);
+      /* Le chateau est dessine de trois quarts (tours et toits vers le haut de
+         l'ecran) : au-dela d'une legere inclinaison il paraitrait renverse.
+         On borne donc le pivot ; la route passe sous la muraille et ressort
+         par la porte, alignee sur les clotures horizontales. */
+      const gateAngle = clamp(castleGateAngle(obstacle), -CASTLE_MAX_TILT, CASTLE_MAX_TILT);
       return `
         ${fenceMarkup(Math.max(40, obstacle.x - 560), obstacle.x - 165, y)}
         ${fenceMarkup(obstacle.x + 165, Math.min(SCENE_WIDTH - 40, obstacle.x + 560), y)}
@@ -1463,18 +1540,31 @@ function obstacleSceneryMarkup(obstacle, status) {
         ${
           done
             ? `
-              <g class="log-cleared" transform="translate(${obstacle.x - 130}, ${y + 66}) rotate(18)">
-                <rect x="-46" y="-12" width="92" height="24" rx="12" class="log-shape"></rect>
-                <circle cx="46" cy="0" r="12" class="log-end"></circle>
+              <g class="log-cleared" transform="translate(${obstacle.x - 140}, ${y + 66}) rotate(18)">
+                <ellipse cx="4" cy="8" rx="60" ry="14" class="tree-shadow"></ellipse>
+                <rect x="-46" y="-12" width="44" height="24" rx="12" class="log-shape"></rect>
+                <rect x="4" y="-12" width="44" height="24" rx="12" class="log-shape"></rect>
+                <circle cx="48" cy="0" r="12" class="log-end"></circle>
+                <circle cx="48" cy="0" r="6" class="log-ring"></circle>
+                <circle cx="-2" cy="0" r="12" class="log-end"></circle>
+                <circle cx="-2" cy="0" r="6" class="log-ring"></circle>
               </g>
             `
             : `
               <g class="log-block" transform="translate(${obstacle.x}, ${y}) rotate(-7)">
-                <rect x="-84" y="-14" width="168" height="28" rx="14" class="log-shape"></rect>
+                <ellipse cx="6" cy="10" rx="110" ry="20" class="tree-shadow"></ellipse>
+                <!-- Arbre tombe en travers : tronc, branches, houppier encore feuillu. -->
+                <circle cx="96" cy="-6" r="30" class="fallen-crown"></circle>
+                <circle cx="114" cy="16" r="22" class="fallen-crown"></circle>
+                <circle cx="86" cy="18" r="18" class="fallen-crown-light"></circle>
+                <path d="M 50 -6 l 26 -22 M 58 6 l 22 18" class="fallen-branch"></path>
+                <rect x="-84" y="-14" width="160" height="28" rx="14" class="log-shape"></rect>
+                <path d="M -70 -6 h 30 M -30 4 h 40 M 20 -5 h 36 M -56 7 h 18" class="log-bark"></path>
                 <circle cx="-84" cy="0" r="14" class="log-end"></circle>
-                <circle cx="84" cy="0" r="14" class="log-end"></circle>
-                <ellipse cx="30" cy="-26" rx="20" ry="14" class="block-rock"></ellipse>
-                <ellipse cx="58" cy="22" rx="15" ry="11" class="block-rock"></ellipse>
+                <circle cx="-84" cy="0" r="8" class="log-ring"></circle>
+                <circle cx="-84" cy="0" r="3" class="log-ring"></circle>
+                <ellipse cx="22" cy="-28" rx="20" ry="14" class="block-rock"></ellipse>
+                <ellipse cx="-30" cy="26" rx="15" ry="11" class="block-rock"></ellipse>
               </g>
             `
         }
@@ -1494,8 +1584,12 @@ function obstacleSceneryMarkup(obstacle, status) {
       `;
     case "crossroads":
       return `
+        <line x1="${Math.max(40, obstacle.x - 520)}" y1="${y + 6}" x2="${obstacle.x - 120}" y2="${y + 6}" class="hedge-line ombre"></line>
+        <line x1="${obstacle.x + 120}" y1="${y + 6}" x2="${Math.min(SCENE_WIDTH - 40, obstacle.x + 520)}" y2="${y + 6}" class="hedge-line ombre"></line>
         <line x1="${Math.max(40, obstacle.x - 520)}" y1="${y}" x2="${obstacle.x - 120}" y2="${y}" class="hedge-line"></line>
         <line x1="${obstacle.x + 120}" y1="${y}" x2="${Math.min(SCENE_WIDTH - 40, obstacle.x + 520)}" y2="${y}" class="hedge-line"></line>
+        <line x1="${Math.max(40, obstacle.x - 520)}" y1="${y - 5}" x2="${obstacle.x - 120}" y2="${y - 5}" class="hedge-line clair"></line>
+        <line x1="${obstacle.x + 120}" y1="${y - 5}" x2="${Math.min(SCENE_WIDTH - 40, obstacle.x + 520)}" y2="${y - 5}" class="hedge-line clair"></line>
         <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path-edge"></path>
         <path d="M ${obstacle.x + 30} ${y + 6} C ${obstacle.x + 130} ${y - 10} ${obstacle.x + 200} ${y - 70} ${obstacle.x + 250} ${y - 150}" class="hidden-path"></path>
         <!-- Le panneau est une SIGNALETIQUE (poteau + boards + "?"), redressee
@@ -1503,9 +1597,15 @@ function obstacleSceneryMarkup(obstacle, status) {
              sur une carte up (180°). Les haies, la brume et le PNJ restent, eux,
              du decor de terrain qui pivote avec la carte. -->
         <g transform="translate(${obstacle.x - 110}, ${y - 30})${uprightSuffix()}">${ASSETS.signpost(done)}</g>
+        <!-- Brume en nappes (cercles fondus) : elle cache le sentier jusqu'a la
+             bonne reponse, puis se dissipe (classe obstacle-done). -->
         <g class="mist-cloud">
-          <ellipse cx="${obstacle.x + 190}" cy="${y - 74}" rx="72" ry="30" class="mist"></ellipse>
-          <ellipse cx="${obstacle.x + 240}" cy="${y - 120}" rx="56" ry="24" class="mist"></ellipse>
+          ${[
+            [150, -60, 34], [190, -78, 42], [234, -66, 32], [176, -40, 26],
+            [214, -112, 30], [252, -128, 36], [286, -110, 26], [232, -146, 24],
+          ]
+            .map(([dx, dy, r]) => `<circle cx="${obstacle.x + dx}" cy="${y + dy}" r="${r}" class="mist"></circle>`)
+            .join("")}
         </g>
         <g transform="translate(${obstacle.x + 116}, ${y + 46})${uprightSuffix()}">${ASSETS.npc("voyageur")}</g>
       `;
