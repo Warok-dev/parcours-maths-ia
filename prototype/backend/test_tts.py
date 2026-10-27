@@ -112,10 +112,18 @@ class SyntheseVocaleTests(unittest.TestCase):
         # Erreur de configuration (fichier de credentials manquant) : elle
         # remonte aussi en 503 propre cote endpoint.
         with patch.object(
-            tts, "_build_client", side_effect=tts.TTSConfigurationError("credentials manquants")
+            tts,
+            "_build_client",
+            side_effect=tts.TTSConfigurationError(
+                "Fichier de credentials Google TTS introuvable : /srv/app/google-tts-credentials.json."
+            ),
         ):
             response = self.client.post("/synthese-vocale", json={"texte": "Bonjour."})
         self.assertEqual(response.status_code, 503)
+        # Le chemin du fichier de credentials sur le serveur ne fuit pas.
+        detail = response.json()["detail"]
+        self.assertNotIn("/srv/app", detail)
+        self.assertNotIn("credentials", detail.lower())
 
     def test_texte_vide_renvoie_400(self) -> None:
         response = self.client.post("/synthese-vocale", json={"texte": "   "})

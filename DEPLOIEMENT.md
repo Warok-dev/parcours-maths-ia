@@ -242,6 +242,16 @@ pas nécessaire pour que ça marche, seulement pour limiter qui peut appeler l'A
 
 ---
 
+## Avant de déployer : aucun secret dans le code
+
+Toutes les clés (`GEMINI_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`, `DATABASE_URL`, le JSON du compte de service Google TTS) se saisissent **uniquement** dans les variables d'environnement de Render, jamais dans un fichier du dépôt. Le frontend est servi tel quel, sans étape de build : ce qui est dans Git est exactement ce que reçoit le navigateur.
+
+```bash
+python prototype/backend/scripts/verifier_secrets.py --historique
+```
+
+La CI lance ce contrôle à chaque push. S'il signale une clé, retirez-la **et révoquez-la chez le fournisseur** : une clé poussée sur GitHub, même supprimée ensuite, reste lisible dans l'historique.
+
 ## Vérifications après déploiement
 
 1. **API vivante** : `GET https://<api>.onrender.com/health` → `{"status":"ok"}`.

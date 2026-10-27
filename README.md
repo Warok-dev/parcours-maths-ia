@@ -83,6 +83,8 @@ cd prototype/frontend && for t in test_*.js; do node "$t"; done
 
 L'intégration continue (GitHub Actions) lance ces suites à chaque push. La suite backend tourne aussi contre un vrai PostgreSQL, et `scripts/verifier_postgres.py` y rejoue un parcours complet.
 
+Elle vérifie aussi qu'aucun secret n'est versionné, historique compris (`python prototype/backend/scripts/verifier_secrets.py --historique`). Les clés IA, la chaîne de connexion et les identifiants Google ne vivent que dans les variables d'environnement du backend : le frontend n'en reçoit aucune et passe toujours par l'API.
+
 ## Licence
 
 MIT, voir [LICENSE](LICENSE).
