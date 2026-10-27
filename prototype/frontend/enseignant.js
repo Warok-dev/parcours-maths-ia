@@ -460,12 +460,34 @@
     const item = (niveau, nb) =>
       `<span class="teacher-badge niveau-${niveau}" title="${BADGES_MAITRISE[niveau]}">${nb}<span class="teacher-badge-txt"> ${BADGES_MAITRISE[niveau]}</span></span>`;
     return `
+      ${barreMaitriseMarkup(eleve)}
       <span class="teacher-badges">
         ${item(3, eleve.nb_acquis || 0)}
         ${item(2, eleve.nb_en_cours || 0)}
         ${item(1, eleve.nb_a_retravailler || 0)}
       </span>
     `;
+  }
+
+  /* Barre de maitrise : la repartition acquis / en bonne voie / a retravailler
+     d'un eleve, lisible d'un coup d'oeil quand on parcourt toute la classe.
+     Memes couleurs que les badges chiffres juste a cote. */
+  function barreMaitriseMarkup(eleve) {
+    const parts = [
+      [3, eleve.nb_acquis || 0],
+      [2, eleve.nb_en_cours || 0],
+      [1, eleve.nb_a_retravailler || 0],
+    ];
+    const total = parts.reduce((somme, [, nb]) => somme + nb, 0);
+    if (!total) {
+      return "";
+    }
+    const segments = parts
+      .filter(([, nb]) => nb > 0)
+      .map(([niveau, nb]) => `<span class="teacher-barre-seg niveau-${niveau}" style="flex-grow:${nb}"></span>`)
+      .join("");
+    const resume = parts.map(([niveau, nb]) => `${nb} ${BADGES_MAITRISE[niveau].toLowerCase()}`).join(", ");
+    return `<span class="teacher-barre" role="img" aria-label="${echapper(resume)}">${segments}</span>`;
   }
 
   function afficherEcran() {

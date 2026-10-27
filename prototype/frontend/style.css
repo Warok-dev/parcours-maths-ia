@@ -6688,3 +6688,290 @@ select.teacher-input {
 .assignation-btn {
   flex: 0 0 auto;
 }
+
+/* ============================================================
+   FINITIONS VISUELLES (passe graphique d'octobre 2026)
+   Regroupees ici, en fin de feuille, pour surcharger proprement les regles
+   d'origine sans les dupliquer. Meme identite (bois, creme, or, Fredoka) :
+   on corrige la hierarchie, les debordements et les espaces adultes.
+   ============================================================ */
+
+/* Les listes deroulantes prenaient la police systeme (Arial) au milieu de
+   formulaires en Fredoka. */
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* ---------- Popup d'exercice : jamais plus large que l'ecran ----------
+   L'overlay est une grille : sans min-width:0, la popup s'elargissait a la
+   taille de son contenu le plus large (mecanique balance, titre long) et
+   debordait a droite sur telephone (bouton "Aide" coupe). */
+.exercise-overlay {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.exercise-modal {
+  min-width: 0;
+  justify-self: center;
+}
+
+.modal-head > *,
+.modal-paper {
+  min-width: 0;
+}
+
+.modal-title,
+.modal-intro {
+  overflow-wrap: anywhere;
+}
+
+/* Une mecanique tres large defile dans la feuille plutot que de la pousser. */
+.modal-paper {
+  overflow-x: auto;
+}
+
+@media (max-width: 520px) {
+  .exercise-overlay {
+    padding: 14px 10px;
+  }
+
+  .modal-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+  }
+
+  .modal-icon svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  .modal-title {
+    font-size: 1.12rem;
+  }
+
+  .modal-close {
+    top: -10px;
+    right: -6px;
+  }
+}
+
+/* ---------- Accueil : l'enfant d'abord, les adultes en retrait ----------
+   Les trois acces adultes etaient des boutons aussi visibles que les choix
+   de l'enfant, et la demo (orange plein) etait l'element le plus saillant de
+   l'ecran. Ils deviennent une ligne de liens discrete sous les deux choix. */
+.login-liens-adultes {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 2px dashed rgba(139, 88, 52, 0.22);
+}
+
+.login-adultes-titre {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.login-lien-adulte,
+.login-demo-lien {
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: var(--wood-dark);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(139, 88, 52, 0.35);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.login-lien-adulte:hover,
+.login-demo-lien:hover:not(:disabled) {
+  background: none;
+  color: var(--road-dark);
+  text-decoration-color: currentColor;
+}
+
+.login-lien-adulte:focus-visible {
+  outline: 3px solid var(--water);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---------- Espace enseignant ---------- */
+
+/* Boutons secondaires : plus legers que les boutons d'action de l'enfant.
+   Le trait de 3 px et les grandes pilules alourdissaient un outil de travail. */
+.teacher-screen .ghost-button {
+  padding: 7px 14px;
+  border-width: 2px;
+  font-size: 0.92rem;
+}
+
+.teacher-screen .btn-primary {
+  padding: 9px 18px;
+  font-size: 0.95rem;
+}
+
+/* Le code de classe est fait pour etre lu a voix haute et recopie par des
+   enfants : meme police que le reste, chiffres a chasse fixe, espacement
+   genereux (le Courier detonnait). */
+.teacher-code {
+  font-family: var(--font-round);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  border-style: solid;
+  border-color: #edcf8f;
+  background: #fff8e6;
+}
+
+/* Sur ordinateur, l'espace enseignant utilise la largeur disponible des
+   qu'il affiche des listes (classes, eleves, tableau de bord). Les ecrans de
+   connexion restent etroits. */
+@media (min-width: 1100px) {
+  .teacher-card:has(.teacher-classes, .teacher-eleves, .teacher-bord-eleves) {
+    max-width: 1040px;
+  }
+
+  .teacher-classes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+
+  .teacher-bord-eleves {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .teacher-create {
+    max-width: 560px;
+  }
+}
+
+/* Formulaire "Creer une classe" aligne sur les cartes (il etait en retrait). */
+.teacher-create {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Barre de maitrise d'un eleve (tableau de bord) */
+.teacher-bord-eleve {
+  display: grid;
+  grid-template-columns: minmax(84px, auto) 1fr;
+  grid-template-areas:
+    "nom barre"
+    "badges badges";
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.teacher-bord-nom {
+  grid-area: nom;
+}
+
+.teacher-bord-eleve .teacher-barre {
+  grid-area: barre;
+}
+
+.teacher-bord-eleve .teacher-badges,
+.teacher-bord-eleve .teacher-bord-vide {
+  grid-area: badges;
+}
+
+.teacher-barre {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  min-width: 80px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--cream-dark);
+}
+
+.teacher-barre-seg {
+  flex-basis: 0;
+  min-width: 6px;
+}
+
+.teacher-barre-seg.niveau-3 { background: #3aab52; }
+.teacher-barre-seg.niveau-2 { background: var(--gold); }
+.teacher-barre-seg.niveau-1 { background: #e0563f; }
+
+/* Actions d'un eleve : boutons compacts ; l'effacement definitif, rare et
+   irreversible, devient un lien rouge plutot qu'un bouton de meme poids. */
+.teacher-eleve-actions .ghost-button {
+  padding: 5px 12px;
+  font-size: 0.85rem;
+}
+
+.teacher-eleve-actions .teacher-delete {
+  border-color: transparent;
+  background: none;
+  color: var(--danger);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.teacher-eleve-actions .teacher-delete:hover {
+  background: #fbe4df;
+}
+
+@media (max-width: 520px) {
+  .teacher-card {
+    padding: 22px 16px 18px;
+  }
+
+  .teacher-topbar-actions {
+    width: 100%;
+  }
+
+  .teacher-eleve-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* ---------- Espace parent : un signal, pas une alarme ----------
+   "Un petit coup de pouce ?" n'est pas une erreur : ton ambre plutot que
+   rouge vif, pour inviter a aider plutot qu'inquieter. */
+.parent-alerte {
+  background: #fff6e3;
+  border-color: #efd29a;
+  border-left-color: var(--gold-dark);
+}
+
+.parent-alerte-icone,
+.parent-alerte-titre {
+  color: #9a5b06;
+}
+
+.parent-alerte-liste li + li {
+  margin-top: 4px;
+}
+
+/* Telephone : pendant un exercice, le bouton du hibou (ancre en bas a droite)
+   recouvrait le bouton "Aide" de la popup, qui ouvre le meme tuteur. On le
+   masque tant que le chat est ferme ; il reapparait des que le chat est
+   ouvert (via "Aide"), pour pouvoir le refermer. */
+@media (max-width: 520px) {
+  .game-screen:has(#exercise-overlay:not(.hidden)) .tutor-button:not(.chat-open) {
+    display: none;
+  }
+}
+
+/* Detail d'un eleve : la barre de maitrise sous le titre. */
+.teacher-subtitle + .teacher-barre {
+  margin: 2px 0 10px;
+}

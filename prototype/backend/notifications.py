@@ -211,25 +211,25 @@ def _texte_resume(
     nom = prenom or "Votre enfant"
     if not travailles:
         return (
-            f"{nom} n'a pas travaille de notion ces {fenetre_jours} derniers jours. "
-            f"N'hesitez pas a l'encourager a reprendre le parcours."
+            f"{nom} n'a pas travaillé de notion ces {fenetre_jours} derniers jours. "
+            f"N'hésitez pas à l'encourager à reprendre le parcours."
         )
     n = len(travailles)
     lignes = [
-        f"Cette semaine, {nom} a travaille {n} notion{'s' if n > 1 else ''} : "
+        f"Cette semaine, {nom} a travaillé {n} notion{'s' if n > 1 else ''} : "
         f"{_liste_libelles(travailles)}."
     ]
     if nouvellement_maitrises:
         m = len(nouvellement_maitrises)
         lignes.append(
-            f"Bravo : {m} notion{'s' if m > 1 else ''} desormais bien maitrisee"
+            f"Bravo : {m} notion{'s' if m > 1 else ''} désormais bien maîtrisée"
             f"{'s' if m > 1 else ''} ({_liste_libelles(nouvellement_maitrises)})."
         )
     if en_difficulte:
         d = len(en_difficulte)
         lignes.append(
             f"{d} notion{'s' if d > 1 else ''} reste"
-            f"{'nt' if d > 1 else ''} a retravailler : {_liste_libelles(en_difficulte)}."
+            f"{'nt' if d > 1 else ''} à retravailler : {_liste_libelles(en_difficulte)}."
         )
     if not nouvellement_maitrises and not en_difficulte:
         lignes.append("La progression est en bonne voie, continuez ainsi !")
@@ -269,7 +269,7 @@ def detecter_alerte_blocage(
             {
                 "type": "stagnation",
                 "message": (
-                    f"{nom} s'entraine mais n'a consolide aucune nouvelle notion depuis "
+                    f"{nom} s'entraîne mais n'a consolidé aucune nouvelle notion depuis "
                     f"{seuil_stagnation_jours} jours. Un petit coup de pouce pourrait aider."
                 ),
             }
@@ -286,7 +286,7 @@ def detecter_alerte_blocage(
                     "message": (
                         f"{nom} bute sur « {_libelle_concept(p.pattern_name)} » "
                         f"depuis {p.nb_tentatives} essais sans y arriver. "
-                        f"Ce concept meriterait d'etre repris ensemble."
+                        f"Cette notion mériterait d'être reprise ensemble."
                     ),
                 }
             )

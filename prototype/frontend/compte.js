@@ -192,17 +192,12 @@
           <span class="level-copy">Essai libre</span>
         </button>
       </div>
-      <div class="login-liens-adultes">
-        <button id="login-enseignant" class="ghost-button login-enseignant-lien" type="button">
-          Espace enseignant
-        </button>
-        <button id="login-parent" class="ghost-button login-enseignant-lien" type="button">
-          Espace parent
-        </button>
-        <button id="login-demo" class="ghost-button login-enseignant-lien login-demo-lien" type="button">
-          &#129514; Essayer une démo
-        </button>
-      </div>
+      <nav class="login-liens-adultes" aria-label="Accès adultes">
+        <span class="login-adultes-titre">Pour les adultes</span>
+        <button id="login-enseignant" class="login-lien-adulte" type="button">Espace enseignant</button>
+        <button id="login-parent" class="login-lien-adulte" type="button">Espace parent</button>
+        <button id="login-demo" class="login-lien-adulte login-demo-lien" type="button">Essayer une démo</button>
+      </nav>
     `;
     loginBody.querySelector("#login-rejoindre").addEventListener("click", rendreSaisieCode);
     loginBody.querySelector("#login-invite").addEventListener("click", () => choisir("invite"));
