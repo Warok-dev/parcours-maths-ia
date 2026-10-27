@@ -20,24 +20,37 @@ EXERCICE = {
 
 class TutorTimeoutTests(unittest.TestCase):
     def test_appel_gemini_borne_par_un_timeout_explicite(self) -> None:
-        """Sans timeout explicite, le SDK applique son defaut de 600 s et un
-        Gemini qui traine bloque toute la chaine de fallback."""
-        captures: list[dict] = []
+        """Sans timeout explicite, un Gemini qui traine bloque toute la chaine
+        de fallback. On verifie la requete HTTP REELLEMENT construite par le
+        SDK google-genai (transport httpx simule, aucun appel reseau)."""
+        import httpx
 
-        class ModeleFactice:
-            def generate_content(self, prompt, **kwargs):
-                captures.append(kwargs)
-                raise gexc.ResourceExhausted("429 quota epuise")
+        import gemini
 
-        with patch.object(tutor, "_build_model", return_value=ModeleFactice()):
-            with self.assertRaises(gexc.ResourceExhausted):
+        requetes: list[httpx.Request] = []
+
+        def envoi_factice(_client, request, **_kwargs):
+            requetes.append(request)
+            return httpx.Response(
+                429,
+                json={"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}},
+                request=request,
+            )
+
+        gemini.client.cache_clear()
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "cle-test"}), patch.object(
+            httpx.Client, "send", envoi_factice
+        ):
+            with self.assertRaises(Exception):
                 tutor._call_gemini("prompt")
+        gemini.client.cache_clear()
 
-        self.assertEqual(len(captures), 1)
-        self.assertEqual(
-            captures[0].get("request_options"),
-            {"timeout": tutor.PROVIDER_TIMEOUT_SECONDS},
-        )
+        # Un seul appel (pas de nouvelle tentative du SDK : c'est la chaine
+        # de fournisseurs qui sert de repli), borne par le timeout attendu.
+        self.assertEqual(len(requetes), 1)
+        delai = requetes[0].extensions["timeout"]
+        self.assertEqual(delai["read"], tutor.PROVIDER_TIMEOUT_SECONDS)
+        self.assertIn(tutor.MODEL_NAME, str(requetes[0].url))
 
     def test_meme_timeout_que_les_autres_fournisseurs(self) -> None:
         from generation import narrative

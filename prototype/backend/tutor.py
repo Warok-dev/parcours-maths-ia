@@ -6,8 +6,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-import google.generativeai as genai
-from google.ai.generativelanguage_v1beta.types import Candidate
+import gemini
 
 LOGGER = logging.getLogger(__name__)
 MODEL_NAME = "gemini-3.5-flash"
@@ -15,7 +14,6 @@ GROQ_MODEL_NAME = "llama-3.3-70b-versatile"
 MISTRAL_MODEL_NAME = "mistral-small-latest"
 PROVIDER_TIMEOUT_SECONDS = 8
 LOCAL_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
-THINKING_LEVEL = "low"
 BASE_MAX_OUTPUT_TOKENS = 500
 RETRY_MAX_OUTPUT_TOKENS = 4000
 VALID_ENDINGS = (".", "!", "?", "…")
@@ -144,15 +142,6 @@ def ensure_tutor_configured() -> str:
     return api_key
 
 
-@lru_cache(maxsize=8)
-def _build_model(system_instruction: str = SYSTEM_INSTRUCTION) -> genai.GenerativeModel:
-    # Cache par instruction systeme : un modele distinct par registre de langue
-    # (3 au total), construit une seule fois chacun.
-    api_key = ensure_tutor_configured()
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(MODEL_NAME, system_instruction=system_instruction)
-
-
 # --- Filtre des donnees personnelles dans la question libre de l'enfant ---
 # La question part chez des fournisseurs tiers (Gemini, Groq, Mistral) : on en
 # retire ce qui identifie quelqu'un, comme pour les rapports IA. Les nombres
@@ -200,80 +189,42 @@ def _build_user_prompt(
     )
 
 
-def _extract_text(response: object) -> str:
-    text = getattr(response, "text", None)
-    if isinstance(text, str):
-        return text.strip()
-    return ""
-
-
-def _extract_finish_reason(response: object) -> Candidate.FinishReason | int | None:
-    candidates = getattr(response, "candidates", None) or []
-    if not candidates:
-        return None
-    return getattr(candidates[0], "finish_reason", None)
-
-
-def _is_max_tokens_finish_reason(finish_reason: Candidate.FinishReason | int | None) -> bool:
-    if finish_reason is None:
-        return False
-    if finish_reason == Candidate.FinishReason.MAX_TOKENS:
-        return True
-    return int(finish_reason) == int(Candidate.FinishReason.MAX_TOKENS)
-
-
 def _is_valid_tutor_text(text: str) -> bool:
     stripped = text.strip()
     return len(stripped) >= 10 and stripped.endswith(VALID_ENDINGS)
 
 
 def _call_model(
-    model: genai.GenerativeModel,
-    prompt: str,
-    max_output_tokens: int,
-) -> tuple[str, Candidate.FinishReason | int | None]:
-    generation_config = {
-        "temperature": 0.3,
-        "max_output_tokens": max_output_tokens,
-    }
-    # The installed google-generativeai SDK does not expose `thinking_level`
-    # directly in GenerationConfig. We keep the intended value visible in logs
-    # and compensate with a generous output budget plus retry-on-truncation.
-    LOGGER.debug(
-        "Appel Gemini: model=%s max_output_tokens=%s thinking_level=%s timeout=%ss",
-        MODEL_NAME,
-        max_output_tokens,
-        THINKING_LEVEL,
-        PROVIDER_TIMEOUT_SECONDS,
-    )
-    # Timeout explicite, comme pour Groq et Mistral : sans lui, le SDK
-    # applique son defaut de 600 s. Un Gemini qui traine (typiquement en
-    # limite de quota) bloquerait alors toute la chaine de fallback pendant
-    # dix minutes au lieu de laisser la main au fournisseur suivant.
-    response = model.generate_content(
+    prompt: str, system_instruction: str, max_output_tokens: int
+) -> gemini.ReponseGemini:
+    # Timeout explicite, comme pour Groq et Mistral : un Gemini qui traine
+    # (typiquement en limite de quota) laisse vite la main au suivant.
+    return gemini.generer(
         prompt,
-        generation_config=generation_config,
-        request_options={"timeout": PROVIDER_TIMEOUT_SECONDS},
+        api_key=ensure_tutor_configured(),
+        modele=MODEL_NAME,
+        system_instruction=system_instruction,
+        temperature=0.3,
+        max_output_tokens=max_output_tokens,
+        timeout_secondes=PROVIDER_TIMEOUT_SECONDS,
     )
-    return _extract_text(response), _extract_finish_reason(response)
 
 
 def _call_gemini(prompt: str, system_instruction: str = SYSTEM_INSTRUCTION) -> str:
     """Priorite 1 : Gemini, avec retry sur troncature (comportement historique)."""
-    model = _build_model(system_instruction)
-    text, finish_reason = _call_model(model, prompt, BASE_MAX_OUTPUT_TOKENS)
+    reponse = _call_model(prompt, system_instruction, BASE_MAX_OUTPUT_TOKENS)
 
-    if _is_max_tokens_finish_reason(finish_reason) or not _is_valid_tutor_text(text):
+    if reponse.tronquee or not _is_valid_tutor_text(reponse.texte):
         LOGGER.warning(
-            "Réponse Gemini incomplète ou trop courte. finish_reason=%s text=%r",
-            finish_reason,
-            text,
+            "Réponse Gemini incomplète ou trop courte. tronquee=%s text=%r",
+            reponse.tronquee,
+            reponse.texte,
         )
-        text, finish_reason = _call_model(model, prompt, RETRY_MAX_OUTPUT_TOKENS)
+        reponse = _call_model(prompt, system_instruction, RETRY_MAX_OUTPUT_TOKENS)
 
-    if _is_max_tokens_finish_reason(finish_reason):
+    if reponse.tronquee:
         raise TutorServiceError("Gemini a coupé la réponse pour limite de tokens après retry.")
-    return text
+    return reponse.texte
 
 
 @lru_cache(maxsize=1)
