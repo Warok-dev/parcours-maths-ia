@@ -493,7 +493,24 @@ def _ensure_session_fields(session: dict) -> dict:
     # session invitee (mode essai libre, comportement localStorage inchange).
     session.setdefault("eleve_id", None)
     session.setdefault("session_jeu_id", None)
+    # Essais faux sur l'exercice EN COURS (normal ou de confiance), mesures par
+    # le serveur : c'est ce compteur, et non le message de l'eleve, qui
+    # autorise le tuteur a donner la reponse.
+    session.setdefault("essais_faux", {"exercice_id": None, "n": 0})
     return session
+
+
+def _compter_essai_faux(session: dict, exercice_id: str) -> None:
+    compteur = session["essais_faux"]
+    if compteur.get("exercice_id") != exercice_id:
+        compteur["exercice_id"] = exercice_id
+        compteur["n"] = 0
+    compteur["n"] += 1
+
+
+def _essais_faux(session: dict, exercice_id: str) -> int:
+    compteur = session.get("essais_faux") or {}
+    return int(compteur.get("n", 0)) if compteur.get("exercice_id") == exercice_id else 0
 
 
 def _record_attempt(session: dict, correct: bool, exercice_id: str) -> None:
@@ -885,6 +902,7 @@ def _apply_confidence_evaluation(session: dict, exercice: dict, reponse: str) ->
     }
 
     if not result["correct"]:
+        _compter_essai_faux(session, exercice["id"])
         session["dernier_diagnostic"] = diagnostiquer_erreur(
             exercice["pattern"]["pattern_name"],
             exercice.get("variables") or {},
@@ -920,6 +938,7 @@ def _apply_session_evaluation(session: dict, exercice: dict, reponse: str) -> di
     }
 
     if not result["correct"]:
+        _compter_essai_faux(session, exercice["id"])
         _record_attempt(session, False, exercice["id"])
         _mark_chain_broken(session)
         # Diagnostic par regles de l'erreur probable, memorise pour que le
@@ -1251,11 +1270,16 @@ def evaluer(
 @app.post("/tuteur/aide")
 def tuteur_aide(
     payload: TutorRequest,
+    db: Annotated[Session, Depends(get_db)],
     _rl: Annotated[None, Depends(limite(LIMITE_IA, "tuteur_aide"))] = None,
     eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
 ) -> dict:
     progression = None
     diagnostic = None
+    essais_faux = 0
+    # Prenom de l'eleve connecte : masque dans la question avant envoi au LLM.
+    eleve = db.get(Eleve, eleve_id) if eleve_id is not None else None
+    prenoms = (eleve.prenom,) if eleve is not None else ()
     if payload.session_id is not None:
         session = _get_session(payload.session_id)
         _verifier_acces_session(session, eleve_id)
@@ -1267,12 +1291,18 @@ def tuteur_aide(
             _save_session(session)
         progression = _progression_payload(session)
         diagnostic = session.get("dernier_diagnostic")
+        essais_faux = _essais_faux(session, exercice["id"])
     else:
         exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)
 
     try:
         tutor_reply = build_tutor_reply(
-            exercice, payload.question, diagnostic=diagnostic, niveau=payload.niveau
+            exercice,
+            payload.question,
+            diagnostic=diagnostic,
+            niveau=payload.niveau,
+            essais_faux=essais_faux,
+            prenoms=prenoms,
         )
     except TutorServiceError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
