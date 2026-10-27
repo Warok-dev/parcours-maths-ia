@@ -7,6 +7,7 @@ explicitement ici, et on le reinitialise entre chaque test pour l'isolation.
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
@@ -107,6 +108,94 @@ class RateLimitTests(unittest.TestCase):
         rate_limit.desactiver()
         statuts = [self._connexion_eleve().status_code for _ in range(20)]
         self.assertTrue(all(s != 429 for s in statuts), statuts)
+
+
+class LimitesSalleDeClasseTests(unittest.TestCase):
+    """Une classe entiere partage une IP : les limites ne doivent pas bloquer
+    des eleves differents, tout en bridant la force brute sur UN eleve."""
+
+    def setUp(self) -> None:
+        self.engine = create_db_engine("sqlite://")
+        init_db(self.engine)
+        fabrique = sessionmaker(bind=self.engine, expire_on_commit=False, class_=Session)
+
+        def override_get_db():
+            db = fabrique()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[comptes.get_db] = override_get_db
+        rate_limit.reinitialiser()
+        rate_limit.activer()
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        rate_limit.desactiver()
+        rate_limit.reinitialiser()
+        app.dependency_overrides.clear()
+        self.engine.dispose()
+
+    def test_trente_eleves_se_connectent_depuis_la_meme_ip(self) -> None:
+        statuts = [
+            self.client.post(
+                f"/eleve/{1000 + i}/connexion", json={"code_classe": "CE1-X-AAAAA", "pin": "0000"}
+            ).status_code
+            for i in range(30)
+        ]
+        self.assertNotIn(429, statuts)
+
+    def test_force_brute_sur_un_eleve_toujours_bridee(self) -> None:
+        statuts = [
+            self.client.post(
+                "/eleve/7/connexion", json={"code_classe": "CE1-X-AAAAA", "pin": "0000"}
+            ).status_code
+            for i in range(11)
+        ]
+        self.assertEqual(statuts[-1], 429)
+
+    def test_inscription_enseignant_limitee(self) -> None:
+        from limits import parse
+
+        n = parse(rate_limit.LIMITE_INSCRIPTION).amount
+        statuts = [
+            self.client.post(
+                "/enseignant/inscription",
+                json={"nom": "P", "identifiant": f"prof{i}", "mot_de_passe": "secret123"},
+            ).status_code
+            for i in range(n + 1)
+        ]
+        self.assertEqual(statuts[:n], [201] * n)
+        self.assertEqual(statuts[n], 429)
+
+
+class IpClientTests(unittest.TestCase):
+    def _requete(self, xff: str | None, directe: str = "10.0.0.1"):
+        from starlette.requests import Request
+
+        headers = [(b"x-forwarded-for", xff.encode())] if xff is not None else []
+        return Request({"type": "http", "headers": headers, "client": (directe, 1234)})
+
+    def test_sans_proxy_de_confiance_l_en_tete_est_ignore(self) -> None:
+        with patch.object(rate_limit, "TRUSTED_PROXY_HOPS", 0):
+            self.assertEqual(rate_limit.ip_client(self._requete("1.2.3.4")), "10.0.0.1")
+
+    def test_un_proxy_prend_la_derniere_entree(self) -> None:
+        with patch.object(rate_limit, "TRUSTED_PROXY_HOPS", 1):
+            # "6.6.6.6" a ete injecte par le client : ignore.
+            requete = self._requete("6.6.6.6, 203.0.113.9")
+            self.assertEqual(rate_limit.ip_client(requete), "203.0.113.9")
+
+    def test_deux_proxys(self) -> None:
+        with patch.object(rate_limit, "TRUSTED_PROXY_HOPS", 2):
+            requete = self._requete("6.6.6.6, 203.0.113.9, 172.16.0.5")
+            self.assertEqual(rate_limit.ip_client(requete), "203.0.113.9")
+
+    def test_en_tete_absent_ou_trop_court(self) -> None:
+        with patch.object(rate_limit, "TRUSTED_PROXY_HOPS", 2):
+            self.assertEqual(rate_limit.ip_client(self._requete(None)), "10.0.0.1")
+            self.assertEqual(rate_limit.ip_client(self._requete("1.1.1.1")), "10.0.0.1")
 
 
 if __name__ == "__main__":

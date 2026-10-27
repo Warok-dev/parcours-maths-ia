@@ -25,6 +25,7 @@ explicitement (activer()/desactiver()/reinitialiser()).
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Callable
 
@@ -37,16 +38,58 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
-# --- Limites (par IP) ---
-LIMITE_GENERALE = "60/minute"  # usage normal intensif (eleve qui enchaine)
-LIMITE_AUTH = "10/minute"  # PIN eleve, code parent, mot de passe enseignant (anti force brute)
-LIMITE_IA = "20/minute"  # endpoints appelant les fournisseurs IA / TTS (anti sur-consommation quota)
-LIMITE_DEMO = "3/hour"  # creation d'ecoles de demo (anti abus : eviter de remplir la base)
+# --- Limites ---
+# Une CLASSE entiere partage souvent une seule IP publique (routeur de
+# l'ecole) : les limites PAR IP sont donc dimensionnees pour ~30 eleves
+# simultanes, et la protection fine (force brute) se fait PAR CIBLE (un
+# eleve, un identifiant) plutot que par IP. Toutes surchargeables par
+# variable d'environnement (ex. RATE_LIMIT_GENERALE="900/minute").
+
+
+def _env(nom: str, defaut: str) -> str:
+    return os.environ.get(nom, defaut)
+
+
+LIMITE_GENERALE = _env("RATE_LIMIT_GENERALE", "600/minute")  # ~20 req/min/eleve pour 30 eleves
+LIMITE_AUTH = _env("RATE_LIMIT_AUTH", "10/minute")  # PAR CIBLE : un eleve, un identifiant, un code
+LIMITE_AUTH_IP = _env("RATE_LIMIT_AUTH_IP", "60/minute")  # par IP, toutes cibles confondues
+LIMITE_REJOINDRE = _env("RATE_LIMIT_REJOINDRE", "40/minute")  # une classe tape le meme code
+LIMITE_IA = _env("RATE_LIMIT_IA", "60/minute")  # tuteur / rapports IA (quota fournisseurs)
+LIMITE_TTS = _env("RATE_LIMIT_TTS", "120/minute")  # lecture d'enonces (cache cote serveur)
+LIMITE_DEMO = _env("RATE_LIMIT_DEMO", "3/hour")  # creation d'ecoles de demo
+LIMITE_INSCRIPTION = _env("RATE_LIMIT_INSCRIPTION", "5/hour")  # creation de comptes enseignant
+
+# --- IP reelle du client derriere le proxy de l'hebergeur ---
+# Derriere Render (et son CDN), request.client.host est l'IP du PROXY : tous
+# les utilisateurs partageraient alors le meme compteur. X-Forwarded-For porte
+# la vraie IP, mais le client peut y glisser de fausses valeurs EN TETE de
+# liste (le proxy ajoute a la fin sans nettoyer). On lit donc la N-ieme entree
+# EN PARTANT DE LA FIN, N = nombre de proxys de confiance (TRUSTED_PROXY_HOPS) :
+# cette entree a ete ecrite par notre propre proxy, elle n'est pas falsifiable.
+# 0 (defaut, developpement local) = on ignore l'en-tete. Pour calibrer en
+# production : RATE_LIMIT_LOG_IP=1 journalise X-Forwarded-For et l'IP retenue.
+TRUSTED_PROXY_HOPS = int(_env("TRUSTED_PROXY_HOPS", "0") or 0)
+_LOG_IP = _env("RATE_LIMIT_LOG_IP", "0") == "1"
+_log = logging.getLogger("rate_limit")
+
+
+def ip_client(request: Request) -> str:
+    """IP a utiliser pour les compteurs (voir TRUSTED_PROXY_HOPS)."""
+    directe = get_remote_address(request) or "anonyme"
+    if TRUSTED_PROXY_HOPS <= 0:
+        return directe
+    entrees = [
+        e.strip() for e in request.headers.get("x-forwarded-for", "").split(",") if e.strip()
+    ]
+    ip = entrees[-TRUSTED_PROXY_HOPS] if len(entrees) >= TRUSTED_PROXY_HOPS else directe
+    if _LOG_IP:
+        _log.info("IP client : x-forwarded-for=%r directe=%s -> %s", entrees, directe, ip)
+    return ip
 
 # Limiteur slowapi : porte UNIQUEMENT la limite generale, appliquee via
 # SlowAPIMiddleware. `enabled` pilote AUSSI les limites strictes ci-dessous.
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=lambda request: ip_client(request),
     default_limits=[LIMITE_GENERALE],
     enabled=False,  # active en production par activer_selon_env()
 )
@@ -115,7 +158,14 @@ def gestion_depassement(request: Request, exc: RateLimitExceeded) -> JSONRespons
     return reponse
 
 
-def limite(regle: str, portee: str) -> Callable[[Request], None]:
+def par_chemin(nom: str) -> Callable[[Request], str]:
+    """Discriminant de compteur : un parametre de chemin (ex. l'eleve vise)."""
+    return lambda request: str(request.path_params.get(nom, ""))
+
+
+def limite(
+    regle: str, portee: str, discriminant: Callable[[Request], str] | None = None
+) -> Callable[[Request], None]:
     """Fabrique une DEPENDANCE FastAPI qui applique la limite `regle` (ex.
     "10/minute") a un endpoint, isolee par `portee` (chaque type d'endpoint a
     son propre compteur par IP : bruteforcer le PIN ne bloque pas l'acces
@@ -126,8 +176,13 @@ def limite(regle: str, portee: str) -> Callable[[Request], None]:
     def dependance(request: Request) -> None:
         if not limiter.enabled:
             return
-        identite = get_remote_address(request) or "anonyme"
-        if not _strategie.hit(item, portee, identite):
+        identite = ip_client(request)
+        cles = [portee, identite]
+        if discriminant is not None:
+            # Compteur par (IP, cible) : 30 eleves d'une meme classe qui se
+            # connectent chacun a SON compte ne se bloquent pas entre eux.
+            cles.append(discriminant(request))
+        if not _strategie.hit(item, *cles):
             raise HTTPException(
                 status_code=429,
                 detail=_message_429(request.url.path),

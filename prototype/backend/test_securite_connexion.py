@@ -105,12 +105,16 @@ class RejoindreClasseTests(_BaseConnexion):
         self.assertEqual(reponse.status_code, 200)
 
     def test_rejoindre_est_limite_par_ip(self) -> None:
+        from limits import parse
+
         rate_limit.activer()
+        n = parse(rate_limit.LIMITE_REJOINDRE).amount
         statuts = [
-            self.client.get(f"/classe/rejoindre/CE1-LOUP-ZZZZ{i}").status_code for i in range(12)
+            self.client.get(f"/classe/rejoindre/CE1-LOUP-ZZZZ{i}").status_code
+            for i in range(n + 1)
         ]
-        self.assertEqual(statuts[:10], [404] * 10)
-        self.assertEqual(statuts[10], 429)
+        self.assertEqual(statuts[:n], [404] * n)
+        self.assertEqual(statuts[n], 429)
         # Message adapte a l'enfant (c'est lui qui saisit le code).
         reponse = self.client.get(f"/classe/rejoindre/{self.classe['code_classe']}")
         self.assertEqual(reponse.status_code, 429)
