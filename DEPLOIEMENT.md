@@ -254,7 +254,7 @@ La CI lance ce contrôle à chaque push. S'il signale une clé, retirez-la **et 
 
 ## Vérifications après déploiement
 
-1. **API vivante** : `GET https://<api>.onrender.com/health` → `{"status":"ok"}`.
+1. **API vivante** : `GET https://<api>.onrender.com/health` → `{"status":"ok"}`, puis **base joignable** : `GET https://<api>.onrender.com/health/base` → `{"status":"ok","base":"ok"}`.
 2. **Base connectée** : créer une école/un compte enseignant depuis le frontend en
    ligne, se déconnecter, se reconnecter → les données doivent persister (elles
    sont dans Neon). Vous pouvez aussi les voir dans le **SQL Editor** de Neon
@@ -287,26 +287,29 @@ Ces points ne bloquent pas le déploiement mais sont bons à connaître :
 ### Garder le service éveillé (keep-alive) — supprime le freeze de ~50 s
 
 Le plan gratuit Render endort le service après ~15 min sans trafic. Un **ping
-périodique** de l'endpoint `/health` (léger, sans base) maintient Render — et par
-ricochet la connexion Neon — éveillés, ce qui **élimine le cold start de ~50 s** au
-premier accès après une pause. C'est une configuration **externe** (aucun code à
-changer), à faire une fois :
+périodique** de `/health` le garde éveillé, ce qui **élimine le cold start de ~50 s**
+au premier accès. Configuration externe, à faire une fois :
 
-1. Créer un compte gratuit sur un service de monitoring, par ex.
-   **[UptimeRobot](https://uptimerobot.com)** (ou Cron-Job.org, BetterStack…).
-2. Ajouter un **monitor de type HTTP(s)** :
+1. Créer un compte gratuit sur **[UptimeRobot](https://uptimerobot.com)** (ou Cron-Job.org, BetterStack…).
+2. Ajouter un **monitor HTTP(s)** :
    - **URL** : `https://<votre-service>.onrender.com/health`
-   - **Intervalle** : **toutes les 10 minutes** (< 15 min, la limite d'endormissement Render).
-   - Méthode `GET` ; un code `200` avec `{"status":"ok"}` est attendu.
-3. Enregistrer. Le monitor pinge désormais `/health` en continu ; le service reste
-   chaud et répond immédiatement aux vrais utilisateurs.
+   - **Intervalle** : 5 à 10 minutes (< 15 min, la limite d'endormissement Render).
+   - Un code `200` avec `{"status":"ok"}` est attendu (`GET` ou `HEAD`).
 
-> Remarques :
-> - `/health` exécute un `SELECT 1` : le ping garde donc éveillés **à la fois**
->   Render et la base Neon. Il renvoie `503` si la base est injoignable (utile pour
->   être alerté). `HEAD /health` est aussi accepté.
-> - Cela consomme des heures d'instance Render (le service ne dort plus). Sur le
->   plan gratuit, garder un œil sur le quota mensuel d'heures.
+> **Important : `/health` ne touche pas la base, et c'est voulu.** Une ancienne
+> version y exécutait un `SELECT 1`. Neon ne s'endort qu'après 5 min sans requête :
+> avec un ping toutes les 5 min, la base tournait 24 h/24 et a **épuisé le quota
+> mensuel gratuit** (environ 100 h de calcul), ce qui a mis la base en pause et le
+> jeu hors service. Neon se réveille en moins d'une seconde à la première vraie
+> requête : il n'y a rien à gagner à le garder chaud.
+>
+> Pour vérifier la base à la main (après un déploiement par exemple) :
+> `GET /health/base` → `{"status":"ok","base":"ok"}`, ou `503` si elle est
+> injoignable. **Ne jamais mettre `/health/base` dans un moniteur périodique.**
+>
+> Le service Render, lui, ne dort plus : un seul service tourne ~730 h/mois, sous
+> les 750 h d'instance gratuites par mois.
+
 - **Données vraiment persistantes = uniquement PostgreSQL/Neon.** Le disque de
   Render est **éphémère** : il est remis à zéro à chaque redéploiement/réveil.
   Concrètement :

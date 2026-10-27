@@ -1132,33 +1132,34 @@ def _enregistrer_evaluation_bd(db: Session, session: dict, statut: str | None) -
         logging.warning("Progression BD non enregistree : %s", exc)
 
 
-def _verifier_sante(db: Session) -> dict:
-    """Logique partagee de la sonde de vivacite (GET et HEAD). Execute EN PLUS
-    une requete SQL minimale (SELECT 1) afin que le ping externe configure sur
-    cet endpoint garde eveilles a la fois Render (par le trafic) ET la base Neon
-    (qui suspend sa compute apres ~5 min d'inactivite). Le format de reponse est
-    inchange ({"status": "ok"}) pour ne rien casser cote appelants. Si la base
-    est injoignable, on renvoie 503 plutot qu'un faux "ok" qui masquerait un vrai
-    probleme de connexion."""
+def _verifier_base(db: Session) -> dict:
+    """Execute un SELECT 1 : 503 clair si la base est injoignable."""
     try:
         db.execute(text("SELECT 1"))
-    except Exception as exc:  # toute panne DB (connexion, timeout...) -> 503 clair
+    except Exception as exc:  # toute panne DB (connexion, timeout, quota...) -> 503 clair
         logging.warning("Health : base de donnees injoignable : %s", exc)
         raise HTTPException(status_code=503, detail="Base de donnees injoignable.") from exc
+    return {"status": "ok", "base": "ok"}
+
+
+# /health ne touche PAS la base. C'est l'endpoint que pingue le moniteur
+# externe (UptimeRobot, toutes les 5-10 min) pour garder Render eveille.
+# Avant, il executait un SELECT 1 : la base Neon, qui ne s'endort qu'apres
+# 5 min sans requete, ne dormait plus jamais. Elle tournait 24 h/24 et a epuise
+# le quota mensuel gratuit (base en pause, jeu hors service). Neon se reveille
+# en moins d'une seconde a la premiere vraie requete : le garder chaud ne sert
+# a rien. GET et HEAD (les sondes emettent souvent un HEAD).
+@app.get("/health")
+@app.head("/health")
+def health() -> dict:
     return {"status": "ok"}
 
 
-# GET et HEAD partagent la meme logique (SELECT 1 inclus) : FastAPI n'ajoute pas
-# HEAD automatiquement pour une route GET, et les sondes d'uptime (UptimeRobot...)
-# emettent souvent un HEAD. On expose donc les deux, sans dupliquer le corps.
-@app.get("/health")
-def health(db: Annotated[Session, Depends(get_db)]) -> dict:
-    return _verifier_sante(db)
-
-
-@app.head("/health")
-def health_head(db: Annotated[Session, Depends(get_db)]) -> dict:
-    return _verifier_sante(db)
+# Verification ponctuelle de la base (diagnostic, apres un deploiement). Ne
+# JAMAIS la donner a un moniteur periodique : elle empecherait Neon de dormir.
+@app.get("/health/base")
+def health_base(db: Annotated[Session, Depends(get_db)]) -> dict:
+    return _verifier_base(db)
 
 
 @app.post("/session/demarrer")
