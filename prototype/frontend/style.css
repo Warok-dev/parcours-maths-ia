@@ -7181,3 +7181,92 @@ textarea {
   stroke: var(--grass-light);
   opacity: 0.9;
 }
+
+/* ============================================================
+   OBSTACLES (passe graphique) : chateau, cabane, arbre tombe, pont,
+   carrefour, clotures. Memes couleurs de famille qu'avant.
+   ============================================================ */
+
+/* Chateau de trois quarts */
+.castle-wall { fill: var(--stone); stroke: var(--stone-dark); stroke-width: 3; }
+.castle-merlon { fill: var(--stone); stroke: var(--stone-dark); stroke-width: 2.5; }
+.castle-bricks { fill: none; stroke: var(--stone-dark); stroke-width: 2; stroke-linecap: round; opacity: 0.55; }
+.castle-tower-body { fill: #c4cad1; stroke: var(--stone-dark); stroke-width: 3; }
+.castle-tower-light { fill: #ffffff; opacity: 0.22; }
+.castle-window { fill: #4a5966; }
+.castle-roof { fill: #4f7fb8; stroke: #355d8c; stroke-width: 3; stroke-linejoin: round; }
+.castle-roof-light { fill: #ffffff; opacity: 0.16; }
+.castle-mast { stroke: var(--wood-dark); stroke-width: 3; stroke-linecap: round; }
+.castle-gatehouse { fill: #c4cad1; stroke: var(--stone-dark); stroke-width: 3; }
+.castle-arch { fill: var(--stone-dark); }
+.castle-arch-inner { fill: rgba(61, 44, 30, 0.12); }
+.door-band { fill: none; stroke: #4a3a2c; stroke-width: 3; }
+.door-lock-hole { fill: var(--wood-dark); }
+
+/* Battants : en 3/4, la porte "s'ouvre" en se rabattant contre le mur. */
+.gate-left,
+.gate-right {
+  transform-box: fill-box;
+  transition: transform 900ms ease;
+}
+.gate-left { transform-origin: left center; }
+.gate-right { transform-origin: right center; }
+.obstacle-done .gate-left,
+.obstacle-done .gate-right {
+  transform: scaleX(0.2);
+}
+
+/* Cabane du bucheron */
+.cabin-log { fill: #a8703f; stroke: var(--wood-dark); stroke-width: 2; }
+.cabin-log-end { fill: #e0b27a; stroke: var(--wood-dark); stroke-width: 2; }
+.cabin-door { fill: var(--wood-dark); stroke: #4a3a2c; stroke-width: 2; }
+.cabin-roof { fill: #7a4e2c; stroke: #4a3a2c; stroke-width: 3; stroke-linejoin: round; }
+.cabin-roof-front { fill: #6a4325; }
+.cabin-shingles { fill: none; stroke: #4a3a2c; stroke-width: 2; opacity: 0.45; }
+.cabin-ridge { stroke: #4a3a2c; stroke-width: 4; stroke-linecap: round; }
+.cabin-chimney { fill: #b6aaa0; stroke: #7d6f63; stroke-width: 2; }
+.cabin-chimney-joints { fill: none; stroke: #7d6f63; stroke-width: 1.5; }
+
+/* Arbre tombe en travers de la route */
+.fallen-crown { fill: #5aa64f; stroke: #3f8a49; stroke-width: 2.5; }
+.fallen-crown-light { fill: #7cc06d; }
+.fallen-branch { fill: none; stroke: var(--wood-dark); stroke-width: 7; stroke-linecap: round; }
+.log-bark { fill: none; stroke: var(--wood-dark); stroke-width: 2; stroke-linecap: round; opacity: 0.5; }
+.log-ring { fill: none; stroke: #b98448; stroke-width: 1.6; }
+
+/* Pont */
+.bridge-shadow { fill: rgba(30, 60, 90, 0.25); }
+.bridge-deck { fill: #8b5834; stroke: var(--wood-dark); stroke-width: 3; }
+.bridge-plank { fill: #c08a54; stroke: var(--wood-dark); stroke-width: 2; }
+.neuve .bridge-plank { fill: #e2b77f; }
+.bridge-nail { fill: #5d4a3a; }
+.bridge-gap { fill: var(--water); }
+.bridge-gap-wave { fill: none; stroke: var(--water-light); stroke-width: 3; stroke-linecap: round; }
+.bridge-rope { fill: none; stroke: #d9c79c; stroke-width: 4; stroke-linecap: round; }
+.bridge-post { fill: var(--wood); stroke: var(--wood-dark); stroke-width: 2.5; }
+.bridge-post-top { fill: #e0b27a; }
+.bridge-floating .bridge-plank { opacity: 0.85; }
+
+/* Riviere : berges en deux tons, courant plus doux */
+.river-bank { fill: #c9b48a; }
+.river-wave { opacity: 0.8; }
+
+/* Carrefour */
+.signpost-mound { fill: var(--grass-dark); }
+.signpost-grain { fill: none; stroke: var(--wood-dark); stroke-width: 1.4; stroke-linecap: round; opacity: 0.35; }
+.signpost-board.revele { fill: #ffd76a; }
+.signpost-cap { fill: var(--wood-dark); }
+.hedge-line.ombre { stroke: #3a7a37; opacity: 0.6; }
+.hedge-line.clair { stroke: #6cb766; stroke-width: 18; }
+.mist { fill: #fffaf0; opacity: 0.82; }
+
+/* Clotures : deux lisses, poteaux avec ombre et tete claire */
+.fence-rail { stroke: var(--wood); stroke-width: 5; stroke-linecap: round; }
+.fence-rail-shadow { stroke: rgba(61, 44, 30, 0.18); stroke-width: 8; stroke-linecap: round; }
+.fence-post { fill: var(--wood-dark); }
+.fence-post-shadow { fill: rgba(61, 44, 30, 0.18); }
+.fence-post-top { fill: var(--wood-light); }
+
+/* Porte ouverte : la voute laisse voir la route qui passe dessous. */
+.obstacle-done .castle-arch { fill: rgba(61, 44, 30, 0.28); transition: fill 700ms ease; }
+.obstacle-done .castle-arch-inner { fill: none; }
