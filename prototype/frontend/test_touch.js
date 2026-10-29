@@ -114,78 +114,59 @@ function fakeMatchMedia(table) {
   check(sansCrash, "noeud absent : appliquerVisibilite ne crashe pas");
 }
 
-/* --- 5. Cablage du pave : maintien = presser, relachement = relacher --- */
+/* --- 5. Joystick analogique : direction libre, force selon l'inclinaison --- */
 {
-  /* Faux bouton avec data-dir et un mini systeme d'evenements. */
-  function fauxBouton(dir) {
-    return {
-      dataset: { dir },
-      listeners: {},
-      classes: new Set(),
-      classList: {
-        add(c) {
-          /* mappe sur l'ensemble du bouton parent */
-        },
-      },
-      addEventListener(type, fn) {
-        this.listeners[type] = fn;
-      },
-      dispatch(type, event) {
-        this.listeners[type]?.(event || { preventDefault() {} });
-      },
-    };
-  }
-  /* classList reel simule (add/remove/contains) pour verifier l'etat "actif". */
-  function boutonAvecClasses(dir) {
-    const set = new Set();
-    return {
-      dataset: { dir },
-      listeners: {},
-      classList: {
-        add: (c) => set.add(c),
-        remove: (c) => set.delete(c),
-        contains: (c) => set.has(c),
-      },
-      addEventListener(type, fn) {
-        this.listeners[type] = fn;
-      },
-      dispatch(type) {
-        this.listeners[type]?.({ preventDefault() {} });
-      },
-    };
-  }
+  const R = touch.JOYSTICK.RAYON;
+  const haut = touch.vecteurJoystick(0, -R);
+  check(haut.x === 0 && haut.y === -1 && haut.force === 1, "pousse a fond vers le haut : direction (0,-1), force 1");
+  const diag = touch.vecteurJoystick(R, R);
+  check(Math.abs(diag.x - Math.SQRT1_2) < 1e-9 && Math.abs(diag.y - Math.SQRT1_2) < 1e-9, "diagonale : direction libre (pas seulement 4 fleches)");
+  const oblique = touch.vecteurJoystick(R * 0.9, -R * 0.3);
+  check(oblique.x > 0 && oblique.y < 0 && Math.abs(Math.hypot(oblique.x, oblique.y) - 1) < 1e-9, "angle quelconque : direction unitaire conservee");
+  const leger = touch.vecteurJoystick(R * 0.5, 0);
+  check(leger.force > 0 && leger.force < 1, "petit geste : force intermediaire (marche lente)");
+  const centre = touch.vecteurJoystick(R * 0.1, 0);
+  check(centre.force === 0 && centre.x === 0, "zone morte au centre : le personnage ne tremble pas");
+  const loin = touch.vecteurJoystick(R * 4, 0);
+  check(loin.force === 1 && loin.boutonX === R, "doigt hors du joystick : force 1, bouton borne au bord");
+  check(touch.vecteurJoystick(0, 0).force === 0, "aucun decalage : aucune force");
+}
 
-  const btnUp = boutonAvecClasses("ArrowUp");
-  const btnBad = boutonAvecClasses("KeyZ"); /* direction inconnue : ignoree */
-  const container = {
-    querySelectorAll: () => [btnUp, btnBad],
-  };
-  const presses = [];
-  const relaches = [];
-  touch.brancherDpad(container, {
-    presser: (d) => presses.push(d),
-    relacher: (d) => relaches.push(d),
+/* --- 6. Cablage du joystick (faux DOM) --- */
+{
+  function fauxNoeud() {
+    const classes = new Set();
+    return {
+      style: {},
+      listeners: {},
+      classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) },
+      addEventListener(type, fn) { this.listeners[type] = fn; },
+      getBoundingClientRect: () => ({ left: 0, top: 100 }),
+      emit(type, e) { this.listeners[type]?.({ preventDefault() {}, ...e }); },
+    };
+  }
+  const zone = fauxNoeud();
+  const base = fauxNoeud();
+  const bouton = fauxNoeud();
+  const vecteurs = [];
+  let relaches = 0;
+  const joy = touch.brancherJoystick({ zone, base, bouton }, {
+    changer: (v) => vecteurs.push(v),
+    relacher: () => { relaches += 1; },
   });
-
-  btnUp.dispatch("pointerdown");
-  check(presses.length === 1 && presses[0] === "ArrowUp", "pointerdown : presser('ArrowUp')");
-  check(btnUp.classList.contains("actif"), "bouton marque 'actif' pendant l'appui");
-  btnUp.dispatch("pointerup");
-  check(relaches.length === 1 && relaches[0] === "ArrowUp", "pointerup : relacher('ArrowUp')");
-  check(!btnUp.classList.contains("actif"), "bouton n'est plus 'actif' apres relachement");
-
-  /* pointerleave relache aussi (doigt qui glisse hors du bouton). */
-  btnUp.dispatch("pointerdown");
-  btnUp.dispatch("pointerleave");
-  check(relaches.length === 2, "pointerleave relache aussi (jamais coince en appui)");
-
-  /* Un relachement sans appui prealable ne declenche rien (garde 'actif'). */
-  const avant = relaches.length;
-  btnUp.dispatch("pointerup");
-  check(relaches.length === avant, "relachement sans appui : ignore");
-
-  /* La direction inconnue n'a recu aucun ecouteur. */
-  check(Object.keys(btnBad.listeners).length === 0, "bouton a direction inconnue : non cable");
+  zone.emit("pointerdown", { pointerId: 1, clientX: 100, clientY: 300 });
+  check(base.classList.contains("actif") && base.style.left === "100px" && base.style.top === "200px", "appui : le joystick vient sous le pouce");
+  zone.emit("pointermove", { pointerId: 1, clientX: 156, clientY: 300 });
+  const dernier = vecteurs[vecteurs.length - 1];
+  check(dernier.x === 1 && dernier.force === 1, "glisser a droite : le personnage va a droite a pleine vitesse");
+  zone.emit("pointermove", { pointerId: 2, clientX: 0, clientY: 0 });
+  check(vecteurs[vecteurs.length - 1] === dernier, "un second doigt n'interfere pas");
+  zone.emit("pointerup", { pointerId: 1 });
+  check(relaches === 1 && !base.classList.contains("actif") && base.style.left === "", "relacher : arret et retour a la place de repos");
+  zone.emit("pointerdown", { pointerId: 3, clientX: 50, clientY: 250 });
+  joy.reinitialiser();
+  check(relaches === 2 && !joy.actif(), "reinitialiser (popup ouverte) : arret immediat");
+  check(touch.brancherJoystick({}, {}).reinitialiser !== undefined, "sans DOM : branchement inoffensif");
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);

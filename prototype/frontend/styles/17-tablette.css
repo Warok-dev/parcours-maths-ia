@@ -1,0 +1,128 @@
+/* styles/17-tablette.css — Ajustements tablette (et grands écrans tactiles).
+   Chargée en dernier. */
+
+/* ---------- Tablette : interface agrandie pour le doigt ----------
+   Sur un écran tactile d'au moins 700 px, tout ce qui est exprimé en rem
+   (textes, boutons, cartes de menu) grandit d'un huitième : les cibles
+   restent confortables pour des doigts d'enfant de 6 ans. */
+@media (pointer: coarse) and (min-width: 700px) and (min-height: 600px) {
+  html {
+    font-size: 112.5%;
+  }
+
+}
+
+/* ---------- Fenêtre d'exercice en paysage : deux colonnes ----------
+   Sur une tablette en paysage (768 px de haut), l'énoncé, la méthode, la
+   mécanique et les boutons empilés dépassaient de l'écran : « Valider »
+   était hors de vue. En paysage, l'énoncé et la méthode passent à gauche, la
+   mécanique et les boutons à droite. */
+@media (orientation: landscape) and (min-width: 900px) and (max-height: 900px),
+  (orientation: landscape) and (min-width: 640px) and (max-height: 500px) {
+  .exercise-modal {
+    width: min(1060px, calc(100vw - 32px));
+    padding: 18px 22px 18px;
+  }
+
+  .exercise-modal .modal-head {
+    margin-bottom: 10px;
+  }
+
+  .modal-paper {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    column-gap: 20px;
+    align-items: start;
+    max-height: calc(100dvh - 170px);
+    overflow-y: auto;
+  }
+
+  .modal-paper > * {
+    grid-column: 1;
+  }
+
+  .modal-paper > .exercise-form,
+  .modal-paper > .correction-block {
+    grid-column: 2;
+    grid-row: 1 / span 12;
+    align-self: center;
+  }
+
+  .modal-paper > .exercise-form {
+    margin-top: 0;
+  }
+}
+
+/* ---------- Bulle du tuteur ouverte : le bouton ✓ se retire ----------
+   Il se superposait au champ de question du hibou. */
+body:has(#chat-widget:not(.hidden)) .touch-action {
+  display: none;
+}
+
+/* ---------- Téléphone à l'horizontale (écran bas) ----------
+   390 px de haut : l'en-tête de la fenêtre se réduit à son titre, la feuille
+   prend toute la hauteur restante, et le hibou (qui couvrait le coin de la
+   fenêtre) se retire tant qu'un exercice est ouvert : le bouton « Aide » de
+   la fenêtre ouvre le tuteur. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .exercise-overlay {
+    padding: 8px 12px;
+  }
+
+  .exercise-modal {
+    padding: 10px 14px 12px;
+  }
+
+  .exercise-modal .modal-intro,
+  .exercise-modal .modal-icon {
+    display: none;
+  }
+
+  .exercise-modal .modal-title {
+    font-size: 1rem;
+  }
+
+  .modal-paper {
+    max-height: calc(100dvh - 78px);
+    padding: 12px;
+  }
+
+  body:has(#exercise-overlay:not(.hidden)) .tutor-button {
+    display: none;
+  }
+
+  .blocs-pile {
+    min-height: 40px;
+  }
+
+  .blocs-colonne {
+    padding: 6px 4px;
+  }
+
+  .blocs-boutons {
+    gap: 4px;
+  }
+
+  .blocs-boutons button {
+    width: 34px;
+    height: 34px;
+    font-size: 1.2rem;
+  }
+
+  .blocs-titre {
+    font-size: 0.85rem;
+  }
+}
+
+/* Écrans bas en paysage : « Valider » et « Aide » restent collés en bas de
+   la feuille quand elle défile, au lieu de disparaître sous le bord. */
+@media (orientation: landscape) and (max-height: 900px) {
+  .modal-paper .exercise-actions {
+    position: sticky;
+    bottom: -12px;
+    z-index: 1;
+    margin-bottom: -12px;
+    padding: 8px 0 12px;
+    background: linear-gradient(180deg, rgba(255, 253, 246, 0), #fffdf6 30%);
+  }
+}

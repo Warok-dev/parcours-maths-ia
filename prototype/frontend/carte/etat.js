@@ -89,7 +89,8 @@ const offlineBanner = document.getElementById("offline-banner");
 const exerciseOverlay = document.getElementById("exercise-overlay");
 const exerciseModal = document.getElementById("exercise-modal");
 const debugLog = document.getElementById("debug-log");
-const touchDpad = document.getElementById("touch-dpad");
+/* Joystick analogique (remplace l'ancien pave de 4 fleches). */
+const touchDpad = document.getElementById("touch-joystick");
 const touchActionButton = document.getElementById("touch-action");
 /* Appareil tactile : le pave directionnel remplace le clavier (indisponible).
    Fige au chargement (le type de pointeur ne change pas en cours de session). */
@@ -104,6 +105,8 @@ const state = {
   playerAngle: 0,
   playerMoving: false,
   keysPressed: new Set(),
+  /* Joystick tactile : {x, y, force} (direction unitaire + 0..1), ou null. */
+  joystick: null,
   nearObstacle: false,
   scene: null,
   justUnlockedIndex: null,
