@@ -21,7 +21,22 @@
       href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css" />
+    <!-- Styles (ancien style.css), découpés : l'ordre de chargement est celui de la cascade -->
+    <link rel="stylesheet" href="styles/01-base.css" />
+    <link rel="stylesheet" href="styles/02-ecrans.css" />
+    <link rel="stylesheet" href="styles/03-jeu.css" />
+    <link rel="stylesheet" href="styles/04-exercice.css" />
+    <link rel="stylesheet" href="styles/05-mecaniques.css" />
+    <link rel="stylesheet" href="styles/06-scene.css" />
+    <link rel="stylesheet" href="styles/07-carnet-bilan.css" />
+    <link rel="stylesheet" href="styles/08-mini-jeux.css" />
+    <link rel="stylesheet" href="styles/09-personnage.css" />
+    <link rel="stylesheet" href="styles/10-tactile.css" />
+    <link rel="stylesheet" href="styles/11-connexion.css" />
+    <link rel="stylesheet" href="styles/12-enseignant.css" />
+    <link rel="stylesheet" href="styles/13-parent.css" />
+    <link rel="stylesheet" href="styles/14-assignations.css" />
+    <link rel="stylesheet" href="styles/15-finitions.css" />
   </head>
   <body>
     <!-- ===== Ecran 0 : choix de l'univers (une seule fois) ===== -->
@@ -367,7 +382,18 @@
     <script src="world.js"></script>
     <script src="offline.js"></script>
     <script src="touch.js"></script>
-    <script src="map.js"></script>
+    <!-- Le jeu (ancien map.js), découpé : ordre imposé, voir carte/LISEZMOI.md -->
+    <script src="carte/etat.js"></script>
+    <script src="carte/interface.js"></script>
+    <script src="carte/assets.js"></script>
+    <script src="carte/camera.js"></script>
+    <script src="carte/monde.js"></script>
+    <script src="carte/rendu.js"></script>
+    <script src="carte/deplacement.js"></script>
+    <script src="carte/exercice.js"></script>
+    <script src="carte/session.js"></script>
+    <script src="carte/boucle.js"></script>
+    <script src="carte/demarrage.js"></script>
     <script src="minigames.js"></script>
     <script src="carnet.js"></script>
     <script src="chat.js"></script>

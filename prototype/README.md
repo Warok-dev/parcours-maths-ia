@@ -26,7 +26,13 @@ Tout ce qui persiste est en base : comptes, classes, progressions, **jetons** (s
 
 ## Frontend (`frontend/`)
 
-Le client est en JavaScript vanilla, sans étape de build. `index.html` charge les scripts dans l'ordre ; `config.js` doit passer en premier, car il choisit l'adresse du backend :
+Le client est en JavaScript vanilla, sans étape de build. `index.html` charge les scripts dans l'ordre :
+
+- `carte/` : le jeu lui-même (l'ancien `map.js`), découpé en onze scripts classiques qui partagent la portée globale. L'ordre et la seule règle à respecter sont décrits dans [carte/LISEZMOI.md](frontend/carte/LISEZMOI.md) ;
+- `styles/` : l'ancien `style.css`, en quinze feuilles numérotées. Leur ordre de chargement est celui de la cascade ;
+- `outils/verifier_decoupage.js` vérifie ces deux ordres. La CI le lance.
+
+`config.js` doit passer en premier, car il choisit l'adresse du backend :
 
 - **local** (`localhost`, `127.0.0.1`, fichier ouvert directement) : `http://127.0.0.1:8000` ;
 - **sinon** : le backend de production ;

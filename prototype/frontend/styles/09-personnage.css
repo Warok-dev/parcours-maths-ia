@@ -1,0 +1,233 @@
+/* styles/09-personnage.css — Personnalisation du personnage.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   PERSONNALISATION DU PERSONNAGE
+   Meme carte que le bilan de session, avec un apercu du
+   personnage et deux listes (couleurs, accessoires).
+   ============================================================ */
+.personnage-overlay {
+  z-index: 62; /* au-dessus du carnet : on l'ouvre depuis le meme menu */
+}
+
+.personnage-card {
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.personnage-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+
+.personnage-apercu {
+  flex: none;
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, var(--grass-light), var(--grass) 74%);
+  border: 4px solid var(--wood);
+  box-shadow: var(--shadow-chip);
+}
+
+.personnage-total-valeur {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+}
+
+.personnage-total-copy {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.personnage-section {
+  margin: 16px 0 8px;
+  font-size: 1rem;
+  color: var(--road-dark);
+}
+
+.personnage-liste {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.personnage-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  cursor: pointer;
+  border: 2px solid var(--cream-dark);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.65);
+  font-family: inherit;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.personnage-item:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+}
+
+.personnage-item.choisi {
+  border-color: var(--success);
+  background: rgba(58, 171, 82, 0.14);
+}
+
+/* Verrouille : visiblement hors de portee, et reellement non cliquable
+   (l'attribut disabled, pas seulement l'opacite). */
+.personnage-item.verrouille {
+  cursor: not-allowed;
+  opacity: 0.62;
+  background: rgba(184, 191, 199, 0.2);
+}
+
+.personnage-item-nom {
+  flex: 1;
+}
+
+.personnage-pastille {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 3px solid var(--wood);
+}
+
+.personnage-pastille.vide {
+  display: grid;
+  place-items: center;
+  background: var(--cream-dark);
+  color: var(--ink-soft);
+  font-size: 1.1rem;
+}
+
+.personnage-pastille-svg {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--grass-light);
+  border: 3px solid var(--wood);
+}
+
+.personnage-statut {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 2px solid;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.personnage-statut.choisi {
+  background: var(--success);
+  border-color: #2c8440;
+  color: var(--cream);
+}
+
+.personnage-statut.libre {
+  background: var(--gold);
+  border-color: var(--gold-dark);
+  color: var(--wood-dark);
+}
+
+.personnage-statut.verrouille {
+  background: var(--stone);
+  border-color: var(--stone-deep);
+  color: var(--ink);
+}
+
+.bilan-synthese {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 2px solid;
+  font-weight: 600;
+  text-align: center;
+}
+
+.bilan-synthese.positive {
+  background: rgba(58, 171, 82, 0.14);
+  border-color: var(--success);
+  color: #2c8440;
+}
+
+.bilan-synthese.attention {
+  background: rgba(224, 86, 63, 0.12);
+  border-color: var(--danger);
+  color: #b03c28;
+}
+
+.bilan-synthese.encore {
+  background: rgba(255, 194, 62, 0.18);
+  border-color: var(--gold-dark);
+  color: var(--wood-dark);
+}
+
+.bilan-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* Bouton principal de fin de parcours : bien plus visible que les options
+   secondaires (pleine largeur, un cran plus grand). */
+.bilan-primary {
+  width: 100%;
+  font-size: 1.08rem;
+  padding: 14px 22px;
+}
+
+/* Options secondaires, volontairement en retrait sous le bouton principal. */
+.bilan-actions-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.debug-log {
+  display: none;
+}
+
+code {
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+@media (max-width: 640px) {
+  .menu-card {
+    padding: 26px 18px;
+  }
+
+  .hud-chip {
+    max-width: calc(100vw - 110px);
+    font-size: 0.85rem;
+  }
+
+  .hud-chip span#session-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .exercise-modal {
+    padding: 20px 16px;
+  }
+}

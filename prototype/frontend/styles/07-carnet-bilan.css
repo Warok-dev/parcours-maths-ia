@@ -1,0 +1,342 @@
+/* styles/07-carnet-bilan.css — Carnet d'aventurier et bilan de session.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   CARNET D'AVENTURIER : livre des lecons completees
+   ============================================================ */
+.carnet-overlay {
+  position: absolute;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  /* Meme raison que .exercise-overlay : voile dense au lieu d'un flou. */
+  background: rgba(61, 44, 30, 0.56);
+}
+
+/* Couverture en bois/cuir avec couture apparente, page creme a l'interieur. */
+.carnet-book {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 16px;
+  background: linear-gradient(160deg, var(--wood-light), var(--wood) 55%, var(--wood-dark));
+  border: 4px solid var(--wood-dark);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.carnet-book::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 2px dashed rgba(251, 243, 231, 0.5);
+  border-radius: 15px;
+  pointer-events: none;
+}
+
+.carnet-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 360px;
+  padding: 20px 22px 16px;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 2px solid rgba(61, 44, 30, 0.18);
+  border-radius: 12px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.8);
+}
+
+.carnet-eyebrow {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--road-dark);
+}
+
+.carnet-page-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.carnet-lesson-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--gold);
+  border: 3px solid var(--gold-dark);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--wood-dark);
+  box-shadow: var(--shadow-chip);
+}
+
+.carnet-lesson-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+
+.carnet-date {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.carnet-stars-total {
+  align-self: flex-start;
+  margin: 14px 0 10px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--gold);
+  border: 2px solid var(--gold-dark);
+  color: var(--wood-dark);
+  font-weight: 700;
+}
+
+.carnet-concepts {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.carnet-concepts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 2px solid var(--cream-dark);
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.carnet-concepts .stars {
+  font-size: 1.05rem;
+}
+
+.carnet-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.carnet-nav-button {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
+.carnet-nav-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.carnet-nav-button:disabled:hover {
+  background: transparent;
+}
+
+.carnet-page-count {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.carnet-empty {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.carnet-empty-icon {
+  font-size: 3rem;
+}
+
+.carnet-empty p {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.carnet-empty .carnet-empty-hint {
+  max-width: 320px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+/* ============================================================
+   BILAN DE SESSION : recapitulatif apres une lecon terminee
+   ============================================================ */
+.bilan-overlay {
+  z-index: 58; /* sous le carnet, qui peut s'ouvrir par-dessus */
+}
+
+.bilan-card {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 24px 26px 22px;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bilan-eyebrow {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--road-dark);
+}
+
+.bilan-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  font-size: 1.35rem;
+  color: var(--ink);
+  text-align: center;
+}
+
+/* --- Ecran de fin de parcours : celebration + recap rapide --- */
+.bilan-celebration {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.bilan-lesson {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--road-dark);
+  text-align: center;
+}
+
+.bilan-recap {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.bilan-recap-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 2px solid var(--cream-dark);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.bilan-recap-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--wood-dark);
+  line-height: 1.1;
+}
+
+.bilan-recap-unit {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
+.bilan-recap-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--road-dark);
+}
+
+.bilan-concepts {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.bilan-concepts li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 2px solid var(--cream-dark);
+  border-radius: 14px;
+  font-weight: 500;
+}
+
+.bilan-concept-name {
+  flex: 1;
+}
+
+.bilan-concepts .stars {
+  font-size: 1.05rem;
+}
+
+.bilan-badge {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 2px solid;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bilan-badge.level-3 {
+  background: var(--success);
+  border-color: #2c8440;
+  color: var(--cream);
+}
+
+.bilan-badge.level-2 {
+  background: var(--gold);
+  border-color: var(--gold-dark);
+  color: var(--wood-dark);
+}
+
+.bilan-badge.level-1 {
+  background: var(--danger);
+  border-color: #b03c28;
+  color: var(--cream);
+}

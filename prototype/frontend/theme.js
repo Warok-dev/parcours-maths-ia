@@ -155,7 +155,7 @@
     aChoisi,
     ouvrir,
     fermer,
-    /* Branche par map.js, qui sait ou revenir apres le choix. */
+    /* Branche par le jeu (carte/), qui sait ou revenir apres le choix. */
     demanderChangement: () => ouvrir({ titre: "Changer d'univers", retour: true }),
     /* Exposes pour les tests */
     STORAGE_KEY,

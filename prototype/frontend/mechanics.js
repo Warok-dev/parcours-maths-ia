@@ -66,7 +66,7 @@
 
   /* ----- Horloge : source unique de la geometrie des aiguilles -----
      Angles en degres, sens horaire depuis 12h (0 = vers le haut). Utilisee
-     PAR le composant SVG (ASSETS.clock dans map.js) ET testee en Node : une
+     PAR le composant SVG (ASSETS.clock dans le jeu (carte/)) ET testee en Node : une
      seule definition de l'angle des aiguilles, jamais recalculee differemment. */
   function clockAngles(hour, minute) {
     const h = (((Number(hour) % 12) + 12) % 12);

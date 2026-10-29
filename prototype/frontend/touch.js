@@ -2,7 +2,7 @@
    CONTROLES TACTILES (tablette / mobile)
    ------------------------------------------------------------
    Detecte les appareils tactiles et cable un pave directionnel a
-   l'ecran sur les MEMES entrees que le clavier (map.js lit
+   l'ecran sur les MEMES entrees que le clavier (le jeu (carte/) lit
    state.keysPressed ; ici on ne fait qu'ajouter/retirer les memes
    chaines "ArrowUp"/... au pointerdown/up). Le desktop garde le
    clavier comme controle principal : rien ne s'affiche.
@@ -11,7 +11,7 @@
    donc testable en Node (test_touch.js) avec un matchMedia injecte.
    ============================================================ */
 (function () {
-  /* Touches flechees reconnues : miroir de map.js (state.keysPressed). */
+  /* Touches flechees reconnues : miroir de le jeu (carte/) (state.keysPressed). */
   const DIRECTIONS = { ArrowUp: true, ArrowDown: true, ArrowLeft: true, ArrowRight: true };
 
   /* ---------- Detection (pure, matchMedia injectable) ----------

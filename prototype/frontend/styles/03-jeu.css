@@ -1,0 +1,553 @@
+/* styles/03-jeu.css — Jeu plein écran : HUD, score, bandeaux, hibou tuteur.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   JEU PLEIN ECRAN
+   ============================================================ */
+.game-screen {
+  background: var(--grass);
+  /* P5 : la carte est une couche plus grande que l'ecran (zone visible +
+     marge) translatee en GPU ; l'ecran de jeu la recadre. */
+  overflow: hidden;
+}
+
+/* P5 : taille (width/height) et transform posees par map.js (setupMapLayer /
+   applyCamera). On garde seulement le placement ; plus de 100%/100%. */
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+}
+
+/* ---------- HUD minimal dans les coins ---------- */
+.hud {
+  position: absolute;
+  z-index: 20;
+}
+
+.hud-top-left {
+  top: 14px;
+  left: 14px;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+/* ---------- Score ---------- */
+.hud-score {
+  padding: 6px 14px 6px 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.hud-score.bump {
+  animation: scoreBump 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scoreBump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+.hud-top-right {
+  top: 14px;
+  right: 14px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.hud-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px 9px 12px;
+  background: var(--cream);
+  border: 3px solid var(--wood);
+  border-radius: 999px;
+  box-shadow: var(--shadow-chip);
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+.hud-chip-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.hud-level {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--gold);
+  border: 2px solid var(--gold-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.hud-round-button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  cursor: pointer;
+  border: 3px solid var(--wood);
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--wood-dark);
+  box-shadow: var(--shadow-chip);
+  transition: transform 120ms ease;
+}
+
+.hud-round-button:hover {
+  transform: scale(1.06);
+}
+
+.hud-round-button svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* Bouton son : la barre de "coupe" n'apparait qu'en mode muet */
+#mute-button .mute-slash {
+  display: none;
+}
+
+#mute-button.muted .mute-slash {
+  display: block;
+}
+
+#mute-button.muted .mute-waves {
+  display: none;
+}
+
+#mute-button.muted {
+  opacity: 0.7;
+}
+
+.menu-dropdown {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  background: var(--cream);
+  border: 3px solid var(--wood);
+  border-radius: 18px;
+  box-shadow: var(--shadow-pop);
+}
+
+.menu-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  text-align: left;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.menu-item:hover {
+  background: var(--cream-dark);
+}
+
+/* ---------- Bandeau de feedback temporaire ---------- */
+.feedback-banner {
+  position: absolute;
+  /* Au-dessus de l'overlay d'exercice (50) : le feedback doit rester lisible
+     meme quand la popup est ouverte (reponse fausse, generation indisponible). */
+  z-index: 60;
+  top: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 40px));
+  padding: 14px 22px;
+  transform: translateX(-50%);
+  background: var(--cream);
+  border: 3px solid var(--wood);
+  border-radius: 999px;
+  box-shadow: var(--shadow-pop);
+  font-size: 1.05rem;
+  font-weight: 600;
+  animation: bannerIn 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.feedback-banner::before {
+  font-size: 1.3rem;
+}
+
+.feedback-banner.success {
+  border-color: var(--success);
+  color: #2c5e35;
+}
+
+.feedback-banner.success::before {
+  content: "\2B50";
+}
+
+.feedback-banner.warning {
+  border-color: var(--danger);
+  color: #8a3a2c;
+}
+
+.feedback-banner.warning::before {
+  content: "\1F4AA";
+}
+
+.feedback-banner.info {
+  border-color: var(--water-dark);
+  color: #2b5567;
+}
+
+.feedback-banner.info::before {
+  content: "\1F989";
+}
+
+.feedback-banner.wait {
+  border-color: var(--gold-dark);
+  color: #7d5a1c;
+}
+
+.feedback-banner.wait::before {
+  content: "\23F3";
+}
+
+@keyframes bannerIn {
+  from {
+    transform: translateX(-50%) translateY(-26px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+.feedback-banner.leaving {
+  transition: opacity 350ms ease, transform 350ms ease;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+}
+
+/* ---------- Bandeau hors-ligne (persistant tant que le backend est injoignable) ----------
+   Discret mais visible : pastille clignotante + libellé, sous la rangée de HUD,
+   au-dessus de l'overlay d'exercice pour rester lisible pendant l'entraînement. */
+.offline-banner {
+  position: absolute;
+  z-index: 61;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 18px;
+  background: var(--cream);
+  border: 3px solid var(--gold-dark);
+  border-radius: 999px;
+  box-shadow: var(--shadow-chip);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #7d5a1c;
+  animation: bannerIn 320ms ease;
+}
+
+.offline-banner.hidden {
+  display: none;
+}
+
+.offline-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--gold-dark);
+  box-shadow: 0 0 0 0 rgba(201, 146, 46, 0.6);
+  animation: offlinePulse 1.6s ease-out infinite;
+}
+
+@keyframes offlinePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(201, 146, 46, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(201, 146, 46, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(201, 146, 46, 0);
+  }
+}
+
+/* ---------- Mascotte hibou + bulle du tuteur ---------- */
+.tutor-dock {
+  position: absolute;
+  /* Au-dessus de l'overlay d'exercice (50) : le hibou, son chat et la
+     bulle proactive restent cliquables pendant qu'un exercice est ouvert. */
+  z-index: 55;
+  right: 18px;
+  bottom: 16px;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.tutor-button {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  padding: 6px;
+  cursor: pointer;
+  border: 4px solid var(--water-dark);
+  border-radius: 50%;
+  background: var(--water-light);
+  box-shadow: var(--shadow-chip);
+  transition: transform 140ms ease;
+  animation: owlBob 3.4s ease-in-out infinite;
+}
+
+.tutor-button:hover {
+  transform: scale(1.07);
+}
+
+.tutor-button .owl {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes owlBob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -6px; }
+}
+
+/* ---------- Tuteur proactif : bulle de proposition + hibou qui s'agite ---------- */
+.proactive-bubble {
+  position: relative;
+  max-width: 230px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border: 3px solid var(--water-dark);
+  border-radius: 16px;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-round);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  box-shadow: var(--shadow-pop);
+  animation: bubbleIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.proactive-bubble::after {
+  content: "";
+  position: absolute;
+  right: 30px;
+  bottom: -12px;
+  border: 6px solid transparent;
+  border-top-color: var(--water-dark);
+}
+
+.proactive-bubble:hover {
+  background: var(--cream-dark);
+}
+
+@keyframes bubbleIn {
+  from {
+    transform: scale(0.7) translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.tutor-button.tutor-attention {
+  animation: tutorAttention 0.75s ease-in-out infinite;
+}
+
+.tutor-button.tutor-attention::after {
+  content: "!";
+  position: absolute;
+  z-index: 2;
+  top: -8px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 3px solid var(--gold-dark);
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--wood-dark);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+@keyframes tutorAttention {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -9px;
+  }
+}
+
+.tutor-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 3px solid var(--water);
+  opacity: 0;
+  animation: pulse 2.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  70% { transform: scale(1.25); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+.chat-bubble {
+  position: relative;
+  width: min(340px, calc(100vw - 40px));
+  padding: 16px;
+  background: var(--cream);
+  border: 3px solid var(--water-dark);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: bubbleIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: bottom right;
+}
+
+.chat-bubble::after {
+  content: "";
+  position: absolute;
+  right: 34px;
+  bottom: -14px;
+  width: 22px;
+  height: 22px;
+  background: var(--cream);
+  border-right: 3px solid var(--water-dark);
+  border-bottom: 3px solid var(--water-dark);
+  transform: rotate(45deg);
+  border-bottom-right-radius: 6px;
+}
+
+@keyframes bubbleIn {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.chat-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chat-bubble-title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--water-dark);
+}
+
+/* Bouton mute discret du tuteur : coupe la voix automatique du hibou.
+   Barre diagonale = son coupe. Choix persiste en localStorage. */
+.tutor-mute {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  cursor: pointer;
+  border: 2px solid var(--water-dark);
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--water-dark);
+}
+
+.tutor-mute svg {
+  width: 20px;
+  height: 20px;
+}
+
+.tutor-mute:hover {
+  background: #fff;
+}
+
+.tutor-mute.muted {
+  background: var(--cream-dark);
+  color: var(--wood-dark);
+}
+
+.chat-log {
+  min-height: 90px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #fff;
+  border: 2px solid var(--cream-dark);
+  border-radius: 14px;
+}
+
+.message {
+  margin: 0 0 8px;
+  line-height: 1.35;
+  font-size: 0.94rem;
+}
+
+.message.user {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.message.assistant {
+  color: var(--ink-soft);
+}
+
+/* Panne du tuteur : distinguee d'une explication de l'exercice, sans
+   dramatiser (l'enfant n'y est pour rien). */
+.message.tutor-error {
+  color: var(--ink);
+  padding: 8px 11px;
+  border-left: 4px solid var(--gold);
+  border-radius: 0 10px 10px 0;
+  background: var(--cream-dark);
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  border: 2px solid var(--cream-dark);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.chat-form input:focus {
+  outline: 3px solid var(--water);
+  outline-offset: 1px;
+}
+
+.chat-form button {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 50%;
+  background: var(--water-dark);
+  color: var(--cream);
+  font-size: 1.1rem;
+  font-weight: 700;
+}

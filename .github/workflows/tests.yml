@@ -81,6 +81,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Découpage de carte/ et styles/ (ordre de chargement)
+        run: |
+          npm install --no-save acorn@8.14.0 acorn-walk@8.3.4
+          node outils/verifier_decoupage.js
       - name: Tests unitaires
         run: |
           status=0

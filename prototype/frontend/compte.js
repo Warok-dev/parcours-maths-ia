@@ -5,7 +5,7 @@
    prenom) ou "Essai libre" (mode invite, comportement historique
    strictement inchange, tout en localStorage).
 
-   Quand un eleve est connecte, map.js ajoute son jeton aux appels
+   Quand un eleve est connecte, le jeu (carte/) ajoute son jeton aux appels
    (/session/demarrer lie alors la session au compte cote backend) et
    le carnet d'aventurier se lit depuis GET /eleve/{id}/progression au
    lieu du localStorage. Le mode invite, lui, ne touche jamais la base.
@@ -447,7 +447,7 @@
     }
   }
 
-  /* Point d'entree appele par map.js au demarrage : garantit qu'un choix
+  /* Point d'entree appele par le jeu (carte/) au demarrage : garantit qu'un choix
      (eleve reconnecte ou ecran affiche) est fait avant de continuer. */
   async function demarrerConnexion(suite) {
     apresChoix = suite;
