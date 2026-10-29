@@ -183,6 +183,7 @@ Ensuite, héberger le dossier `prototype/frontend/` comme **site statique** :
 | `TRUSTED_PROXY_HOPS`             | **Recommandée** | Nombre de proxys de confiance devant l'API (Render : normalement `1`). Sert à lire la vraie IP du client dans `X-Forwarded-For`. À `0` (défaut), tous les utilisateurs partagent l'IP du proxy pour les limites de débit. Voir « Calibrer l'IP client » ci-dessous. |
 | `RATE_LIMIT_LOG_IP`              | Facultative | `1` journalise `X-Forwarded-For` et l'IP retenue (calibrage ponctuel, à retirer ensuite). |
 | `RATE_LIMIT_GENERALE`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_AUTH_IP`, `RATE_LIMIT_REJOINDRE`, `RATE_LIMIT_IA`, `RATE_LIMIT_TTS`, `RATE_LIMIT_DEMO`, `RATE_LIMIT_INSCRIPTION` | Facultatives | Surcharge des limites (format `"600/minute"`). Les valeurs par défaut sont dimensionnées pour une classe d'une trentaine d'élèves derrière une seule IP. |
+| `TUTEUR_CACHE_TAILLE`, `TUTEUR_CACHE_DUREE_S` | Facultatives | Cache des réponses du tuteur, en mémoire : nombre d'entrées (2000 par défaut, `0` le désactive) et durée de vie en secondes (7 jours par défaut). |
 | `BCRYPT_ROUNDS`                  | Facultative | Coût bcrypt (12 par défaut). **Ne pas baisser en production** : `4` est réservé aux tests/CI. |
 
 ### Calibrer l'IP client (`TRUSTED_PROXY_HOPS`)

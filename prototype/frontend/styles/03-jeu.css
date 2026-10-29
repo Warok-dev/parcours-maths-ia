@@ -551,3 +551,29 @@
   font-size: 1.1rem;
   font-weight: 700;
 }
+
+/* Questions rapides du tuteur, au-dessus du champ de saisie. */
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chat-suggestions button {
+  padding: 6px 11px;
+  cursor: pointer;
+  border: 2px solid var(--water-dark);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--water-dark);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.chat-suggestions button:hover,
+.chat-suggestions button:focus-visible {
+  background: var(--water-dark);
+  color: var(--cream);
+}
