@@ -1095,6 +1095,23 @@ function memoryFixe() {
   check(minigames.nbEtoilesFin(1) === 3, "tout reussi : trois etoiles");
 }
 
+/* --- 18. Corrections de bugs (passe d'octobre) --- */
+{
+  /* Le memory ne tire plus 7 paires (14 cartes = 7 colonnes sur telephone). */
+  const tailles = new Set();
+  for (let k = 0; k < 200; k += 1) {
+    tailles.add(minigames.genererPaires(Math.random).nbPaires);
+  }
+  check([...tailles].every((n) => n === 6 || n === 8), `memory : 6 ou 8 paires seulement (${[...tailles]})`);
+
+  /* La chasse peut etre arretee avant la fin du temps. */
+  const cfg = minigames.genererConfig(Math.random);
+  const partie = minigames.creerChasseNombres(cfg);
+  partie.arreter();
+  check(partie.estTermine(), "chasse : arreter() clot la partie");
+  check(partie.cliquer(cfg.nombres[0].id).bon === false, "chasse arretee : plus aucun clic ne compte");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);

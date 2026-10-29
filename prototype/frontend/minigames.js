@@ -576,6 +576,10 @@
     return {
       avancer,
       cliquer,
+      /* L'eleve arrete avant la fin du temps : la partie est close telle quelle. */
+      arreter: () => {
+        state.termine = true;
+      },
       cible: () => state.cible,
       aTrouver: () => total,
       trouves: () => state.trouves,
@@ -678,11 +682,20 @@
           <svg class="chasse-aire" id="chasse-aire" viewBox="0 0 ${W} ${H}"
                style="aspect-ratio:${W} / ${H}"
                preserveAspectRatio="xMidYMid meet" aria-label="Aire de jeu : nombres flottants"></svg>
+          <div class="minijeu-pied">
+            <button id="chasse-arreter" class="puzzle-retour" type="button">Arrêter et revenir</button>
+          </div>
           <div class="chasse-fin hidden" id="chasse-fin"></div>
         </div>
       `;
 
       const svg = zone.querySelector("#chasse-aire");
+      /* Sortie a tout moment : on termine la partie tout de suite (ecran de
+         fin avec ce qui a ete attrape). */
+      zone.querySelector("#chasse-arreter").addEventListener("click", () => {
+        partie.arreter();
+        finir();
+      });
       const compteur = zone.querySelector("#chasse-compteur");
       const timerBar = zone.querySelector("#chasse-timer-bar");
       const finBox = zone.querySelector("#chasse-fin");
@@ -889,7 +902,9 @@
     const cfg = { ...MEMORY, ...options };
     const rnd = typeof random === "function" ? random : Math.random;
     const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
-    const nbPairesVoulu = options.nbPaires || ri(cfg.PAIRES_MIN, cfg.PAIRES_MAX);
+    /* 6 ou 8 paires (12 ou 16 cartes, grilles 4x3 / 4x4). 7 paires donnaient
+       14 cartes, donc 7 colonnes : des cartes minuscules sur telephone. */
+    const nbPairesVoulu = options.nbPaires || (ri(0, 1) === 0 ? cfg.PAIRES_MIN : cfg.PAIRES_MAX);
     /* Multiplication par defaut (compatibilite) ; addition pour les plus jeunes. */
     const operation = options.operation === "addition" ? "addition" : "multiplication";
     const min = options.min !== undefined ? options.min : cfg.FACTEUR_MIN;
@@ -1068,7 +1083,10 @@
               <div class="memory-compteur" id="memory-compteur">0/${jeu.nbPaires()} paires</div>
             </div>
           </div>
-          <div class="memory-grille" id="memory-grille" style="--memory-cols:${nbColonnes}">${cartesMarkup}</div>
+          <div class="memory-grille" id="memory-grille" style="--memory-cols:${nbColonnes}; --memory-rows:${Math.ceil(jeu.cartes().length / nbColonnes)}">${cartesMarkup}</div>
+          <div class="minijeu-pied">
+            <button id="memory-quitter" class="puzzle-retour" type="button">Revenir à l'aventure</button>
+          </div>
           <div class="memory-fin hidden" id="memory-fin"></div>
         </div>
       `;
@@ -1076,6 +1094,10 @@
       const grille = zone.querySelector("#memory-grille");
       const compteur = zone.querySelector("#memory-compteur");
       const essais = zone.querySelector("#memory-essais");
+      /* Sans limite de temps, le memory n'avait AUCUNE sortie avant la
+         derniere paire : l'eleve qui l'acceptait restait bloque. Il repart
+         avec les etoiles des paires deja trouvees. */
+      zone.querySelector("#memory-quitter").addEventListener("click", () => terminer(jeu.bonus()));
       const finBox = zone.querySelector("#memory-fin");
 
       let attenteTimer = null;
@@ -1295,13 +1317,20 @@
     };
   }
 
+  /* Cle de stockage PAR ELEVE : sur une tablette de classe partagee, chacun
+     retrouve SON puzzle et SON jardin. L'invite garde la cle d'origine. */
+  function cleParEleve(base) {
+    const eleveId = typeof window !== "undefined" ? window.ParcoursCompte?.getEleveId?.() : null;
+    return eleveId ? `${base}:eleve-${eleveId}` : base;
+  }
+
   /* --- Persistance (couche navigateur, tres fine) --- */
   function chargerProgressionPuzzle() {
     if (typeof localStorage === "undefined") {
       return null;
     }
     try {
-      const raw = JSON.parse(localStorage.getItem(PUZZLE.STORAGE_KEY) || "null");
+      const raw = JSON.parse(localStorage.getItem(cleParEleve(PUZZLE.STORAGE_KEY)) || "null");
       if (!raw || !Array.isArray(raw.debloquees) || !Array.isArray(raw.placees)) {
         return null;
       }
@@ -1316,7 +1345,7 @@
       return;
     }
     try {
-      localStorage.setItem(PUZZLE.STORAGE_KEY, JSON.stringify(progression));
+      localStorage.setItem(cleParEleve(PUZZLE.STORAGE_KEY), JSON.stringify(progression));
     } catch (_error) {
       /* stockage indisponible : la partie continue, sans persistance */
     }
@@ -1716,7 +1745,7 @@
       return {};
     }
     try {
-      const raw = JSON.parse(localStorage.getItem(DECO.STORAGE_KEY) || "null");
+      const raw = JSON.parse(localStorage.getItem(cleParEleve(DECO.STORAGE_KEY)) || "null");
       return raw && typeof raw === "object" && raw.disposition ? raw.disposition : {};
     } catch (_error) {
       return {};
@@ -1728,7 +1757,7 @@
       return;
     }
     try {
-      localStorage.setItem(DECO.STORAGE_KEY, JSON.stringify({ disposition }));
+      localStorage.setItem(cleParEleve(DECO.STORAGE_KEY), JSON.stringify({ disposition }));
     } catch (_error) {
       /* stockage indisponible : l'amenagement ne sera pas conserve */
     }

@@ -377,7 +377,10 @@
       ticks.push(value);
     }
 
-    let position = 0;
+    /* Aucune graduation choisie au depart : avant, la premiere etait deja
+       selectionnee et « Valider » envoyait un nombre que l'eleve n'avait pas
+       choisi. */
+    let position = null;
 
     container.innerHTML = `
       <p class="mech-hint">${
@@ -395,7 +398,7 @@
 
     function refresh() {
       tickNodes.forEach((node, i) => node.classList.toggle("on", i === position));
-      api.setValue(String(ticks[position]));
+      api.setValue(position === null ? "" : String(ticks[position]));
     }
 
     tickNodes.forEach((node, i) => {
@@ -411,11 +414,11 @@
     root.addEventListener("keydown", (event) => {
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        position = Math.min(ticks.length - 1, position + 1);
+        position = position === null ? 0 : Math.min(ticks.length - 1, position + 1);
         refresh();
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        position = Math.max(0, position - 1);
+        position = position === null ? 0 : Math.max(0, position - 1);
         refresh();
       } else if (event.key === "Enter") {
         event.preventDefault();
@@ -440,6 +443,9 @@
     const digitCount = Math.max(1, answerInfo(exercise).digits);
     const wheels = new Array(digitCount).fill(0);
     let activeWheel = 0;
+    /* La combinaison de depart (0...0) n'est pas une reponse : rien n'est
+       propose tant que l'eleve n'a pas tourne une molette. */
+    let touche = false;
 
     container.innerHTML = `
       <p class="mech-hint">${
@@ -472,10 +478,11 @@
         node.classList.toggle("active", i === activeWheel);
         node.querySelector(".lock-digit").textContent = String(wheels[i]);
       });
-      api.setValue(wheels.join(""));
+      api.setValue(touche ? String(Number(wheels.join(""))) : "");
     }
 
     function spin(index, delta) {
+      touche = true;
       wheels[index] = (wheels[index] + delta + 10) % 10;
       activeWheel = index;
       refresh();
@@ -528,6 +535,7 @@
     let hour = 12; /* depart neutre, rarement la bonne reponse */
     let minuteIndex = 0;
     let active = "hour";
+    let touche = false; /* 12:00 affiche n'est pas une reponse tant qu'on n'a rien regle */
 
     container.innerHTML = `
       <p class="mech-hint">Règle l'heure que tu lis sur l'horloge, puis valide.</p>
@@ -557,16 +565,18 @@
       hourValue.textContent = String(hour);
       minuteValue.textContent = String(minuteValues[minuteIndex]).padStart(2, "0");
       dials.forEach((node) => node.classList.toggle("active", node.dataset.dial === active));
-      api.setValue(formatHeure(hour, minuteValues[minuteIndex]));
+      api.setValue(touche ? formatHeure(hour, minuteValues[minuteIndex]) : "");
     }
 
     function spinHour(delta) {
+      touche = true;
       hour = ((hour - 1 + delta + 12) % 12) + 1; /* reste dans 1..12 */
       active = "hour";
       refresh();
     }
 
     function spinMinute(delta) {
+      touche = true;
       minuteIndex = (minuteIndex + delta + minuteValues.length) % minuteValues.length;
       active = "minute";
       refresh();
@@ -1513,7 +1523,275 @@
     itemNodes[0]?.focus();
   }
 
-  const MOUNTERS_NOMS = ["planches", "ligne", "cadenas", "panier", "horloge", "ordre", "roue", "balance"];
+
+  /* ============================================================
+     NOUVELLES MECANIQUES (passe d'octobre)
+     ============================================================ */
+
+  /* ----- Blocs de base dix --------------------------------------
+     L'eleve construit le nombre avec des plaques (100), des barres (10) et
+     des cubes (1) : la numeration de position du CE1 au CE3. Les colonnes
+     dependent du NIVEAU (dizaines/unites au CE1, centaines ensuite), jamais
+     de la reponse. Coeur pur (sans DOM), teste en Node. */
+  const BLOCS_VALEURS = { centaines: 100, dizaines: 10, unites: 1 };
+  const BLOCS_MAX_PAR_COLONNE = 9;
+
+  function colonnesBlocs(niveau) {
+    return niveauRang(niveau) === 1 ? ["dizaines", "unites"] : ["centaines", "dizaines", "unites"];
+  }
+
+  function creerBlocs({ colonnes }) {
+    const nb = {};
+    colonnes.forEach((c) => {
+      nb[c] = 0;
+    });
+    return {
+      colonnes: () => colonnes.slice(),
+      ajouter(colonne) {
+        if (!(colonne in nb) || nb[colonne] >= BLOCS_MAX_PAR_COLONNE) return false;
+        nb[colonne] += 1;
+        return true;
+      },
+      retirer(colonne) {
+        if (!(colonne in nb) || nb[colonne] <= 0) return false;
+        nb[colonne] -= 1;
+        return true;
+      },
+      nombre: (colonne) => nb[colonne] || 0,
+      valeur: () => colonnes.reduce((total, c) => total + nb[c] * BLOCS_VALEURS[c], 0),
+    };
+  }
+
+  /* Dessins des blocs (SVG). Une plaque = 10 x 10 petits carres, une barre =
+     10 carres empiles, un cube = un carre. */
+  function blocSvg(colonne) {
+    if (colonne === "centaines") {
+      let grille = "";
+      for (let i = 1; i < 10; i += 1) {
+        grille += `<line x1="${i * 4}" y1="0" x2="${i * 4}" y2="40"></line><line x1="0" y1="${i * 4}" x2="40" y2="${i * 4}"></line>`;
+      }
+      return `<svg class="bloc bloc-centaine" viewBox="-1 -1 42 42" aria-hidden="true"><rect width="40" height="40" rx="2"></rect><g class="bloc-grille">${grille}</g></svg>`;
+    }
+    if (colonne === "dizaines") {
+      let traits = "";
+      for (let i = 1; i < 10; i += 1) {
+        traits += `<line x1="0" y1="${i * 4}" x2="4" y2="${i * 4}"></line>`;
+      }
+      return `<svg class="bloc bloc-dizaine" viewBox="-1 -1 6 42" aria-hidden="true"><rect width="4" height="40" rx="1"></rect><g class="bloc-grille">${traits}</g></svg>`;
+    }
+    return `<svg class="bloc bloc-unite" viewBox="-1 -1 6 6" aria-hidden="true"><rect width="4" height="4" rx="0.8"></rect></svg>`;
+  }
+
+  const BLOCS_NOMS = {
+    centaines: { titre: "Centaines", unite: "plaque", vaut: 100 },
+    dizaines: { titre: "Dizaines", unite: "barre", vaut: 10 },
+    unites: { titre: "Unités", unite: "cube", vaut: 1 },
+  };
+
+  function mountBlocs(container, exercise, api) {
+    const blocs = creerBlocs({ colonnes: colonnesBlocs(exercise.niveau_scolaire) });
+    let touche = false;
+    const verbe = estTactile() ? "Touche" : "Clique";
+    container.innerHTML = `
+      <p class="mech-hint">Construis la réponse avec des blocs. ${verbe} + pour ajouter, − pour retirer.</p>
+      <div class="mech-blocs" style="--colonnes:${blocs.colonnes().length}">
+        ${blocs
+          .colonnes()
+          .map(
+            (c) => `
+          <div class="blocs-colonne" data-colonne="${c}">
+            <p class="blocs-titre">${BLOCS_NOMS[c].titre}<span>1 ${BLOCS_NOMS[c].unite} = ${BLOCS_NOMS[c].vaut}</span></p>
+            <div class="blocs-pile" aria-live="polite"></div>
+            <div class="blocs-boutons">
+              <button type="button" class="blocs-moins" data-colonne="${c}" aria-label="Retirer une ${BLOCS_NOMS[c].unite}">−</button>
+              <span class="blocs-compte" data-colonne="${c}">0</span>
+              <button type="button" class="blocs-plus" data-colonne="${c}" aria-label="Ajouter une ${BLOCS_NOMS[c].unite}">+</button>
+            </div>
+          </div>`,
+          )
+          .join("")}
+      </div>
+      <p class="blocs-total">Ton nombre : <strong data-total>…</strong></p>
+    `;
+    const total = container.querySelector("[data-total]");
+
+    function refresh() {
+      blocs.colonnes().forEach((c) => {
+        const colonne = container.querySelector(`.blocs-colonne[data-colonne="${c}"]`);
+        const n = blocs.nombre(c);
+        colonne.querySelector(".blocs-pile").innerHTML = Array.from({ length: n }, () => blocSvg(c)).join("");
+        colonne.querySelector(".blocs-compte").textContent = String(n);
+        colonne.querySelector(".blocs-moins").disabled = n === 0;
+        colonne.querySelector(".blocs-plus").disabled = n >= BLOCS_MAX_PAR_COLONNE;
+      });
+      total.textContent = touche ? String(blocs.valeur()) : "…";
+      api.setValue(touche ? String(blocs.valeur()) : "");
+    }
+
+    container.querySelectorAll(".blocs-plus").forEach((b) =>
+      b.addEventListener("click", () => {
+        touche = blocs.ajouter(b.dataset.colonne) || touche;
+        refresh();
+      }),
+    );
+    container.querySelectorAll(".blocs-moins").forEach((b) =>
+      b.addEventListener("click", () => {
+        touche = blocs.retirer(b.dataset.colonne) || touche;
+        refresh();
+      }),
+    );
+    refresh();
+  }
+
+  /* ----- Bulles -------------------------------------------------
+     QCM : les choix flottent dans des bulles de savon ; l'eleve touche la
+     bonne. Les choix viennent du serveur (indices.bulles), deja melanges,
+     sans indication de la bonne. */
+  function mountBulles(container, exercise, api) {
+    const choix = (indices(exercise).bulles || []).map(String);
+    container.innerHTML = `
+      <p class="mech-hint">${estTactile() ? "Touche" : "Clique"} la bulle qui contient la bonne réponse.</p>
+      <div class="mech-bulles" role="radiogroup" aria-label="Choix de réponse">
+        ${choix
+          .map(
+            (valeur, i) => `
+          <button type="button" class="bulle" role="radio" aria-checked="false" data-valeur="${valeur}"
+                  style="--i:${i};--n:${choix.length}">
+            <span class="bulle-reflet" aria-hidden="true"></span>
+            <span class="bulle-texte">${valeur}</span>
+          </button>`,
+          )
+          .join("")}
+      </div>
+    `;
+    const bulles = [...container.querySelectorAll(".bulle")];
+    let choisie = null;
+    function refresh() {
+      bulles.forEach((b) => {
+        const on = b.dataset.valeur === choisie;
+        b.classList.toggle("choisie", on);
+        b.classList.toggle("autre", choisie !== null && !on);
+        b.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      api.setValue(choisie ?? "");
+    }
+    bulles.forEach((b) =>
+      b.addEventListener("click", () => {
+        choisie = choisie === b.dataset.valeur ? null : b.dataset.valeur;
+        refresh();
+      }),
+    );
+    refresh();
+    bulles[0]?.focus();
+  }
+
+  /* ----- Calculette ----------------------------------------------
+     Grosses touches pour les decimaux, les expressions (3 × 7) et les grands
+     nombres, a la place du clavier systeme (peu pratique sur tablette). Les
+     touches dependent du FORMAT de la reponse seulement. Coeur pur testable. */
+  const CALCULETTE_MAX = 14;
+
+  function touchesCalculette(format) {
+    const chiffres = ["7", "8", "9", "4", "5", "6", "1", "2", "3"];
+    if (format === "decimal") return [...chiffres, ",", "0", "effacer"];
+    if (format === "expression") return [...chiffres, "×", "0", "effacer", "+", "−", "="];
+    return [...chiffres, "", "0", "effacer"];
+  }
+
+  function creerCalculette() {
+    let texte = "";
+    const OPERATEURS = ["×", "+", "−", "="];
+    return {
+      taper(touche) {
+        if (touche === "effacer") {
+          texte = texte.replace(/\s*\S\s*$/, "");
+          return true;
+        }
+        if (texte.length >= CALCULETTE_MAX) return false;
+        if (touche === ",") {
+          const dernier = texte.split(/\s/).pop();
+          if (dernier.includes(",") || dernier === "") return false;
+        }
+        if (OPERATEURS.includes(touche)) {
+          if (texte === "" || / $/.test(texte)) return false;
+          texte += ` ${touche} `;
+          return true;
+        }
+        texte += touche;
+        return true;
+      },
+      /* Texte affiche (×, −) et valeur envoyee (x, -) : le serveur normalise
+         les deux, mais l'envoi reste au format des enonces. */
+      affichage: () => texte,
+      valeur: () => texte.trim().replace(/×/g, "x").replace(/−/g, "-"),
+      vider() {
+        texte = "";
+      },
+    };
+  }
+
+  function mountCalculette(container, exercise, api) {
+    const format = answerInfo(exercise).format;
+    const calc = creerCalculette();
+    const touches = touchesCalculette(format);
+    const libelle = (t) => (t === "effacer" ? "⌫" : t);
+    container.innerHTML = `
+      <p class="mech-hint">${
+        format === "expression"
+          ? "Écris le calcul avec les touches, puis valide."
+          : format === "decimal"
+            ? "Tape ta réponse. N'oublie pas la virgule si besoin."
+            : "Tape ta réponse avec les touches, puis valide."
+      }</p>
+      <div class="mech-calculette">
+        <output class="calc-ecran" aria-live="polite"><span data-ecran></span><span class="calc-curseur" aria-hidden="true"></span></output>
+        <div class="calc-touches${format === "expression" ? " avec-operations" : ""}">
+          ${touches
+            .map((t) =>
+              t === ""
+                ? `<span class="calc-vide" aria-hidden="true"></span>`
+                : `<button type="button" class="calc-touche${t === "effacer" ? " effacer" : ""}${["×", "+", "−", "="].includes(t) ? " operation" : ""}" data-touche="${t}" aria-label="${t === "effacer" ? "Effacer" : t}">${libelle(t)}</button>`,
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+    const ecran = container.querySelector("[data-ecran]");
+    const racine = container.querySelector(".mech-calculette");
+    function refresh() {
+      ecran.textContent = calc.affichage();
+      api.setValue(calc.valeur());
+    }
+    function taper(t) {
+      if (calc.taper(t)) {
+        refresh();
+      } else {
+        racine.classList.remove("refus");
+        void racine.offsetWidth;
+        racine.classList.add("refus");
+      }
+    }
+    container.querySelectorAll(".calc-touche").forEach((b) => b.addEventListener("click", () => taper(b.dataset.touche)));
+    /* Clavier physique (ordinateur) : chiffres, virgule ou point, operations,
+       retour arriere, Entree pour valider. */
+    racine.tabIndex = 0;
+    racine.addEventListener("keydown", (event) => {
+      const k = event.key;
+      const correspondance = { ".": ",", "*": "×", x: "×", "-": "−", Backspace: "effacer" };
+      const t = correspondance[k] || k;
+      if (k === "Enter") {
+        event.preventDefault();
+        api.submit();
+      } else if (touches.includes(t)) {
+        event.preventDefault();
+        taper(t);
+      }
+    });
+    refresh();
+    racine.focus();
+  }
+
+  const MOUNTERS_NOMS = ["planches", "ligne", "cadenas", "panier", "horloge", "ordre", "roue", "balance", "blocs", "bulles", "calculette"];
   const MOUNTERS = {
     planches: mountPlanks,
     ligne: mountLine,
@@ -1523,6 +1801,9 @@
     ordre: mountOrder,
     roue: mountWheel,
     balance: mountBalance,
+    blocs: mountBlocs,
+    bulles: mountBulles,
+    calculette: mountCalculette,
   };
 
   const api = {
@@ -1553,6 +1834,10 @@
     niveauRang,
     basketFieldCount,
     BASKET_MAX_COUNT,
+    colonnesBlocs,
+    creerBlocs,
+    touchesCalculette,
+    creerCalculette,
     plankCandidates,
     iconeObjetPour,
   };
