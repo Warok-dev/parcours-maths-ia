@@ -64,6 +64,8 @@ const LESSON_ICONS = {
   durees: "🕒",
   pourcentage: "%",
   vitesse: "🚗",
+  monnaie: "DH",
+  partage_groupement: "🍬",
 };
 
 const startScreen = document.getElementById("start-screen");

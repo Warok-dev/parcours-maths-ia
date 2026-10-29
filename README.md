@@ -53,6 +53,7 @@ prototype/
 landing/              page de présentation
 design/               instantané du style, pour le travail de design visuel
 pattern_catalog.json  catalogue des patterns extraits du corpus
+docs/couverture_programme_P4.md  séances du ministère -> concepts du jeu, niveau par niveau
 DEPLOIEMENT.md        mise en production (Neon + Render)
 ```
 

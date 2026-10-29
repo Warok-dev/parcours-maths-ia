@@ -106,6 +106,10 @@ DIAGNOSTIC_HINTS = {
         "L'élève semble avoir confondu addition et soustraction. "
         "Aide-le à repérer quelle opération raconte vraiment l'histoire du problème."
     ),
+    "RETENUE_OUBLIEE": (
+        "L'élève semble avoir oublié la retenue (addition posée) ou l'échange d'une dizaine (soustraction posée). "
+        "Fais-lui regarder la colonne des unités : dépasse-t-elle 9, ou le chiffre du haut est-il plus petit ?"
+    ),
     "TABLE_MULTIPLICATION_PROCHE": (
         "La réponse de l'élève correspond à une table de multiplication voisine. "
         "Invite-le à revérifier la table utilisée, sans refaire tout le calcul à sa place."

@@ -44,6 +44,9 @@ VARIABLES_CLIENT = frozenset(
         "options", "points", "positions_manquantes", "ref_label", "ref_val",
         "secteurs", "segments", "singulier", "solide", "titre", "unite",
         "valeur_mesure", "x_axis", "x_max", "y_axis",
+        # Periode 4 : pieces et billets, collection a trier, segment sur la
+        # regle (ce que le dessin montre, comme l'heure d'une horloge).
+        "monnaie", "objets", "longueur_mm",
     }
 )
 
@@ -52,6 +55,7 @@ LIGNE_MAX = 40
 PANIER_MAX = 12
 BALANCE_MAX_CIBLE = 100
 ROUE_MAX_SECTIONS = 6
+OPTION_COURTE_MAX = 12
 
 # Patterns d'addition qui se pretent a la balance, et leurs deux operandes.
 # La balance pose ces deux poids sur le plateau de gauche : l'eleve batit la
@@ -180,6 +184,10 @@ def mecaniques_possibles(exercice: dict) -> list[str]:
         numerique = isinstance(choix, list) and bool(choix) and all(
             o not in ("", None) and _nombre(o) is not None for o in choix
         )
+        # Options longues (« 10 DH + 5 DH + 5 DH ») : illisibles dans une
+        # bulle ou une part de roue, on garde les planches.
+        if isinstance(choix, list) and any(len(str(o)) > OPTION_COURTE_MAX for o in choix):
+            return ["planches"]
         return ["planches", "roue", "bulles"] if numerique else ["planches", "bulles"]
     if not _entier_positif(valeur):
         return ["calculette"] if _nombre(valeur) is not None else ["clavier"]

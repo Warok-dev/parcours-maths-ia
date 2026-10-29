@@ -285,13 +285,13 @@
     [/kg_g|masse/, "kgG"],
     [/temps_secondes/, "minSec"],
     [/conversion_duree|duree_entre/, "heuresMin"],
-    [/lecture_heure/, "heure"],
+    [/lecture_heure|heure_ecrite/, "heure"],
     [/durees_min/, "dureeMin"],
     [/arrondi/, "arrondi"],
     [/fraction_decimal_pourcentage/, "fractionEquivalente"],
     [/decima/, "decimaux"],
     [/fraction/, "fractionQuantite"],
-    [/pourcentage/, "pourcentage"],
+    [/pourcentage|camembert/, "pourcentage"],
     [/vitesse/, "vitesse"],
     [/echelle/, "echelle"],
     [/proportionnalite|regle_de_trois|agrandissement/, "proportionnalite"],
@@ -303,9 +303,9 @@
     [/prisme/, "prisme"],
     [/figure_cotee|perimetre|cote_manquant/, "perimetre"],
     [/division|quotient|partage|groupement/, "division"],
-    [/multiplication|groupes_egaux|addition_repetee/, "table"],
-    [/soustraction|reste|comparaison|difference/, "soustraction"],
-    [/addition|total/, "addition"],
+    [/multiplication|groupes_egaux|addition_repetee|parts_egales/, "table"],
+    [/soustraction|reste|comparaison|difference|ecart/, "soustraction"],
+    [/addition|total|classer_compter/, "addition"],
   ];
 
   function familleDe(pattern) {

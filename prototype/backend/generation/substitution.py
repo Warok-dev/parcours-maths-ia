@@ -2318,3 +2318,10 @@ def generer_lot(niveau: str, n: int) -> list[dict]:
 
 def generate_substitution_exercise(niveau: str) -> dict:
     return generer_lot(niveau, 1)[0]
+
+
+# Concepts de la periode 4 ajoutes apres relecture du corpus (programme_p4.py).
+# Import en fin de module : programme_p4 utilise les helpers ci-dessus.
+from generation.programme_p4 import GENERATEURS_P4  # noqa: E402
+
+GENERATOR_REGISTRY.update(GENERATEURS_P4)
