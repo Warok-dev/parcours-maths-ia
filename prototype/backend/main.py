@@ -59,7 +59,19 @@ SESSION_MAX_AGE_DAYS = 7
 SESSION_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 ALLOWED_LEVELS = {"CE1", "CE2", "CE3", "CE4", "CE5", "CE6"}
 RESOLUTION_LEVEL_TO_KEY = {1: "1_guide", 2: "2_semi_guide", 3: "3_autonome"}
-REINFORCEMENT_BY_MASTERY = {1: 4, 2: 3, 3: 2}
+# Renforcement apres la detection : combien d'exercices, et a quel niveau de
+# presentation. Le but n'est pas de faire « plus » quand l'eleve a du mal, mais
+# de le faire pratiquer UN cran au-dessus de ce qu'il a prouve :
+# - maitrise 1 (guide) : 3 exercices en semi-guide. Jamais en guide, dont la
+#   methode affiche le resultat : l'eleve recopierait au lieu de s'entrainer ;
+# - maitrise 2 (semi-guide) : 2 exercices en autonome ;
+# - maitrise 3 (autonome, chaine parfaite) : il a deja prouve qu'il sait, un
+#   seul exercice bonus suffit (c'est l'arret qui porte le tresor).
+REINFORCEMENT_PLAN = {
+    1: {"exercices": 3, "presentation": 2},
+    2: {"exercices": 2, "presentation": 3},
+    3: {"exercices": 1, "presentation": 3},
+}
 
 # --- Revision ciblee ---------------------------------------------------
 # Session batie sur une liste de patterns explicite (les faiblesses
@@ -833,12 +845,12 @@ def _start_reinforcement(session: dict, mastery: int) -> dict:
     session["phase"] = "renforcement"
     session["maitrise_actuelle"] = mastery
     # En renforcement, chaque exercice se joue UNE fois, au niveau de
-    # presentation correspondant a la maitrise detectee (1 = guide,
-    # 2 = semi-guide, 3 = autonome) : l'echelle 1->2->3 est reservee a la
-    # detection, sinon chaque exercice serait rejoue trois fois.
-    session["niveau_resolution_courant"] = mastery
+    # presentation prevu par REINFORCEMENT_PLAN : l'echelle 1->2->3 est
+    # reservee a la detection, sinon chaque exercice serait rejoue trois fois.
+    plan = REINFORCEMENT_PLAN[mastery]
+    session["niveau_resolution_courant"] = plan["presentation"]
     session["erreurs_sur_chaine_actuelle"] = False
-    session["exercices_renforcement_restants"] = REINFORCEMENT_BY_MASTERY[mastery]
+    session["exercices_renforcement_restants"] = plan["exercices"]
     session["exercice_id_courant"] = exercice["id"]
     # Un concept detecte au meilleur niveau devient un candidat ideal pour un
     # futur exercice de confiance : l'eleve a prouve qu'il le reussit.
@@ -906,7 +918,7 @@ def _handle_reinforcement_success(session: dict) -> tuple[str, dict | None]:
     if session["exercices_renforcement_restants"] > 1:
         exercice = _generate_next_exercise(session, session["concept_courant"])
         session["exercices_renforcement_restants"] -= 1
-        session["niveau_resolution_courant"] = session["maitrise_actuelle"]
+        session["niveau_resolution_courant"] = REINFORCEMENT_PLAN[session["maitrise_actuelle"]]["presentation"]
         session["erreurs_sur_chaine_actuelle"] = False
         session["exercice_id_courant"] = exercice["id"]
         return "correct_nouveau_renforcement", exercice

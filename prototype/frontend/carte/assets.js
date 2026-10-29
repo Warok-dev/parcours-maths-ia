@@ -519,7 +519,7 @@ const ASSETS = {
     `;
   },
 
-  /* Tresor du raccourci : petit coffre vu du dessus, cercle de lueur et
+  /* Tresor de l'excellence : petit coffre vu du dessus, cercle de lueur et
      eclats qui scintillent. Bois et or de la palette, comme les panneaux.
      Les elements animes en CSS sont toujours a l'origine de leur groupe :
      une transformation CSS ecrase l'attribut transform du SVG. */
@@ -604,7 +604,7 @@ const ASSETS = {
   },
 
   /* Ramassable d'exploration : piece brillante OU fleur, volontairement
-     distinct du coffre-tresor du raccourci (rond/dore ou fleur vive). */
+     distinct du coffre-tresor de l'excellence (rond/dore ou fleur vive). */
   collectible(type) {
     if (type === "fleur") {
       return `

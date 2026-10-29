@@ -5,17 +5,16 @@ from typing import Callable
 
 from fastapi.testclient import TestClient
 
-from main import EXERCICE_CACHE, SESSION_STATE, app
+from main import EXERCICE_CACHE, REINFORCEMENT_PLAN, SESSION_STATE, app
+from outils_test import bonne_reponse
 
 
 CONCEPTS_TO_SIMULATE = 3
 
 
 def answer_for(exercice: dict) -> str:
-    value = exercice["reponse_attendue"]["valeur"]
-    if isinstance(value, list):
-        return ", ".join(map(str, value))
-    return str(value)
+    # Le client ne recoit plus la bonne reponse : on la relit cote serveur.
+    return bonne_reponse(exercice)
 
 
 def wrong_answer_for(exercice: dict) -> str:
@@ -205,22 +204,24 @@ def run_profile(
 def validate_brilliant(traces: list[ConceptTrace]) -> None:
     for trace in traces:
         assert trace.mastery == 3, f"{trace.concept}: maitrise 3 attendue, obtenu {trace.mastery}"
-        assert trace.reinforcement_planned == 2, (
-            f"{trace.concept}: 2 renforcements attendus, obtenu {trace.reinforcement_planned}"
+        attendu = REINFORCEMENT_PLAN[3]["exercices"]
+        assert trace.reinforcement_planned == attendu, (
+            f"{trace.concept}: {attendu} renforcements attendus, obtenu {trace.reinforcement_planned}"
         )
-        assert trace.reinforcement_exercises_completed == 2, (
-            f"{trace.concept}: 2 exercices de renforcement attendus, obtenu {trace.reinforcement_exercises_completed}"
+        assert trace.reinforcement_exercises_completed == REINFORCEMENT_PLAN[3]["exercices"], (
+            f"{trace.concept}: {REINFORCEMENT_PLAN[3]['exercices']} exercices de renforcement attendus, obtenu {trace.reinforcement_exercises_completed}"
         )
 
 
 def validate_difficult(traces: list[ConceptTrace]) -> None:
     for trace in traces:
         assert trace.mastery == 1, f"{trace.concept}: maitrise 1 attendue, obtenu {trace.mastery}"
-        assert trace.reinforcement_planned == 4, (
-            f"{trace.concept}: 4 renforcements attendus, obtenu {trace.reinforcement_planned}"
+        attendu = REINFORCEMENT_PLAN[1]["exercices"]
+        assert trace.reinforcement_planned == attendu, (
+            f"{trace.concept}: {attendu} renforcements attendus, obtenu {trace.reinforcement_planned}"
         )
-        assert trace.reinforcement_exercises_completed == 4, (
-            f"{trace.concept}: 4 exercices de renforcement attendus, obtenu {trace.reinforcement_exercises_completed}"
+        assert trace.reinforcement_exercises_completed == REINFORCEMENT_PLAN[1]["exercices"], (
+            f"{trace.concept}: {REINFORCEMENT_PLAN[1]['exercices']} exercices de renforcement attendus, obtenu {trace.reinforcement_exercises_completed}"
         )
 
 
@@ -229,11 +230,12 @@ def validate_average(traces: list[ConceptTrace]) -> None:
         assert trace.mastery == 2, (
             f"{trace.concept}: maitrise 2 attendue apres un echec au niveau 3, obtenu {trace.mastery}"
         )
-        assert trace.reinforcement_planned == 3, (
-            f"{trace.concept}: 3 renforcements attendus, obtenu {trace.reinforcement_planned}"
+        attendu = REINFORCEMENT_PLAN[2]["exercices"]
+        assert trace.reinforcement_planned == attendu, (
+            f"{trace.concept}: {attendu} renforcements attendus, obtenu {trace.reinforcement_planned}"
         )
-        assert trace.reinforcement_exercises_completed == 3, (
-            f"{trace.concept}: 3 exercices de renforcement attendus, obtenu {trace.reinforcement_exercises_completed}"
+        assert trace.reinforcement_exercises_completed == REINFORCEMENT_PLAN[2]["exercices"], (
+            f"{trace.concept}: {REINFORCEMENT_PLAN[2]['exercices']} exercices de renforcement attendus, obtenu {trace.reinforcement_exercises_completed}"
         )
         assert any(status == "incorrect" for status in trace.statuses), (
             f"{trace.concept}: un echec au niveau 3 devait etre observe."

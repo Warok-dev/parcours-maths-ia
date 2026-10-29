@@ -94,14 +94,14 @@ class RevisionSessionTests(unittest.TestCase):
         self.assertEqual(concepts, patterns[:REVISION_MAX_CONCEPTS])
 
     def test_progression_identique_a_une_session_normale(self) -> None:
-        """Detection 1->3 puis 2 renforcements, exactement comme une lecon."""
+        """Detection 1->3 puis 1 exercice bonus, exactement comme une lecon."""
         start = self._demarrer(PATTERNS_CIBLES)
         payload = start.json()
         session_id = payload["session_id"]
         exercice = payload["exercice"]
 
         statuses: list[str] = []
-        for _ in range(5):
+        for _ in range(4):
             response = self.client.post(
                 "/evaluer",
                 json={
@@ -122,7 +122,6 @@ class RevisionSessionTests(unittest.TestCase):
                 "correct_niveau_suivant",
                 "correct_niveau_suivant",
                 "correct_nouveau_renforcement",
-                "correct_nouveau_renforcement",
                 "correct_concept_debloque",
             ],
         )
@@ -139,7 +138,7 @@ class RevisionSessionTests(unittest.TestCase):
         self.assertEqual(payload["progression"]["concepts"], [PATTERNS_CIBLES[0]])
 
         statut = None
-        for _ in range(5):
+        for _ in range(4):
             body = self.client.post(
                 "/evaluer",
                 json={

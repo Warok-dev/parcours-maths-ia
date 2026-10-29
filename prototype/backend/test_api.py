@@ -135,7 +135,7 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["exercice_id"], exercice["id"])
         self.assertTrue(payload["correct"])
 
-    def test_session_perfect_mastery_unlocks_next_concept_after_two_reinforcements(self) -> None:
+    def test_session_perfect_mastery_unlocks_next_concept_after_one_bonus(self) -> None:
         start = self.client.post(
             "/session/demarrer",
             json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
@@ -147,7 +147,7 @@ class ApiIntegrationTests(unittest.TestCase):
         exercice = payload["exercice"]
 
         statuses: list[str] = []
-        for _ in range(5):
+        for _ in range(4):
             response = self.client.post(
                 "/evaluer",
                 json={
@@ -162,14 +162,13 @@ class ApiIntegrationTests(unittest.TestCase):
             if "exercice_suivant" in body:
                 exercice = body["exercice_suivant"]
 
-        # Detection en 3 niveaux, puis chaque exercice de renforcement se joue
-        # UNE seule fois (regle 2/3/4) au niveau de la maitrise detectee.
+        # Detection en 3 niveaux sans faute (maitrise 3), puis UN seul
+        # exercice bonus avant le concept suivant (REINFORCEMENT_PLAN).
         self.assertEqual(
             statuses,
             [
                 "correct_niveau_suivant",
                 "correct_niveau_suivant",
-                "correct_nouveau_renforcement",
                 "correct_nouveau_renforcement",
                 "correct_concept_debloque",
             ],
@@ -313,7 +312,47 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["statut"], "correct_nouveau_renforcement")
         self.assertEqual(payload["progression"]["maitrise_actuelle"], 1)
         self.assertEqual(payload["progression"]["phase"], "renforcement")
-        self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 4)
+        self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 3)
+        # Maitrise 1 : entrainement en semi-guide, jamais en guide (la methode
+        # guidee affiche le resultat).
+        self.assertEqual(payload["progression"]["niveau_resolution_courant"], 2)
+
+    def test_faute_en_autonome_donne_deux_exercices_en_autonome(self) -> None:
+        """Maitrise 2 (faute au niveau autonome) : 2 exercices, en autonome."""
+        start = self.client.post(
+            "/session/demarrer",
+            json={"niveau_scolaire": "CE1", "lecon_id": SESSION_LECON_ID},
+        )
+        payload = start.json()
+        session_id = payload["session_id"]
+        exercice = payload["exercice"]
+
+        def repondre(reponse: str) -> dict:
+            body = self.client.post(
+                "/evaluer",
+                json={"session_id": session_id, "exercice_id": exercice["id"], "reponse_donnee": reponse},
+            ).json()
+            return body
+
+        for _ in range(2):
+            body = repondre(_answer_for(exercice))
+            exercice = body["exercice_suivant"]
+        self.assertEqual(body["progression"]["niveau_resolution_courant"], 3)
+        self.assertEqual(repondre("999999")["statut"], "incorrect")
+        body = repondre(_answer_for(exercice))
+        self.assertEqual(body["statut"], "correct_nouveau_renforcement")
+        progression = body["progression"]
+        self.assertEqual(progression["maitrise_actuelle"], 2)
+        self.assertEqual(progression["exercices_renforcement_restants"], 2)
+        self.assertEqual(progression["niveau_resolution_courant"], 3)
+
+        # Le 2e exercice reste en autonome, puis le concept suivant s'ouvre.
+        exercice = body["exercice_suivant"]
+        body = repondre(_answer_for(exercice))
+        self.assertEqual(body["progression"]["niveau_resolution_courant"], 3)
+        self.assertEqual(body["progression"]["exercices_renforcement_restants"], 1)
+        exercice = body["exercice_suivant"]
+        self.assertEqual(repondre(_answer_for(exercice))["statut"], "correct_concept_debloque")
 
     def test_session_incorrect_answer_does_not_change_level_or_phase(self) -> None:
         start = self.client.post(
@@ -403,7 +442,8 @@ class ApiIntegrationTests(unittest.TestCase):
             self.assertEqual(payload["statut"], "correct_nouveau_renforcement")
             self.assertEqual(payload["progression"]["maitrise_actuelle"], 1)
             self.assertEqual(payload["progression"]["phase"], "renforcement")
-            self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 4)
+            self.assertEqual(payload["progression"]["exercices_renforcement_restants"], 3)
+            self.assertEqual(payload["progression"]["niveau_resolution_courant"], 2)
 
     def test_wrong_answer_stores_diagnostic_and_tutor_prompt_mentions_it(self) -> None:
         # La lecon soustraction demarre sur partie_tout_soustraction_non_narratif
@@ -522,7 +562,9 @@ class ApiIntegrationTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(body["progression"]["maitrise_actuelle"], 3)
-            self.assertEqual(body["progression"]["exercices_renforcement_restants"], 2)
+            # Chaine parfaite : un seul exercice bonus, en autonome.
+            self.assertEqual(body["progression"]["exercices_renforcement_restants"], 1)
+            self.assertEqual(body["progression"]["niveau_resolution_courant"], 3)
 
 
 if __name__ == "__main__":
