@@ -3281,15 +3281,24 @@ function sortirModeHorsLigne() {
 
 /* ---------- Jeu depuis le tampon ---------- */
 
-/* Évalue localement la réponse à l'exercice courant (mis en cache, donc
-   porteur de reponse_attendue.valeur) puis enchaîne sur l'exercice suivant du
-   tampon. Aucune progression pédagogique persistante : entraînement local. */
-function evaluerReponseHorsLigne(reponse) {
+/* Évalue localement la réponse à l'exercice courant puis enchaîne sur
+   l'exercice suivant du tampon. Les exercices du tampon portent des
+   empreintes de leurs réponses (jamais la réponse elle-même). Un exercice
+   commencé EN LIGNE n'en a pas : on ne peut pas le corriger sans serveur, on
+   passe donc directement à la réserve. Aucune progression pédagogique
+   persistante : entraînement local. */
+async function evaluerReponseHorsLigne(reponse) {
   const exercice = state.currentExercise;
   if (!exercice || !window.ParcoursOffline) {
     return;
   }
-  if (window.ParcoursOffline.evaluer(exercice, reponse)) {
+  const correct = await window.ParcoursOffline.evaluer(exercice, reponse);
+  if (correct === null) {
+    setFeedback("Connexion perdue : on continue avec les exercices en réserve.", "info");
+    chargerProchainExerciceHorsLigne({ message: null });
+    return;
+  }
+  if (correct) {
     window.ParcoursAudio?.playCorrect?.();
     /* Étoiles locales : elles alimentent la garde-robe (déjà en localStorage),
        jamais une progression serveur. */
@@ -3306,11 +3315,13 @@ function evaluerReponseHorsLigne(reponse) {
   }
 }
 
-function chargerProchainExerciceHorsLigne() {
+function chargerProchainExerciceHorsLigne({ message = "Bravo ! Continue ton entraînement." } = {}) {
   const suivant = window.ParcoursOffline?.consommer();
   if (suivant) {
     state.currentExercise = suivant;
-    setFeedback("Bravo ! Continue ton entraînement.", "success");
+    if (message) {
+      setFeedback(message, "success");
+    }
     if (state.panelOpen) {
       renderExerciseModal();
     }
@@ -3764,11 +3775,12 @@ function finalizePendingEvaluation() {
 /* Niveau 2 (semi-guide) : correction explicite apres validation, juste ou
    faux, avant de continuer. Pilote par correction_apres_coup du schema. */
 function renderCorrectionView(payload, context) {
-  const exercise = context.answeredExercise;
-  const guideSteps = exercise.presentations?.["1_guide"]?.etapes_methode || [];
-  const explanation = guideSteps.length ? guideSteps[guideSteps.length - 1] : "";
-  const expected = exercise.reponse_attendue?.valeur;
-  const expectedText = Array.isArray(expected) ? expected.join(", ") : String(expected);
+  /* La bonne reponse et l'explication arrivent avec le resultat de la
+     correction (payload.correction), APRES la tentative : l'exercice envoye
+     au navigateur ne les contient plus. */
+  const correction = payload.correction || {};
+  const explanation = correction.explication || "";
+  const expectedText = correction.reponse ?? "";
 
   const paper = exerciseModal.querySelector(".modal-paper");
   const form = document.getElementById("exercise-form");
@@ -3781,7 +3793,7 @@ function renderCorrectionView(payload, context) {
   block.className = `correction-block ${payload.correct ? "correct" : "wrong"}`;
   block.innerHTML = `
     <p class="correction-verdict">${payload.correct ? "C'est juste, bravo !" : "Pas tout à fait..."}</p>
-    <p class="correction-answer">La bonne réponse : <strong>${expectedText}</strong></p>
+    ${expectedText !== "" ? `<p class="correction-answer">La bonne réponse : <strong>${expectedText}</strong></p>` : ""}
     ${explanation ? `<p class="correction-explain">${explanation}</p>` : ""}
     <button id="correction-continue" class="btn-primary" type="button">Continuer</button>
   `;

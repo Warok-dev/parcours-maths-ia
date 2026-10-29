@@ -7830,3 +7830,15 @@ textarea {
     max-height: 62vh;
   }
 }
+
+/* Balance : les deux nombres de l'addition posés sur le plateau de gauche
+   (fixes, non cliquables), à la place de l'ancienne « cible » qui affichait
+   la réponse. Teinte bleue pour les distinguer des poids de l'élève. */
+.balance-chip-disc-fixe {
+  fill: #cfe3ff;
+  stroke: #5c8fd6;
+}
+
+.balance-chip-fixe .balance-chip-val {
+  font-size: 11px;
+}

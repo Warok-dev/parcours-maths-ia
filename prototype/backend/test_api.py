@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from outils_test import bonne_reponse, exercice_complet  # noqa: F401
+
 import copy
 import unittest
 from unittest.mock import patch
@@ -13,10 +15,7 @@ SESSION_LECON_ID = "addition"
 
 
 def _answer_for(exercice: dict) -> str:
-    value = exercice["reponse_attendue"]["valeur"]
-    if isinstance(value, list):
-        return ", ".join(map(str, value))
-    return str(value)
+    return bonne_reponse(exercice)
 
 
 class ApiIntegrationTests(unittest.TestCase):
@@ -221,7 +220,7 @@ class ApiIntegrationTests(unittest.TestCase):
             "les valeurs changent d'un niveau a l'autre",
         )
         # La methode 1_guide de chaque instance parle bien de SES valeurs.
-        for ex in instances:
+        for ex in map(exercice_complet, instances):
             etapes = " ".join(ex["presentations"]["1_guide"].get("etapes_methode", []))
             self.assertIn(str(ex["reponse_attendue"]["valeur"]), etapes,
                           "la methode guidee cite la reponse de CETTE instance")
@@ -417,7 +416,7 @@ class ApiIntegrationTests(unittest.TestCase):
         payload = start.json()
         session_id = payload["session_id"]
         exercice = payload["exercice"]
-        variables = exercice["variables"]
+        variables = exercice_complet(exercice)["variables"]
 
         # Signature d'inversion claire : l'eleve calcule partie_connue - tout.
         inverted = str(variables["partie_connue"] - variables["tout"])

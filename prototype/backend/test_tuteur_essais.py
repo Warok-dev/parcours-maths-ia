@@ -9,6 +9,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import tutor
+from outils_test import bonne_reponse
 from main import EXERCICE_CACHE, SESSION_STATE, app
 
 REPONSE_FACTICE = {"modele": "test", "reponse": "Essaie encore.", "question_recue": "?"}
@@ -115,7 +116,7 @@ class EssaisFauxSessionTests(unittest.TestCase):
             json={
                 "session_id": self.session_id,
                 "exercice_id": self.exercice["id"],
-                "reponse_eleve": str(self.exercice["reponse_attendue"]["valeur"]),
+                "reponse_eleve": bonne_reponse(self.exercice, self.session_id),
             },
         ).json()
         self.exercice = suivant["exercice_suivant"]

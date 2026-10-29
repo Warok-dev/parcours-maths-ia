@@ -4,7 +4,6 @@
    la ligne ne doit jamais afficher les nombres que l'eleve doit trouver. */
 const {
   maskedLinePositions,
-  compatibleMechanics,
   missingLineValues,
   shuffleMissingValues,
   clockAngles,
@@ -22,7 +21,18 @@ const {
   BASKET_MAX_COUNT,
   plankCandidates,
   iconeObjetPour,
-} = require("./mechanics.js");
+} = require("./outils_test_indices.js").avecVueClient(require("./mechanics.js"), [
+  "maskedLinePositions",
+  "missingLineValues",
+  "basketFieldCount",
+  "plankCandidates",
+]);
+
+/* La regle d'assignation vit cote serveur (elle a besoin de la reponse) : ces
+   cas, ecrits pour l'ancienne version JS, verifient maintenant la version
+   Python (exercice_client.mecaniques_possibles). */
+const { possibles: compatibleMechanics, versClient } = require("./outils_test_indices.js");
+const { choose } = require("./mechanics.js");
 
 let failures = 0;
 let total = 0;
@@ -105,9 +115,11 @@ function suiteExercise(valeurs, positionsManquantes) {
 /* --- 6. Valeurs manquantes proposees a l'eleve --- */
 {
   const exercise = suiteExercise([0, 10, 20, 30, 40, 50, 60, 70], [1, 4, 6]);
+  const proposees = missingLineValues(exercise);
   check(
-    JSON.stringify(missingLineValues(exercise)) === JSON.stringify([10, 40, 60]),
-    "les valeurs manquantes sont extraites dans l'ordre de la suite",
+    JSON.stringify([...proposees].sort((a, b) => a - b)) === JSON.stringify([10, 40, 60]) &&
+      JSON.stringify(proposees) !== JSON.stringify([10, 40, 60]),
+    "les valeurs manquantes sont proposees, jamais dans l'ordre de la suite",
   );
   check(
     missingLineValues({ reponse_attendue: { valeur: 30, format: "nombre_entier" } }).length === 0,
@@ -372,11 +384,23 @@ function qcmExercise(options, valeur) {
 }
 
 /* --- 23. Routage : les patterns de decomposition additive vont a la balance --- */
+/* Les deux operandes de l'addition, sous les noms de variables du generateur :
+   la balance pose ces deux nombres a gauche (jamais leur somme). */
+const OPERANDES = {
+  addition_2chiffres_sans_retenue: ["ab", "cd"],
+  addition_pas_a_pas_sans_retenue: ["a", "b"],
+  partie_tout_addition_non_narratif: ["partie1", "partie2"],
+};
+function operandes(pattern_name, valeur) {
+  const [x, y] = OPERANDES[pattern_name] || ["a", "b"];
+  const premier = Math.ceil(valeur / 2);
+  return { [x]: premier, [y]: valeur - premier };
+}
 function additionExercise(pattern_name, family, valeur, id = "X-000001") {
   return {
     id: `${pattern_name}-${id}`,
     pattern: { pattern_name, pattern_family: family },
-    variables: {},
+    variables: operandes(pattern_name, valeur),
     reponse_attendue: { valeur, format: "nombre_entier" },
   };
 }
@@ -454,27 +478,20 @@ function additionExercise(pattern_name, family, valeur, id = "X-000001") {
   check(angleBascule(50) > angleBascule(5), "plus l'ecart grandit, plus ca penche (monotone)");
 }
 
-/* --- 28. Bornes par age : rang du niveau et helpers purs (P3) --- */
-const {
-  niveauRang,
-  maxElementsOrdre,
-  bornesBalance,
-  poidsMinimum,
-} = require("./mechanics.js");
+/* --- 28. Rang du niveau (les bornes par age sont testees cote serveur) --- */
+const { niveauRang } = require("./mechanics.js");
 {
   check(niveauRang("CE1") === 1 && niveauRang("CE6") === 6, "niveauRang lit le chiffre du niveau");
   check(niveauRang(undefined) === 0 && niveauRang("") === 0, "niveau inconnu : rang 0 (permissif)");
+}
 
-  check(maxElementsOrdre("CE1") === 4, "CE1 : au plus 4 elements a ranger sur la mecanique d'ordre");
-  check(maxElementsOrdre("CE2") === Infinity, "CE2+ : pas de plafond sur l'ordre");
-  check(maxElementsOrdre(undefined) === Infinity, "niveau inconnu : pas de plafond sur l'ordre");
-
-  check(bornesBalance("CE1").cibleMax === 20 && bornesBalance("CE1").poidsMax === 3, "CE1 : balance cible <= 20 et 3 poids max");
-  check(bornesBalance("CE3").poidsMax === Infinity, "CE3+ : balance sans plafond de poids");
-
-  check(poidsMinimum(20, poidsDisponibles(20)) === 1, "poidsMinimum(20) = 1 (un poids de 20)");
-  check(poidsMinimum(8, poidsDisponibles(8)) === 3, "poidsMinimum(8) = 3 (5+2+1)");
-  check(poidsMinimum(18, poidsDisponibles(18)) === 4, "poidsMinimum(18) = 4 (10+5+2+1)");
+/* --- 28 bis. La mecanique jouee est celle que le serveur a choisie --- */
+{
+  const brut = additionNiveau(10, "CE1");
+  const vue = require("./outils_test_indices.js").versClient(brut, { mecanique: "auto" });
+  check(compatibleMechanics(brut).includes(choose(vue)), "choose() suit la mecanique choisie par le serveur");
+  check(choose({ reponse_attendue: { format: "nombre_entier" } }) === "clavier", "sans indice : repli sur le clavier");
+  check(choose({ mecanique: { choisie: "inconnue" } }) === "clavier", "mecanique inconnue : repli sur le clavier");
 }
 
 /* --- 29. Ordre borne au CE1, intact au-dessus (P3) --- */
@@ -508,6 +525,7 @@ function additionNiveau(valeur, niveau) {
     id: `${niveau}-add-000001`,
     niveau_scolaire: niveau,
     pattern: { pattern_name: "addition_pas_a_pas_sans_retenue", pattern_family: "calcul_direct" },
+    variables: operandes("addition_pas_a_pas_sans_retenue", valeur),
     reponse_attendue: { valeur, format: "nombre_entier" },
   };
 }
@@ -548,7 +566,9 @@ function narratifExercise(valeur, id = "CE1-narratif-000001") {
     "panier jamais propose pour la grande cible 79 (cas du bug)",
   );
   /* Le plateau affiche TOUJOURS au moins la cible : jamais insoluble. */
-  for (const cible of [1, 5, 12, 20, 79]) {
+  /* Au-dela de BASKET_MAX_COUNT le panier n'est jamais propose : le serveur
+     ne fournit alors pas de plateau (rien a deviner sur la cible). */
+  for (const cible of [1, 5, 12]) {
     const fc = basketFieldCount(narratifExercise(cible, `CE1-narratif-${cible}`));
     check(fc >= cible, `panier cible ${cible} : au moins ${cible} objets affiches (soluble), obtenu ${fc}`);
     check(fc > cible, `panier cible ${cible} : au moins un distracteur (pas "tout ramasser")`);

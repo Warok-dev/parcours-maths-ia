@@ -33,6 +33,7 @@ from generation.substitution import (
     patterns_disponibles_pour_niveau,
 )
 import tts
+from exercice_client import pour_client, reponse_affichable
 from comptes import (
     eleve_id_optionnel,
     get_db,
@@ -679,8 +680,9 @@ def _progression_payload(session: dict) -> dict:
         "terminee": session["terminee"],
     }
     if exercice is not None:
-        payload["exercice_courant"] = exercice
-        payload["presentation_courante_detail"] = exercice["presentations"][_resolution_key(current_level)]
+        cle = _resolution_key(current_level)
+        payload["exercice_courant"] = pour_client(exercice, cle)
+        payload["presentation_courante_detail"] = exercice["presentations"][cle]
 
     # Aparte de confiance : c'est lui que l'eleve joue maintenant, mais la
     # progression annoncee reste celle du parcours (concept, phase, maitrise
@@ -693,7 +695,7 @@ def _progression_payload(session: dict) -> dict:
     if exercice_confiance is not None:
         presentation = _resolution_key(CONFIANCE_PRESENTATION_NIVEAU)
         payload["exercice_id_courant"] = exercice_confiance["id"]
-        payload["exercice_courant"] = exercice_confiance
+        payload["exercice_courant"] = pour_client(exercice_confiance, presentation)
         payload["niveau_resolution_courant"] = CONFIANCE_PRESENTATION_NIVEAU
         payload["presentation_courante"] = presentation
         payload["presentation_courante_detail"] = exercice_confiance["presentations"][presentation]
@@ -1013,6 +1015,31 @@ def _finaliser_avec_confiance(session: dict, response: dict) -> None:
     response["progression"] = _progression_payload(session)
 
 
+def _reponse_pour_client(response: dict, exercice: dict, presentation_repondue: str | None) -> None:
+    """Retire de la reponse d'evaluation tout ce qui donne la bonne reponse.
+
+    - ``attendu_normalise`` partait meme sur une reponse FAUSSE : taper
+      n'importe quoi suffisait a lire la solution ;
+    - l'exercice suivant passe par ``pour_client`` avec la presentation qui
+      s'affichera (celle de la progression jointe) ;
+    - seule exception voulue : au niveau semi-guide, dont la presentation
+      demande une correction apres coup, l'eleve voit la bonne reponse et
+      l'explication. Elles sont envoyees ICI, apres sa tentative, et non
+      plus avec l'exercice.
+    """
+    response.pop("attendu_normalise", None)
+    cle = (response.get("progression") or {}).get("presentation_courante")
+    if response.get("exercice_suivant") is not None:
+        response["exercice_suivant"] = pour_client(response["exercice_suivant"], cle)
+    detail = (exercice.get("presentations") or {}).get(presentation_repondue or "") or {}
+    if detail.get("correction_apres_coup"):
+        etapes = ((exercice.get("presentations") or {}).get("1_guide") or {}).get("etapes_methode") or []
+        response["correction"] = {
+            "reponse": reponse_affichable(exercice),
+            "explication": etapes[-1] if etapes else "",
+        }
+
+
 def _extract_answer(payload: EvaluationRequest) -> str:
     answer = payload.reponse_donnee if payload.reponse_donnee is not None else payload.reponse_eleve
     if answer is None:
@@ -1181,10 +1208,11 @@ def demarrer_session(
     # en base, comportement inchange).
     if eleve_id is not None:
         _lier_session_a_eleve(db, session, eleve_id, niveau)
+    progression = _progression_payload(session)
     return {
         "session_id": session["session_id"],
-        "exercice": _exercice_de_session(session, session["exercice_id_courant"]),
-        "progression": _progression_payload(session),
+        "exercice": progression.get("exercice_courant"),
+        "progression": progression,
     }
 
 
@@ -1218,10 +1246,11 @@ def demarrer_session_revision(
     )
     if eleve_id is not None:
         _lier_session_a_eleve(db, session, eleve_id, niveau)
+    progression = _progression_payload(session)
     return {
         "session_id": session["session_id"],
-        "exercice": _exercice_de_session(session, session["exercice_id_courant"]),
-        "progression": _progression_payload(session),
+        "exercice": progression.get("exercice_courant"),
+        "progression": progression,
     }
 
 
@@ -1258,9 +1287,9 @@ def get_exercice(niveau: str, pattern: str | None = None) -> dict:
                 status_code=404,
                 detail=f"Pattern '{pattern}' introuvable pour le niveau {niveau}.",
             )
-        return _cache_exercise(generer_exercice(pattern, niveau))
+        return pour_client(_cache_exercise(generer_exercice(pattern, niveau)), hors_ligne=True)
 
-    return _cache_exercise(generer_lot(niveau, 1)[0])
+    return pour_client(_cache_exercise(generer_lot(niveau, 1)[0]), hors_ligne=True)
 
 
 @app.post("/evaluer")
@@ -1275,8 +1304,10 @@ def evaluer(
         session = _get_session(payload.session_id)
         _verifier_acces_session(session, eleve_id)
         exercice = _ensure_current_exercise(session, payload.exercice_id)
+        presentation_repondue = _progression_payload(session).get("presentation_courante")
         response = _apply_session_evaluation(session, exercice, reponse)
         _save_session(session)
+        _reponse_pour_client(response, exercice, presentation_repondue)
         # Session liee a un eleve : on repercute en base (Progression + activite).
         # Session invitee (eleve_id nul) : ne fait rien, mode localStorage intact.
         _enregistrer_evaluation_bd(db, session, response.get("statut"))
@@ -1287,6 +1318,7 @@ def evaluer(
 
     exercice = get_exercice_by_id(payload.niveau, payload.exercice_id)
     result = compare_reponse(reponse, exercice["reponse_attendue"])
+    result.pop("attendu_normalise", None)
     return {
         "exercice_id": payload.exercice_id,
         "niveau": payload.niveau,
