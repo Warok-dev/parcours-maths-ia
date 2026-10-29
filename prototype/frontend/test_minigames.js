@@ -1,7 +1,8 @@
 /* Tests des mini-jeux (minigames.js).
    Lancer avec : node test_minigames.js
-   Couvre : la logique de declenchement (probabilite, espacement) et le
-   cycle bascule/retour de l'orchestrateur, avec un adapter factice. */
+   Couvre : la rotation des jeux, la proposition de fin de lecon et le
+   cycle bascule/retour de l'orchestrateur (adapter factice), puis chaque
+   mini-jeu. */
 const minigames = require("./minigames.js");
 
 let failures = 0;
@@ -23,79 +24,55 @@ function randomFrom(valeurs) {
   };
 }
 
-/* --- 1. Declencheur : probabilite --- */
+/* --- 1. Rotation : chaque jeu passe avant qu'un autre revienne --- */
 {
-  /* Tirage toujours sous le seuil (0 < 0.4) : premiere occasion => propose. */
-  const oui = minigames.creerDeclencheur({ probabilite: 0.4 });
-  check(oui.conceptDebloque(() => 0) === true, "tirage 0 < 0.4 : propose");
+  const A = { id: "a", nom: "A", monter() {} };
+  const B = { id: "b", nom: "B", monter() {} };
+  const C = { id: "c", nom: "C", monter() {} };
+  const pool = [A, B, C];
+  check(minigames.prochainEnRotation([], []) === null, "pool vide : aucun jeu");
+  check(minigames.prochainEnRotation(pool, []).id === "a", "historique vide : ordre d'enregistrement");
+  check(minigames.prochainEnRotation(pool, ["a"]).id === "b", "apres A : B");
+  check(minigames.prochainEnRotation(pool, ["a", "b"]).id === "c", "apres A, B : C");
+  check(minigames.prochainEnRotation(pool, ["a", "b", "c"]).id === "a", "tour complet : on recommence par A");
+  check(minigames.prochainEnRotation(pool, ["c", "a", "b"]).id === "c", "le moins recemment propose passe en premier");
+  check(minigames.prochainEnRotation(pool, ["x", "zzz"]).id === "a", "ids inconnus dans l'historique : ignores");
 
-  /* Tirage toujours au-dessus du seuil : ne propose jamais. */
-  const non = minigames.creerDeclencheur({ probabilite: 0.4 });
-  let propositions = 0;
-  for (let i = 0; i < 10; i += 1) {
-    if (non.conceptDebloque(() => 0.9)) propositions += 1;
-  }
-  check(propositions === 0, "tirage 0.9 >= 0.4 : ne propose jamais (0/10)");
-
-  /* Au seuil exact : 0.4 n'est pas < 0.4 => ne propose pas (borne stricte). */
-  const borne = minigames.creerDeclencheur({ probabilite: 0.4 });
-  check(borne.conceptDebloque(() => 0.4) === false, "tirage == seuil : ne propose pas (borne stricte)");
-
-  /* Probabilite 0 : jamais. Probabilite 1 (avec espacement) : des que permis. */
-  const jamais = minigames.creerDeclencheur({ probabilite: 0 });
-  check(jamais.conceptDebloque(() => 0) === false, "probabilite 0 : jamais, meme tirage 0");
-}
-
-/* --- 2. Declencheur : espacement entre deux propositions --- */
-{
-  /* Probabilite 1 pour isoler l'effet de l'espacement (le tirage passe
-     toujours). espacementMin = 2 : apres une proposition, les 2 concepts
-     suivants sont interdits, le 3e redevient possible. */
-  const d = minigames.creerDeclencheur({ probabilite: 1, espacementMin: 2 });
-  check(d.conceptDebloque(() => 0) === true, "1er concept : propose");
-  check(d.conceptDebloque(() => 0) === false, "concept +1 : bloque par l'espacement");
-  check(d.conceptDebloque(() => 0) === false, "concept +2 : encore bloque");
-  check(d.conceptDebloque(() => 0) === true, "concept +3 : de nouveau possible (2 concepts entre les deux)");
-  /* Et le cycle recommence a l'identique apres la 2e proposition. */
-  check(d.conceptDebloque(() => 0) === false, "apres 2e proposition : concept +1 bloque");
-  check(d.conceptDebloque(() => 0) === false, "apres 2e proposition : concept +2 bloque");
-  check(d.conceptDebloque(() => 0) === true, "apres 2e proposition : concept +3 possible");
-
-  /* Jamais deux propositions consecutives, quelle que soit la chance. */
-  const serre = minigames.creerDeclencheur({ probabilite: 1, espacementMin: 2 });
+  /* Rotation persistee : 9 fins de lecon -> chaque jeu exactement 3 fois,
+     jamais deux fois de suite. */
+  const memoire = { donnees: null };
+  const rotation = minigames.creerRotation({
+    lire: () => memoire.donnees,
+    ecrire: (h) => {
+      memoire.donnees = h;
+    },
+  });
   const suite = [];
-  for (let i = 0; i < 8; i += 1) suite.push(serre.conceptDebloque(() => 0));
-  check(
-    !suite.some((v, i) => v && suite[i + 1]),
-    "aucune paire de propositions consecutives sur 8 concepts",
-  );
+  for (let i = 0; i < 9; i += 1) {
+    const jeu = minigames.prochainEnRotation(pool, rotation.historique());
+    rotation.noter(jeu.id);
+    suite.push(jeu.id);
+  }
+  check(suite.join("") === "abcabcabc", `rotation sans repetition (${suite.join("")})`);
 
-  /* espacementMin parametrable : avec 1, un seul concept d'ecart suffit. */
-  const large = minigames.creerDeclencheur({ probabilite: 1, espacementMin: 1 });
-  check(large.conceptDebloque(() => 0) === true, "espacementMin 1 : 1er concept propose");
-  check(large.conceptDebloque(() => 0) === false, "espacementMin 1 : concept +1 bloque");
-  check(large.conceptDebloque(() => 0) === true, "espacementMin 1 : concept +2 possible");
+  /* Stockage casse : la rotation ne plante pas, elle repart de zero. */
+  const casse = minigames.creerRotation({
+    lire() {
+      throw new Error("bloque");
+    },
+    ecrire() {
+      throw new Error("bloque");
+    },
+  });
+  casse.noter("a");
+  check(Array.isArray(casse.historique()) && casse.historique().length === 0, "stockage indisponible : historique vide, sans erreur");
 }
 
-/* --- 3. Espacement ET probabilite ensemble : un refus de tirage ne
-       consomme pas l'espacement (le compteur ne repart qu'a une vraie
-       proposition). --- */
-{
-  const d = minigames.creerDeclencheur({ probabilite: 0.4, espacementMin: 2 });
-  /* concept 1 : tirage rate (0.9) -> pas de proposition, espacement intact. */
-  check(d.conceptDebloque(() => 0.9) === false, "tirage rate : pas de proposition");
-  /* concept 2 : tirage reussi -> propose (l'espacement n'avait pas ete
-     entame par le rate precedent). */
-  check(d.conceptDebloque(() => 0.1) === true, "tirage suivant reussi : propose (rate non penalisant)");
-  /* concept 3 : bloque par l'espacement malgre un tirage reussi. */
-  check(d.conceptDebloque(() => 0.1) === false, "juste apres : bloque par l'espacement");
-}
-
-/* --- 4. Registre : interface commune et selection --- */
+/* --- 4. Registre : interface commune et rotation --- */
 {
   const reg = minigames.creerRegistre();
   check(reg.estVide(), "registre neuf : vide");
-  check(reg.choisir(() => 0) === null, "registre vide : choisir renvoie null");
+  check(reg.prochain("CE2", []) === null, "registre vide : prochain renvoie null");
 
   const jeuA = { id: "a", nom: "Jeu A", monter() {} };
   const jeuB = { id: "b", nom: "Jeu B", monter() {} };
@@ -103,10 +80,7 @@ function randomFrom(valeurs) {
   reg.enregistrer(jeuB);
   check(reg.liste().length === 2, "deux mini-jeux enregistres");
   check(!reg.estVide(), "registre garni : non vide");
-
-  /* Selection deterministe via le tirage. */
-  check(reg.choisir(() => 0).id === "a", "tirage 0 : premier mini-jeu");
-  check(reg.choisir(() => 0.99).id === "b", "tirage 0.99 : dernier mini-jeu (pas de debordement)");
+  check(reg.prochain("CE2", ["a"]).id === "b", "le registre suit la rotation");
 
   /* Entrees invalides ignorees : interface commune obligatoire. */
   reg.enregistrer(null);
@@ -125,16 +99,19 @@ function fakeAdapter() {
     refuser: null,
     terminer: null,
     demonte: false,
+    montage: null,
+    proposition: null,
     pauseCarte() {
       calls.push("pauseCarte");
     },
     reprendreCarte() {
       calls.push("reprendreCarte");
     },
-    afficherProposition(_minigame, cbs) {
+    afficherProposition(minigame, cbs) {
       calls.push("afficherProposition");
       a.accepter = cbs.accepter;
       a.refuser = cbs.refuser;
+      a.proposition = { minigame, leconNom: cbs.leconNom };
     },
     cacherProposition() {
       calls.push("cacherProposition");
@@ -142,6 +119,7 @@ function fakeAdapter() {
     monterMinigame(_minigame, cbs) {
       calls.push("monterMinigame");
       a.terminer = cbs.terminer;
+      a.montage = cbs;
       return () => {
         a.demonte = true;
         calls.push("demonter");
@@ -157,31 +135,32 @@ function fakeAdapter() {
   return a;
 }
 
-function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {}) {
+function orchestrateurAvec(adapter, jeux = [minigames.MINIGAME_A_VENIR]) {
   const registre = minigames.creerRegistre();
-  registre.enregistrer(minigames.MINIGAME_A_VENIR);
+  for (const jeu of jeux) registre.enregistrer(jeu);
+  const memoire = { donnees: [] };
   return minigames.creerOrchestrateur({
-    declencheur: minigames.creerDeclencheur({ probabilite, espacementMin }),
     registre,
     adapter,
-    random: () => 0,
+    rotation: minigames.creerRotation({ lire: () => memoire.donnees, ecrire: (h) => (memoire.donnees = h) }),
   });
 }
 
-/* 5a. Chemin nominal : proposer -> accepter -> terminer -> retour. */
+const FIN = { niveau: "CE2", concepts: ["double_via_2xn", "moitie_via_2xn"], leconNom: "Moitié et double" };
+
+/* 5a. Chemin nominal : fin de lecon -> proposer -> accepter -> terminer. */
 {
   const adapter = fakeAdapter();
   const orch = orchestrateurAvec(adapter);
 
   check(orch.getPhase() === "repos", "depart : phase repos");
-  check(orch.conceptDebloque() === false, "1er concept du parcours : jamais de pause");
-  const propose = orch.conceptDebloque();
-  check(propose === true, "2e concept debloque : proposition affichee");
+  check(orch.finLecon(FIN) === true, "fin de lecon : un mini-jeu est TOUJOURS propose");
   check(orch.getPhase() === "proposition", "phase = proposition");
   check(
     adapter.calls.includes("pauseCarte") && adapter.calls.includes("afficherProposition"),
     "la carte est mise en pause et la proposition affichee",
   );
+  check(adapter.proposition.leconNom === "Moitié et double", "la proposition nomme la lecon terminee");
 
   adapter.accepter();
   check(orch.getPhase() === "enJeu", "apres accepter : phase enJeu");
@@ -189,7 +168,10 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
     adapter.calls.includes("cacherProposition") && adapter.calls.includes("monterMinigame"),
     "accepter : proposition cachee, mini-jeu monte",
   );
-  /* On ne reprend PAS la carte en acceptant : elle reste en pause. */
+  check(
+    adapter.montage.niveau === "CE2" && adapter.montage.concepts.join() === FIN.concepts.join(),
+    "le mini-jeu recoit le niveau ET les concepts de la lecon",
+  );
   check(
     adapter.calls.filter((c) => c === "reprendreCarte").length === 0,
     "accepter : la carte reste en pause (pas de reprise prematuree)",
@@ -199,82 +181,59 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
   check(orch.getPhase() === "repos", "apres terminer : retour au repos");
   check(adapter.demonte === true, "terminer : le mini-jeu est demonte (nettoyage)");
   check(
-    adapter.calls.includes("cacherMinigame") && adapter.calls.includes("reprendreCarte"),
-    "terminer : ecran cache et carte reprise",
-  );
-  /* Ordre : la carte ne reprend qu'apres le nettoyage du mini-jeu. */
-  check(
     adapter.calls.indexOf("demonter") < adapter.calls.indexOf("reprendreCarte"),
     "terminer : nettoyage avant reprise de la carte",
   );
 }
 
-/* 5b. Refus : proposer -> refuser -> retour, sans lancer le mini-jeu. */
+/* 5b. Refus : « Non merci » -> retour, sans lancer le mini-jeu. */
 {
   const adapter = fakeAdapter();
   const orch = orchestrateurAvec(adapter);
-
-  orch.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
-  orch.conceptDebloque();
+  orch.finLecon(FIN);
   adapter.refuser();
   check(orch.getPhase() === "repos", "refuser : retour au repos");
   check(
     adapter.calls.includes("cacherProposition") && adapter.calls.includes("reprendreCarte"),
     "refuser : proposition cachee, carte reprise",
   );
-  check(
-    !adapter.calls.includes("monterMinigame"),
-    "refuser : aucun mini-jeu n'est monte",
-  );
+  check(!adapter.calls.includes("monterMinigame"), "refuser : aucun mini-jeu n'est monte");
 }
 
 /* 5c. Bonus cosmetique optionnel : transmis a l'adapter APRES coup. */
 {
   const adapter = fakeAdapter();
   const orch = orchestrateurAvec(adapter);
-  orch.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
-  orch.conceptDebloque();
+  orch.finLecon(FIN);
   adapter.accepter();
   adapter.terminer(25);
   check(adapter.calls.includes("ajouterBonus:25"), "terminer avec bonus : bonus cosmetique transmis");
-  /* Le bonus arrive apres le nettoyage, jamais avant la fin du jeu. */
   check(
     adapter.calls.indexOf("demonter") < adapter.calls.indexOf("ajouterBonus:25"),
     "le bonus n'est applique qu'apres la fin du mini-jeu",
   );
   const adapter0 = fakeAdapter();
   const orch0 = orchestrateurAvec(adapter0);
-  orch0.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
-  orch0.conceptDebloque();
+  orch0.finLecon(FIN);
   adapter0.accepter();
   adapter0.terminer(0);
-  check(
-    !adapter0.calls.some((c) => c.startsWith("ajouterBonus")),
-    "bonus 0 : aucun appel de bonus (aparte pur)",
-  );
+  check(!adapter0.calls.some((c) => c.startsWith("ajouterBonus")), "bonus 0 : aucun appel de bonus");
 }
 
 /* 5d. Robustesse de la machine a etats : appels hors phase ignores. */
 {
   const adapter = fakeAdapter();
   const orch = orchestrateurAvec(adapter);
-
-  /* terminer/refuser au repos : sans effet. */
   orch.terminer(99);
   orch.refuser();
   check(orch.getPhase() === "repos" && adapter.calls.length === 0, "appels hors phase au repos : ignores");
 
-  orch.conceptDebloque(); /* 1er concept : warm-up, pas de pause */
-  orch.conceptDebloque();
-  /* Nouveau concept pendant une proposition : pas de double proposition. */
-  const rep = orch.conceptDebloque();
-  check(rep === false, "pas de proposition tant qu'une pause est en cours");
+  orch.finLecon(FIN);
+  check(orch.finLecon(FIN) === false, "pas de 2e proposition tant qu'une pause est en cours");
   check(
     adapter.calls.filter((c) => c === "afficherProposition").length === 1,
     "une seule proposition affichee, pas de superposition",
   );
-
-  /* terminer alors qu'on est encore en proposition (pas en jeu) : ignore. */
   orch.terminer(0);
   check(orch.getPhase() === "proposition", "terminer hors du jeu : ignore");
 }
@@ -282,69 +241,43 @@ function orchestrateurAvec(adapter, { probabilite = 1, espacementMin = 0 } = {})
 /* 5e. Registre vide : jamais de proposition (pas de pause sans jeu). */
 {
   const adapter = fakeAdapter();
-  const orch = minigames.creerOrchestrateur({
-    declencheur: minigames.creerDeclencheur({ probabilite: 1, espacementMin: 0 }),
-    registre: minigames.creerRegistre(),
-    adapter,
-    random: () => 0,
-  });
-  check(orch.conceptDebloque() === false, "registre vide : aucune proposition");
+  const orch = orchestrateurAvec(adapter, []);
+  check(orch.finLecon(FIN) === false, "registre vide : aucune proposition");
   check(adapter.calls.length === 0, "registre vide : la carte n'est jamais touchee");
 }
 
-/* 5f. Jamais de pause sur le 1er concept d'un parcours, et reset a la nouvelle
-   aventure (le declencheur etant un singleton reporte entre parcours). */
+/* 5f. Rotation de bout en bout : 3 fins de lecon, 3 jeux differents,
+   y compris quand l'eleve refuse. */
 {
   const adapter = fakeAdapter();
-  const orch = orchestrateurAvec(adapter); /* probabilite 1, espacementMin 0 */
-  check(orch.conceptDebloque() === false, "1er concept d'un parcours : jamais de pause");
-  check(orch.conceptDebloque() === true, "2e concept : proposition possible");
-  adapter.refuser(); /* retour au repos */
-
-  orch.reinitialiser(); /* nouvelle aventure */
-  check(orch.conceptDebloque() === false, "apres reinitialiser : 1er concept du nouveau parcours sans pause");
-  check(orch.conceptDebloque() === true, "apres reinitialiser : 2e concept propose de nouveau");
+  const jeux = ["un", "deux", "trois"].map((id) => ({ id, nom: id, monter() {} }));
+  const orch = orchestrateurAvec(adapter, jeux);
+  const vus = [];
+  for (let i = 0; i < 3; i += 1) {
+    orch.finLecon(FIN);
+    vus.push(adapter.proposition.minigame.id);
+    adapter.refuser();
+  }
+  check(vus.join() === "un,deux,trois", `3 lecons : 3 jeux differents (${vus.join()})`);
+  orch.finLecon(FIN);
+  check(adapter.proposition.minigame.id === "un", "4e lecon : la rotation recommence");
 }
 
-/* 5g. Carte COURTE : la garde du 1er concept est assouplie. Une carte a 2
-   concepts (le 2e arrive en fin de carte) doit pouvoir proposer une pause des
-   le 1er concept, sinon elle n'en propose jamais. */
+/* 5h. Robustesse : reinitialiser sort proprement de N'IMPORTE QUELLE phase. */
 {
-  const orchLongue = orchestrateurAvec(fakeAdapter());
-  check(orchLongue.conceptDebloque("CE2", 5) === false, "carte longue (5 concepts) : 1er concept toujours saute");
-
-  const orchCourte = orchestrateurAvec(fakeAdapter());
-  check(orchCourte.conceptDebloque("CE2", 2) === true, "carte courte (2 concepts) : 1er concept peut proposer");
-
-  const orchUnique = orchestrateurAvec(fakeAdapter());
-  check(orchUnique.conceptDebloque("CE2", 1) === true, "carte a 1 concept (fin de carte) : peut proposer");
-
-  const orchInconnu = orchestrateurAvec(fakeAdapter());
-  check(orchInconnu.conceptDebloque("CE2") === false, "total inconnu : prudence, 1er concept saute");
-}
-
-/* 5h. Robustesse : reinitialiser sort proprement de N'IMPORTE QUELLE phase.
-   Une nouvelle partie peut demarrer alors qu'une proposition (ou un mini-jeu)
-   est encore a l'ecran ; sans nettoyage, l'orchestrateur restait bloque. */
-{
-  /* Depuis "proposition" (l'eleve n'a ni accepte ni refuse). */
   const adapter = fakeAdapter();
   const orch = orchestrateurAvec(adapter);
-  orch.conceptDebloque("CE2", 5); /* 1er saute */
-  orch.conceptDebloque("CE2", 5); /* propose -> phase proposition */
+  orch.finLecon(FIN);
   check(orch.getPhase() === "proposition", "une proposition est a l'ecran");
-  orch.reinitialiser(); /* nouvelle partie pendant la proposition */
+  orch.reinitialiser();
   check(orch.getPhase() === "repos", "reinitialiser depuis 'proposition' : retour au repos");
   check(adapter.calls.includes("cacherProposition"), "la proposition restee a l'ecran est bien cachee");
-  /* Et l'orchestrateur reproposera : plus de blocage definitif. */
-  orch.conceptDebloque("CE2", 2);
-  check(orch.getPhase() === "proposition", "apres reset : les pauses redeviennent possibles");
+  check(orch.finLecon(FIN) === true, "apres reset : les propositions redeviennent possibles");
 
-  /* Depuis "enJeu" (mini-jeu en cours). */
   const adapter2 = fakeAdapter();
   const orch2 = orchestrateurAvec(adapter2);
-  orch2.conceptDebloque("CE2", 2); /* propose */
-  adapter2.accepter(); /* -> enJeu, mini-jeu monte */
+  orch2.finLecon(FIN);
+  adapter2.accepter();
   check(orch2.getPhase() === "enJeu", "un mini-jeu est en cours");
   orch2.reinitialiser();
   check(orch2.getPhase() === "repos", "reinitialiser depuis 'enJeu' : retour au repos");
@@ -914,7 +847,7 @@ function memoryFixe() {
 {
   const noms = minigames.liste().map((j) => j.id);
   check(noms.includes("deco-jardin"), "la decoration est enregistree dans le registre reel");
-  check(minigames.liste().length === 4, "quatre vrais mini-jeux enregistres (chasse, memory, puzzle, deco)");
+  check(minigames.liste().length === 5, "cinq vrais mini-jeux enregistres (memory, vrai/faux, chasse, puzzle, deco)");
   const jeuDef = minigames.MINIGAME_DECO;
   check(
     Boolean(jeuDef.id && jeuDef.nom && typeof jeuDef.monter === "function"),
@@ -922,7 +855,7 @@ function memoryFixe() {
   );
 }
 
-/* --- 11. Eligibilite par niveau : choisir() ne tire que parmi les jeux
+/* --- 11. Eligibilite par niveau : prochain() ne propose que des jeux
        eligibles pour le niveau (P1) --- */
 {
   const reg = minigames.creerRegistre();
@@ -936,14 +869,10 @@ function memoryFixe() {
   check(reg.eligibles("CE1")[0].id === "petit", "CE1 : c'est bien le jeu tous-niveaux");
   check(reg.eligibles("CE6").length === 2, "CE6 : les deux jeux sont eligibles");
 
-  /* Au CE1, meme un tirage haut (0.99) ne peut pas donner le jeu reserve :
-     le pool ne contient que les eligibles. */
-  let vuGrandEnCE1 = false;
-  for (const t of [0, 0.25, 0.5, 0.75, 0.99]) {
-    if (reg.choisir(() => t, "CE1").id === "grand") vuGrandEnCE1 = true;
-  }
-  check(!vuGrandEnCE1, "CE1 : le jeu reserve aux grands ne sort jamais");
-  check(reg.choisir(() => 0.99, "CE6").id === "grand", "CE6 : le jeu reserve peut sortir");
+  /* Au CE1, meme quand c'est « son tour » dans la rotation, le jeu reserve
+     ne sort pas : le pool ne contient que les eligibles. */
+  check(reg.prochain("CE1", ["petit"]).id === "petit", "CE1 : le jeu reserve aux grands ne sort jamais");
+  check(reg.prochain("CE6", ["petit"]).id === "grand", "CE6 : le jeu reserve peut sortir");
 
   /* Un jeu SANS estEligible passe toujours (compatibilite), y compris niveau
      inconnu ; un jeu AVEC estEligible tranche lui-meme (ici grand: rang>=3, donc
@@ -953,13 +882,13 @@ function memoryFixe() {
   check(!reg.eligibles(undefined).some((j) => j.id === "grand"), "niveau inconnu : le jeu a estEligible suit son propre verdict");
 }
 
-/* --- 12. Les 4 vrais mini-jeux restent eligibles a TOUS les niveaux : aucun
+/* --- 12. Les 5 vrais mini-jeux restent eligibles a TOUS les niveaux : aucun
        n'est retire (le memory s'adapte au lieu d'etre exclu) --- */
 {
   for (const niveau of ["CE1", "CE2", "CE3", "CE6"]) {
     check(
-      minigames.liste().length === 4 && minigames.liste().every((j) => typeof j.estEligible !== "function" || j.estEligible(niveau)),
-      `${niveau} : les 4 mini-jeux restent proposables`,
+      minigames.liste().length === 5 && minigames.liste().every((j) => typeof j.estEligible !== "function" || j.estEligible(niveau)),
+      `${niveau} : les 5 mini-jeux restent proposables`,
     );
   }
 }
@@ -1110,6 +1039,76 @@ function memoryFixe() {
   partie.arreter();
   check(partie.estTermine(), "chasse : arreter() clot la partie");
   check(partie.cliquer(cfg.nombres[0].id).bon === false, "chasse arretee : plus aucun clic ne compte");
+}
+
+/* --- 19. Contenu tire de la lecon terminee --- */
+{
+  /* Memory : les paires fournies sont distribuees telles quelles. */
+  const paires = [
+    { calcul: "double de 7", valeur: "14" },
+    { calcul: "moitié de 18", valeur: "9" },
+    { calcul: "double de 12", valeur: "24" },
+    { calcul: "moitié de 30", valeur: "15" },
+  ];
+  const memo = minigames.genererPaires(Math.random, { paires });
+  check(memo.nbPaires === 4 && memo.cartes.length === 8, "memory de la lecon : 4 paires, 8 cartes");
+  const calculs = memo.cartes.filter((c) => c.face === "calcul").map((c) => c.texte).sort();
+  check(calculs.join("|") === "double de 12|double de 7|moitié de 18|moitié de 30", "memory : les questions de la lecon sur les cartes");
+  const jeu = minigames.creerMemory(memo);
+  const c1 = memo.cartes.find((c) => c.texte === "double de 7");
+  const c2 = memo.cartes.find((c) => c.face === "resultat" && c.texte === "14");
+  jeu.retourner(c1.id);
+  check(jeu.retourner(c2.id).etat === "paire", "memory : « double de 7 » va avec « 14 »");
+
+  /* Chasse : le calcul vient de la lecon (moitie/double -> reponse entiere). */
+  const reglage = minigames.calculChasseLecon(["double_via_2xn"], "CE2");
+  check(Boolean(reglage.CALCUL) && /double de/.test(reglage.CALCUL.expression), "chasse : la cible vient de la lecon (double)");
+  const cfg = minigames.genererConfig(Math.random, { ...reglage, NB_NOMBRES: 7 });
+  check(cfg.cible === reglage.CALCUL.resultat, "chasse : la cible est la reponse de la carte de lecon");
+  check(cfg.nombres.some((n) => n.valeur === cfg.cible), "chasse : la cible est bien parmi les bulles");
+  check(Object.keys(minigames.calculChasseLecon([], "CE2")).length === 0, "chasse sans lecon : reglage d'origine");
+  /* Lecon sans reponse numerique (triangles) : la chasse retombe sur un
+     calcul de l'age, jamais sur une bulle vide. */
+  const triangles = minigames.calculChasseLecon(["triangle_classer_cotes"], "CE3");
+  check(!triangles.CALCUL || Number.isInteger(triangles.CALCUL.resultat), "lecon de vocabulaire : la chasse garde une cible numerique");
+}
+
+/* --- 20. Vrai ou faux eclair --- */
+{
+  const cartes = [
+    { question: "double de 7", reponse: "14", leurres: ["15", "24"], liaison: " = " },
+    { question: "moitié de 18", reponse: "9", leurres: ["8", "19"], liaison: " = " },
+    { question: "faces d'un cube", reponse: "6", leurres: ["8"], liaison: " → " },
+    { question: "double de 12", reponse: "24", leurres: ["25"], liaison: " = " },
+    { question: "moitié de 30", reponse: "15", leurres: ["16"], liaison: " = " },
+    { question: "double de 9", reponse: "18", leurres: ["19"], liaison: " = " },
+  ];
+  /* Hasard « tout vrai » : l'equilibrage impose quand meme 2 fausses. */
+  const toutVrai = minigames.genererVraiFaux(cartes, () => 0);
+  check(toutVrai.length === 6, "une affirmation par carte");
+  check(toutVrai.filter((q) => !q.vrai).length >= 2, "au moins 2 affirmations fausses, meme avec un hasard biaise");
+  check(toutVrai.filter((q) => q.vrai).length >= 2, "au moins 2 affirmations vraies");
+  for (const q of toutVrai) {
+    const carte = cartes.find((c) => q.correction === `${c.question}${c.liaison}${c.reponse}`);
+    check(Boolean(carte), `correction juste : « ${q.correction} »`);
+    check(q.vrai === (q.enonce === q.correction), `« ${q.enonce} » est ${q.vrai ? "vraie" : "fausse"} et etiquetee comme telle`);
+  }
+  const partie = minigames.creerVraiFaux(toutVrai);
+  let justes = 0;
+  while (!partie.termine()) {
+    const q = partie.courante();
+    if (partie.repondre(q.vrai).juste) justes += 1;
+  }
+  check(justes === 6 && partie.bonnes() === 6, "repondre juste a tout : 6/6");
+  check(partie.repondre(true) === null, "partie finie : plus de reponse comptee");
+  check(partie.bonus() === minigames.VRAI_FAUX.BONUS_BASE + 6 * minigames.VRAI_FAUX.BONUS_PAR_BONNE, "bonus cosmetique selon les bonnes reponses");
+
+  const ratee = minigames.creerVraiFaux(minigames.genererVraiFaux(cartes, () => 0.9));
+  const q0 = ratee.courante();
+  const res = ratee.repondre(!q0.vrai);
+  check(res.juste === false && res.correction === q0.correction, "mauvaise reponse : la correction est donnee");
+  const jeuVf = minigames.MINIGAME_VRAI_FAUX;
+  check(Boolean(jeuVf.id && jeuVf.nom && typeof jeuVf.monter === "function"), "MINIGAME_VRAI_FAUX respecte l'interface commune");
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);
