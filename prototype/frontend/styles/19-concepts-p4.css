@@ -3,7 +3,7 @@
    les autres figures : contour bois, fond creme, valeurs toujours ecrites. */
 
 /* --- Monnaie (monnaie_valeur) --- */
-.figure-monnaie svg {
+.figure-figure.figure-monnaie svg {
   width: min(calc(var(--monnaie-largeur, 200) * 2.1px), 100%);
 }
 
@@ -67,7 +67,7 @@
 }
 
 /* --- Regle graduee (lecture_regle) --- */
-.figure-regle svg {
+.figure-figure.figure-wide.figure-regle svg {
   width: min(460px, 100%);
 }
 
