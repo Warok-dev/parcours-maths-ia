@@ -333,6 +333,7 @@ function obstacleMarkerMarkup(obstacle, status) {
   return `
     <g transform="translate(${obstacle.x}, ${obstacle.barrierY - 152})${uprightSuffix()}">
       <g class="obstacle-marker">
+        <circle cx="0" cy="-12" r="27" class="marker-halo"></circle>
         <path d="M 0 22 L -14 -4 A 17 17 0 1 1 14 -4 Z" class="marker-pin"></path>
         <text x="0" y="0" text-anchor="middle" class="marker-glyph">!</text>
       </g>

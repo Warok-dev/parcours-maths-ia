@@ -216,7 +216,6 @@ function sceneMarkup(scene) {
       <text x="30" y="0" text-anchor="middle" class="hint-text" id="hint-action-text">pour aider !</text>
     </g>
     <g id="fx-layer"></g>
-    <g id="player-token" class="player-token">${ASSETS.player()}</g>
   </g>`;
 }
 
@@ -225,6 +224,7 @@ function sceneMarkup(scene) {
    invalide le rendu du SVG). Invalide apres chaque re-rendu de la scene. */
 const dynamicsCache = {
   playerTransform: null,
+  playerSize: null,
   playerWalking: null,
   hintTransform: null,
   hintVisible: null,
@@ -253,6 +253,7 @@ function refreshScenePaused() {
   ];
   const overlayOpen = overlays.some((node) => node && !node.classList.contains("hidden"));
   mapElement.classList.toggle("scene-paused", overlayOpen);
+  playerLayer?.classList.toggle("scene-paused", overlayOpen);
   document.getElementById("ciel-anime")?.classList.toggle("pause", overlayOpen);
 }
 
@@ -317,6 +318,42 @@ function durcirAnglesRectsDom(element) {
   });
 }
 
+/* Animations hors de l'ecran : la carte SVG est un seul grand calque, et
+   chaque element anime (arbre dans le vent, fumee, canards...) l'oblige a
+   recalculer ses styles et a repeindre sa zone a CHAQUE image, meme quand il
+   est a 1 000 px de la camera. On met en pause tout ce qui sort de la vue
+   (avec une petite marge) et on relance quand ca y revient. */
+let observateurAnimations = null;
+function surveillerAnimationsCarte() {
+  if (observateurAnimations) {
+    observateurAnimations.disconnect();
+    observateurAnimations = null;
+  }
+  if (
+    typeof IntersectionObserver !== "function" ||
+    typeof document.getAnimations !== "function" ||
+    !gameScreen.getClientRects().length
+  ) {
+    return; /* ecran de jeu masque : setupMapLayer relancera la surveillance */
+  }
+  observateurAnimations = new IntersectionObserver(
+    (entrees) => {
+      for (const entree of entrees) {
+        entree.target.classList.toggle("hors-champ", !entree.isIntersecting);
+      }
+    },
+    { root: gameScreen, rootMargin: "160px" },
+  );
+  const cibles = new Set();
+  for (const animation of document.getAnimations()) {
+    const cible = animation.effect?.target;
+    if (cible && mapElement.contains(cible)) {
+      cibles.add(cible);
+    }
+  }
+  cibles.forEach((cible) => observateurAnimations.observe(cible));
+}
+
 function renderScene() {
   applyVisualVariant();
   if (!state.session) {
@@ -340,7 +377,16 @@ function renderScene() {
   refreshCollectibles();
   const markup = sceneMarkup(state.scene);
   mapElement.innerHTML = varianteMature() ? durcirAnglesRects(markup) : markup;
+  refreshPlayerToken();
   invalidateDynamicsCache();
+  /* Nouvelle scene = nouvelles dimensions : la couche carte s'y ajuste (si
+     l'ecran de jeu est affiche ; sinon showGameScreen le fera). */
+  if (gameScreen.getClientRects().length) {
+    setupMapLayer();
+  }
   updateSceneDynamics();
   applyCamera();
+  /* Les animations n'existent que si la carte est affichee : on attend la
+     prochaine image (l'ecran de jeu peut etre montre juste apres le rendu). */
+  window.requestAnimationFrame(surveillerAnimationsCarte);
 }

@@ -70,6 +70,7 @@ const mapLayer = {
   marginX: 0, marginY: 0, /* marge de part et d'autre (px CSS) */
   superW: CAMERA_WIDTH, superH: CAMERA_HEIGHT, /* super-fenetre (unites d'affichage) */
   originX: 0, originY: 0, /* coin haut-gauche de la super-fenetre (unites d'affichage) */
+  entiere: false,       /* la couche couvre toute la carte : plus jamais de recentrage */
   lastTransform: "",
 };
 
@@ -94,18 +95,41 @@ function setupMapLayer() {
   mapLayer.viewH = rect.height;
   mapLayer.marginX = marginX;
   mapLayer.marginY = marginY;
-  mapLayer.superW = (rect.width + 2 * marginX) / s;
-  mapLayer.superH = (rect.height + 2 * marginY) / s;
+  /* Couche = TOUTE la carte quand la scene est connue. Le recentrage de la
+     super-fenetre reecrivait le viewBox : tout le contenu bougeait dans le
+     calque, qui devait etre entierement repeint et rasterise (une saccade
+     environ chaque seconde de marche). Une couche couvrant la carte entiere
+     n'est jamais repeinte en se deplacant : le navigateur la decoupe en tuiles
+     et ne rasterise, une seule fois, que celles qui approchent de l'ecran. */
+  mapLayer.entiere = Boolean(state.scene && displayWidth() && displayHeight());
+  if (mapLayer.entiere) {
+    mapLayer.superW = displayWidth();
+    mapLayer.superH = displayHeight();
+  } else {
+    mapLayer.superW = (rect.width + 2 * marginX) / s;
+    mapLayer.superH = (rect.height + 2 * marginY) / s;
+  }
   /* Taille px explicite de la couche (aspect identique au viewBox => aucun
      recadrage interne ; le recadrage vient de #game-screen overflow:hidden). */
-  mapElement.style.width = `${rect.width + 2 * marginX}px`;
-  mapElement.style.height = `${rect.height + 2 * marginY}px`;
+  mapElement.style.width = `${(mapLayer.superW * s).toFixed(1)}px`;
+  mapElement.style.height = `${(mapLayer.superH * s).toFixed(1)}px`;
   mapElement.style.transformOrigin = "0 0";
   mapElement.style.willChange = "transform";
   mapLayer.ready = true;
   mapLayer.lastTransform = "";
-  recenterSuperWindow(state.camera || { x: mapLayer.superW / 2, y: mapLayer.superH / 2 });
+  recenterSuperWindow(
+    mapLayer.entiere
+      ? { x: mapLayer.superW / 2, y: mapLayer.superH / 2 }
+      : state.camera || { x: mapLayer.superW / 2, y: mapLayer.superH / 2 },
+  );
   applyCamera();
+  if (typeof surveillerAnimationsCarte === "function") {
+    window.requestAnimationFrame(surveillerAnimationsCarte);
+  }
+  if (typeof placerJoueur === "function") {
+    dynamicsCache.playerSize = null;
+    placerJoueur();
+  }
 }
 
 /* Recentre la super-fenetre sur la camera et reecrit le viewBox (le seul
@@ -136,7 +160,10 @@ function applyCamera() {
   const superCy = mapLayer.originY + mapLayer.superH / 2;
   const slackX = (mapLayer.marginX / s) * (1 - RECENTER_PAD);
   const slackY = (mapLayer.marginY / s) * (1 - RECENTER_PAD);
-  if (Math.abs(clamped.x - superCx) > slackX || Math.abs(clamped.y - superCy) > slackY) {
+  if (
+    !mapLayer.entiere &&
+    (Math.abs(clamped.x - superCx) > slackX || Math.abs(clamped.y - superCy) > slackY)
+  ) {
     recenterSuperWindow(clamped);
   }
   /* Place le point monde "clamped" au centre de la zone visible via translate3d

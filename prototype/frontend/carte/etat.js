@@ -86,6 +86,7 @@ const restartButton = document.getElementById("restart-button");
 const menuButton = document.getElementById("menu-button");
 const menuDropdown = document.getElementById("menu-dropdown");
 const mapElement = document.getElementById("map");
+const playerLayer = document.getElementById("player-layer");
 const scoreChip = document.getElementById("score-chip");
 const scoreValue = document.getElementById("score-value");
 const feedback = document.getElementById("feedback");

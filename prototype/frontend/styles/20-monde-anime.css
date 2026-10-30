@@ -41,13 +41,13 @@
 }
 
 /* ... et, arrete un moment, regarde autour de lui. */
-#map.scene-idle .player-tete {
+.player-layer.scene-idle .player-tete {
   animation: regardeAutour 6.5s ease-in-out infinite;
 }
 
 /* Saut de joie (obstacle ouvert, fanion valide) : classe posee 0,9 s par
    celebrerJoueur() (carte/deplacement.js). */
-#map .player-token.player-cheer .player-corps {
+.player-layer .player-token.player-cheer .player-corps {
   animation: joie 900ms cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 
@@ -355,9 +355,9 @@ body[data-perf="econome"] .ciel-anime {
   display: none;
 }
 
-body[data-perf="econome"] #map .player-corps,
-body[data-perf="econome"] #map .player-yeux,
-body[data-perf="econome"] #map .player-tete,
+body[data-perf="econome"] .player-layer .player-corps,
+body[data-perf="econome"] .player-layer .player-yeux,
+body[data-perf="econome"] .player-layer .player-tete,
 body[data-perf="econome"] #map .npc-anim,
 body[data-perf="econome"] #map .npc-tete,
 body[data-perf="econome"] #map .npc-outil,
@@ -376,4 +376,22 @@ body[data-perf="econome"] #map .hint-bubble,
 body[data-perf="econome"] #map .reinforcement-stop.stop-current,
 body[data-perf="econome"] #map .obstacle-marker {
   filter: none;
+}
+
+/* Compteur d'images (perf.js, visible seulement avec ?fps dans l'adresse) */
+.compteur-images {
+  position: fixed;
+  left: 8px;
+  bottom: 8px;
+  z-index: 9999;
+  padding: 4px 8px;
+  font: 600 12px/1.2 system-ui, sans-serif;
+  color: #fff;
+  background: rgba(30, 60, 30, 0.8);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.compteur-images[data-lent="1"] {
+  background: rgba(150, 40, 20, 0.85);
 }
