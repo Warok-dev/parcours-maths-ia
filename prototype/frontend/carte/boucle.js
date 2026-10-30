@@ -128,6 +128,7 @@ function tick(timestamp) {
     if (Math.abs(target.x - state.camera.x) < 0.1) state.camera.x = target.x;
     if (Math.abs(target.y - state.camera.y) < 0.1) state.camera.y = target.y;
     applyCamera();
+    placerJoueur();
     updateGuideCompass();
   }
 

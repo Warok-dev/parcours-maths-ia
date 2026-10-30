@@ -194,6 +194,9 @@
     <!-- ===== Ecran 3 : le jeu plein ecran ===== -->
     <section id="game-screen" class="screen game-screen hidden">
       <svg id="map" preserveAspectRatio="xMidYMid slice" aria-label="Carte du parcours"></svg>
+      <!-- Le personnage vit sur son propre petit calque, au-dessus de la carte :
+           le deplacer (ou l'animer) ne repeint plus la grande carte. -->
+      <svg id="player-layer" class="player-layer" viewBox="-80 -80 160 160" aria-hidden="true"><g id="player-token" class="player-token"></g></svg>
       <!-- Ciel anime (mode vivant) : vols d'oiseaux au-dessus de la carte, sur
            leur propre petit calque (styles/20-monde-anime.css). -->
       <div id="ciel-anime" class="ciel-anime" aria-hidden="true">

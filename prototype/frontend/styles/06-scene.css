@@ -214,9 +214,8 @@
   opacity: 0;
 }
 
-.reinforcement-stop.stop-current {
-  filter: drop-shadow(0 0 7px rgba(255, 194, 62, 0.85));
-}
+/* Pas de filtre de lueur ici : l'anneau qui pulse (anime en continu) le
+   ferait recalculer a chaque image. L'anneau suffit a signaler le fanion. */
 
 .reinforcement-stop.stop-current .stop-pulse-ring {
   animation: stopPulse 1.6s ease-out infinite;
@@ -802,8 +801,29 @@
 /* Carte en pause derriere un panneau plein ecran (exercice, carnet, bilan) :
    ses animations infinies repeindraient la scene en continu alors que le
    voile de l'overlay la masque. */
-#map.scene-paused * {
+#map.scene-paused *,
+.player-layer.scene-paused * {
   animation-play-state: paused;
+}
+
+/* Element anime sorti de la vue (carte/rendu.js : surveillerAnimationsCarte) :
+   en pause, il ne coute plus rien a chaque image. */
+#map .hors-champ {
+  animation-play-state: paused !important;
+}
+
+/* Calque du personnage (carte/deplacement.js : placerJoueur). Petit, a part,
+   deplace par transform : le compositeur le bouge sans repeindre la carte. */
+.player-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  will-change: transform;
 }
 
 /* Le decor vivant ne se fige plus a l'arret ni sur tablette : c'est le mode
@@ -832,8 +852,11 @@
   stroke-width: 3;
 }
 
-.obstacle-marker {
-  filter: drop-shadow(0 0 8px rgba(255, 194, 62, 0.75));
+/* Halo dessine (cercle translucide) plutot qu'un filtre drop-shadow : le
+   repere rebondit en continu, et un filtre sur un element anime oblige a
+   recalculer le flou a chaque image. */
+.marker-halo {
+  fill: rgba(255, 194, 62, 0.28);
 }
 
 .marker-glyph {

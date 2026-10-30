@@ -122,6 +122,55 @@
     }
   }
 
+  /* ---------- Compteur d'images (diagnostic) ----------
+     Affiche en bas a gauche les images par seconde et la pire image de la
+     derniere demi-seconde. Visible seulement avec ?fps dans l'adresse
+     (ex. http://localhost:5500/?fps) : sert a mesurer la fluidite sur une
+     vraie machine, jamais montre aux eleves par defaut. */
+  function compteurDemande() {
+    try {
+      return new URLSearchParams(window.location.search).has("fps");
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  const compteur = { actif: false, noeud: null, images: 0, pire: 0, debut: 0 };
+
+  function noterPourCompteur(dureeMs) {
+    if (!compteur.actif || !Number.isFinite(dureeMs) || dureeMs <= 0 || dureeMs > 1000) {
+      return;
+    }
+    const maintenant = performance.now();
+    if (!compteur.debut) {
+      compteur.debut = maintenant;
+    }
+    compteur.images += 1;
+    compteur.pire = Math.max(compteur.pire, dureeMs);
+    const ecoule = maintenant - compteur.debut;
+    if (ecoule >= 500) {
+      const ips = Math.round((compteur.images * 1000) / ecoule);
+      compteur.noeud.textContent = `${ips} img/s · pire ${Math.round(compteur.pire)} ms · ${etat.effectif}`;
+      compteur.noeud.dataset.lent = compteur.pire > 34 ? "1" : "0";
+      compteur.images = 0;
+      compteur.pire = 0;
+      compteur.debut = maintenant;
+    }
+  }
+
+  function installerCompteur() {
+    if (!compteurDemande() || compteur.actif) {
+      return;
+    }
+    const noeud = document.createElement("div");
+    noeud.className = "compteur-images";
+    noeud.setAttribute("aria-hidden", "true");
+    noeud.textContent = "… img/s";
+    document.body.appendChild(noeud);
+    compteur.noeud = noeud;
+    compteur.actif = true;
+  }
+
   const etat = {
     choix: "auto",
     profil: "vivant",
@@ -152,6 +201,7 @@
     etat.choix = lireChoix();
     etat.profil = profilAppareil(infosNavigateur());
     appliquer();
+    installerCompteur();
   }
 
   const api = {
@@ -180,6 +230,7 @@
     /* Appele a chaque image de la boucle de jeu. En « auto », un jeu qui
        rame durablement bascule en econome ; renvoie true a ce moment-la. */
     noterImage(dureeMs) {
+      noterPourCompteur(dureeMs);
       if (etat.choix !== "auto" || etat.effectif === "econome") {
         return false;
       }

@@ -91,7 +91,38 @@ function updateSceneIdle(timestamp) {
   const idle = !state.playerMoving && timestamp - lastMoveAt >= SCENE_IDLE_DELAY_MS;
   if (idle !== dynamicsCache.sceneIdle) {
     dynamicsCache.sceneIdle = idle;
-    mapElement.classList.toggle("scene-idle", idle);
+    playerLayer?.classList.toggle("scene-idle", idle);
+  }
+}
+
+/* Le personnage est sur son propre calque (#player-layer), hors de la grande
+   carte SVG : on le place a l'ecran par un simple transform CSS (travail du
+   compositeur, la carte n'est jamais repeinte pour lui). Position ecran =
+   centre de la vue + (projection du joueur - camera) x echelle ; son angle a
+   l'ecran ajoute la rotation de la carte (orientAngle). A rappeler apres
+   chaque mouvement de camera. */
+const PLAYER_LAYER_UNITS = 160; /* doit suivre le viewBox de #player-layer */
+function placerJoueur() {
+  if (!playerLayer || !state.scene || !mapLayer.ready) {
+    return;
+  }
+  const s = mapLayer.s;
+  const taille = PLAYER_LAYER_UNITS * s;
+  const tailleTexte = `${taille.toFixed(1)}px`;
+  if (tailleTexte !== dynamicsCache.playerSize) {
+    dynamicsCache.playerSize = tailleTexte;
+    playerLayer.style.width = tailleTexte;
+    playerLayer.style.height = tailleTexte;
+  }
+  const camera = clampCamera(state.camera);
+  const point = toDisplay(state.playerPosition);
+  const x = mapLayer.viewW / 2 + (point.x - camera.x) * s - taille / 2;
+  const y = mapLayer.viewH / 2 + (point.y - camera.y) * s - taille / 2;
+  const angle = state.playerAngle + (state.scene.orientAngle || 0);
+  const transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${angle.toFixed(1)}deg)`;
+  if (transform !== dynamicsCache.playerTransform) {
+    dynamicsCache.playerTransform = transform;
+    playerLayer.style.transform = transform;
   }
 }
 
@@ -102,11 +133,7 @@ function updateSceneDynamics() {
 
   const playerNode = document.getElementById("player-token");
   if (playerNode) {
-    const playerTransform = `translate(${state.playerPosition.x.toFixed(1)}, ${state.playerPosition.y.toFixed(1)}) rotate(${state.playerAngle.toFixed(1)})`;
-    if (playerTransform !== dynamicsCache.playerTransform) {
-      dynamicsCache.playerTransform = playerTransform;
-      playerNode.setAttribute("transform", playerTransform);
-    }
+    placerJoueur();
     if (state.playerMoving !== dynamicsCache.playerWalking) {
       dynamicsCache.playerWalking = state.playerMoving;
       playerNode.classList.toggle("player-walking", state.playerMoving);
