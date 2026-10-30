@@ -18,20 +18,26 @@ const ASSETS = {
       <ellipse cx="0" cy="6" rx="20" ry="14" class="player-shadow"></ellipse>
       <circle cx="-13" cy="14" r="6" class="player-foot left"></circle>
       <circle cx="13" cy="14" r="6" class="player-foot right"></circle>
-      ${accessoire("arriere")}
-      <ellipse cx="0" cy="2" rx="19" ry="15" class="player-body"></ellipse>
-      <circle cx="-19" cy="2" r="6.5" class="player-hand left"></circle>
-      <circle cx="19" cy="2" r="6.5" class="player-hand right"></circle>
-      <path d="M -11 6 q 11 7 22 0" class="player-collar"></path>
-      <circle cx="0" cy="-3" r="12.5" class="player-head"></circle>
-      <path d="M -12.4 -4 a 12.5 12.5 0 0 1 24.8 0 q -3 -3.4 -6.4 -2.6 q -2.4 -3.6 -6 -3.2 q -3.6 -0.4 -6 3.2 q -3.4 -0.8 -6.4 2.6 Z" class="player-hair"></path>
-      <path d="M -5 -12.6 q 3 -1.6 7 -0.6" class="player-hair-shine"></path>
-      <circle cx="-4.4" cy="2.4" r="1.7" class="face-eye"></circle>
-      <circle cx="4.4" cy="2.4" r="1.7" class="face-eye"></circle>
-      <circle cx="-7.6" cy="5" r="2.2" class="face-cheek"></circle>
-      <circle cx="7.6" cy="5" r="2.2" class="face-cheek"></circle>
-      <path d="M -2.2 5.6 q 2.2 1.8 4.4 0" class="face-smile"></path>
-      ${accessoire("avant")}
+      <g class="player-corps">
+        ${accessoire("arriere")}
+        <ellipse cx="0" cy="2" rx="19" ry="15" class="player-body"></ellipse>
+        <circle cx="-19" cy="2" r="6.5" class="player-hand left"></circle>
+        <circle cx="19" cy="2" r="6.5" class="player-hand right"></circle>
+        <path d="M -11 6 q 11 7 22 0" class="player-collar"></path>
+        <g class="player-tete">
+          <circle cx="0" cy="-3" r="12.5" class="player-head"></circle>
+          <path d="M -12.4 -4 a 12.5 12.5 0 0 1 24.8 0 q -3 -3.4 -6.4 -2.6 q -2.4 -3.6 -6 -3.2 q -3.6 -0.4 -6 3.2 q -3.4 -0.8 -6.4 2.6 Z" class="player-hair"></path>
+          <path d="M -5 -12.6 q 3 -1.6 7 -0.6" class="player-hair-shine"></path>
+          <g class="player-yeux">
+            <circle cx="-4.4" cy="2.4" r="1.7" class="face-eye"></circle>
+            <circle cx="4.4" cy="2.4" r="1.7" class="face-eye"></circle>
+          </g>
+          <circle cx="-7.6" cy="5" r="2.2" class="face-cheek"></circle>
+          <circle cx="7.6" cy="5" r="2.2" class="face-cheek"></circle>
+          <path d="M -2.2 5.6 q 2.2 1.8 4.4 0" class="face-smile"></path>
+          ${accessoire("avant")}
+        </g>
+      </g>
     `;
   },
 
@@ -70,17 +76,52 @@ const ASSETS = {
       pecheur: `<path d="M 17 0 L 30 -22" class="npc-canne"></path><path d="M 30 -22 q 6 8 3 18" class="npc-fil"></path>`,
       voyageur: `<rect x="-8" y="-17" width="16" height="10" rx="4" class="npc-sac"></rect>`,
     };
+    /* Groupes nommes pour l'animation (styles/20-monde-anime.css) : le
+       corps respire, la tete regarde autour, la main droite salue quand
+       l'eleve approche, l'outil travaille (hache, canne a peche). */
     return `
       <ellipse cx="0" cy="5" rx="15" ry="10" class="npc-shadow"></ellipse>
-      ${metier === "voyageur" ? accessoire.voyageur : ""}
-      <ellipse cx="0" cy="1" rx="14" ry="11" class="npc-body npc-${metier}"></ellipse>
-      <circle cx="-14" cy="1" r="4.5" class="npc-hand"></circle>
-      <circle cx="14" cy="1" r="4.5" class="npc-hand"></circle>
-      <circle cx="0" cy="-3" r="9.5" class="npc-head"></circle>
-      ${visage}
-      ${couvreChef[metier] || couvreChef.villageois}
-      ${metier === "bucheron" || metier === "pecheur" ? accessoire[metier] : ""}
+      <g class="npc-anim npc-anim-${metier}">
+        ${metier === "voyageur" ? accessoire.voyageur : ""}
+        <ellipse cx="0" cy="1" rx="14" ry="11" class="npc-body npc-${metier}"></ellipse>
+        <circle cx="-14" cy="1" r="4.5" class="npc-hand npc-main-gauche"></circle>
+        ${metier === "bucheron" || metier === "pecheur" ? `<g class="npc-outil">${accessoire[metier]}</g>` : ""}
+        <circle cx="14" cy="1" r="4.5" class="npc-hand npc-main-droite"></circle>
+        <g class="npc-tete">
+          <circle cx="0" cy="-3" r="9.5" class="npc-head"></circle>
+          ${visage}
+          ${couvreChef[metier] || couvreChef.villageois}
+        </g>
+      </g>
     `;
+  },
+
+  /* --- Monde vivant (mode vivant seulement, voir carte/rendu.js) --- */
+
+  /* Canard vu du dessus, tete vers le haut : il nage en rond sur la mare. */
+  duck() {
+    return `
+      <ellipse cx="0" cy="4" rx="10" ry="5" class="duck-sillage"></ellipse>
+      <ellipse cx="0" cy="2" rx="7" ry="9" class="duck-body"></ellipse>
+      <path d="M -6 3 q -3 4 1 7 M 6 3 q 3 4 -1 7" class="duck-wing"></path>
+      <circle cx="0" cy="-7" r="4.6" class="duck-head"></circle>
+      <path d="M -2 -11 q 2 -4 4 0 Z" class="duck-bec"></path>
+      <circle cx="-1.8" cy="-7.6" r="0.9" class="face-eye"></circle>
+      <circle cx="1.8" cy="-7.6" r="0.9" class="face-eye"></circle>
+    `;
+  },
+
+  /* Fumee de cheminee : trois bouffees qui montent et se dissipent en
+     boucle, decalees (dessinee DEBOUT, redressee par l'appelant). */
+  smoke() {
+    return [0, 1, 2]
+      .map((i) => `<circle cx="0" cy="0" r="${5 + i}" class="smoke-puff" style="animation-delay: ${(i * -1.3).toFixed(1)}s"></circle>`)
+      .join("");
+  },
+
+  /* Rond dans l'eau : s'elargit et s'efface (poissons, gouttes). */
+  ripple() {
+    return `<ellipse cx="0" cy="0" rx="9" ry="5" class="ripple"></ellipse>`;
   },
 
   tree() {

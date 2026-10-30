@@ -72,8 +72,15 @@ function tick(timestamp) {
   if (!lastTick) {
     lastTick = timestamp;
   }
-  const deltaSeconds = Math.min((timestamp - lastTick) / 1000, 0.05);
+  const dureeImageMs = timestamp - lastTick;
+  const deltaSeconds = Math.min(dureeImageMs / 1000, 0.05);
   lastTick = timestamp;
+
+  /* Mode auto : si le jeu rame durablement PENDANT qu'on joue, on passe en
+     econome (perf.js) et on le dit une fois a l'eleve. */
+  if (state.scene && !state.panelOpen && window.ParcoursPerf?.noterImage(dureeImageMs)) {
+    setFeedback("Ta tablette est un peu lente : je passe en mode économe pour que le jeu reste fluide.", "info");
+  }
 
   if (state.scene && state.session && !state.panelOpen && !state.session.terminee) {
     const input = movementVector();
