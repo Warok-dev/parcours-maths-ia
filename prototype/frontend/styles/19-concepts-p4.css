@@ -1,0 +1,136 @@
+/* Visuels des concepts de la periode 4 (carte/exercice.js) : pieces et
+   billets marocains, regle graduee, collection a trier. Meme langage que
+   les autres figures : contour bois, fond creme, valeurs toujours ecrites. */
+
+/* --- Monnaie (monnaie_valeur) --- */
+.figure-figure.figure-monnaie svg {
+  width: min(calc(var(--monnaie-largeur, 200) * 2.1px), 100%);
+}
+
+.piece {
+  stroke: var(--wood-dark);
+  stroke-width: 1.6;
+}
+
+.piece-coeur {
+  fill: none;
+  stroke: rgba(61, 44, 30, 0.28);
+  stroke-width: 1;
+}
+
+.piece-argent .piece {
+  fill: #dfe3e8;
+}
+
+.piece-or .piece {
+  fill: var(--gold);
+}
+
+/* 5 DH : couronne doree, coeur argente, comme la vraie piece. */
+.piece-bicolore .piece {
+  fill: var(--gold);
+}
+
+.piece-bicolore .piece-coeur {
+  fill: #dfe3e8;
+  stroke: var(--gold-dark);
+}
+
+.billet {
+  fill: #b9d9a7;
+  stroke: var(--wood-dark);
+  stroke-width: 1.6;
+}
+
+.billet-cadre {
+  fill: none;
+  stroke: rgba(61, 44, 30, 0.3);
+  stroke-width: 1;
+}
+
+.billet-sceau {
+  fill: rgba(85, 165, 61, 0.45);
+}
+
+.monnaie-valeur {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.monnaie-unite {
+  fill: var(--ink-soft);
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 6.5px;
+}
+
+/* --- Regle graduee (lecture_regle) --- */
+.figure-figure.figure-wide.figure-regle svg {
+  width: min(460px, 100%);
+}
+
+.regle-corps {
+  fill: #f7e6b8;
+  stroke: var(--wood);
+  stroke-width: 1.4;
+}
+
+.regle-trait {
+  stroke: var(--ink);
+  stroke-width: 0.7;
+}
+
+.regle-nombre,
+.regle-unite {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 9px;
+}
+
+.regle-unite {
+  fill: var(--ink-soft);
+  font-size: 6.5px;
+}
+
+.regle-segment {
+  stroke: var(--road-dark);
+  stroke-width: 4;
+  stroke-linecap: butt;
+}
+
+.regle-borne {
+  stroke: var(--road-dark);
+  stroke-width: 2;
+}
+
+.regle-guide {
+  stroke: var(--road-dark);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+/* --- Collection a trier (classer_compter) --- */
+.collection-figure {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 360px;
+  margin: 12px auto 16px;
+  padding: 12px;
+  border: 2px dashed rgba(139, 88, 52, 0.4);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.collection-objet {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  font-size: 1.7rem;
+  line-height: 1;
+}

@@ -610,6 +610,88 @@ function fractionFigureSvg(exercise) {
   return `${parts}<rect x="${x0}" y="${y0}" width="${W}" height="${H}" class="frac-border"></rect>`;
 }
 
+/* ----- Concepts P4 (programme_p4.py) : monnaie, regle graduee, collection ----- */
+
+/* Pieces et billets marocains, du plus grand au plus petit (CE1, semaine 4).
+   Rendu schematique, lisible avant tout : la valeur est ecrite sur chaque
+   piece, la taille et la couleur suivent la vraie monnaie (1 et 2 DH
+   argentees, 5 DH bicolore, 10 DH doree, billets de 20 DH). */
+const MONNAIE_STYLE = {
+  1: { r: 15, classe: "piece-argent" },
+  2: { r: 17, classe: "piece-argent" },
+  5: { r: 19, classe: "piece-bicolore" },
+  10: { r: 21, classe: "piece-or" },
+};
+
+function monnaieFigure(exercise) {
+  const tas = exercise.variables?.monnaie || [];
+  const gap = 8;
+  let x = 6;
+  let dessin = "";
+  for (const valeur of tas) {
+    if (valeur >= 20) {
+      dessin += `
+        <g transform="translate(${x}, 12)">
+          <rect class="billet billet-${valeur}" width="74" height="40" rx="5"></rect>
+          <rect class="billet-cadre" x="4" y="4" width="66" height="32" rx="3"></rect>
+          <circle class="billet-sceau" cx="16" cy="20" r="8"></circle>
+          <text class="monnaie-valeur" x="47" y="26" text-anchor="middle">${valeur}</text>
+          <text class="monnaie-unite" x="47" y="35" text-anchor="middle">DH</text>
+        </g>`;
+      x += 74 + gap;
+    } else {
+      const { r, classe } = MONNAIE_STYLE[valeur] || MONNAIE_STYLE[1];
+      dessin += `
+        <g transform="translate(${x + r}, 32)" class="${classe}">
+          <circle class="piece" r="${r}"></circle>
+          <circle class="piece-coeur" r="${(r * 0.72).toFixed(1)}"></circle>
+          <text class="monnaie-valeur" y="3" text-anchor="middle">${valeur}</text>
+          <text class="monnaie-unite" y="${(r * 0.55).toFixed(1)}" text-anchor="middle">DH</text>
+        </g>`;
+      x += 2 * r + gap;
+    }
+  }
+  const largeur = Math.max(60, x - gap + 6);
+  return { viewBox: `0 0 ${largeur} 64`, largeur, dessin };
+}
+
+/* Regle graduee en cm et mm, 0 a 12 cm (CE2, semaine 3). Le segment a
+   mesurer est pose au-dessus, son debut aligne sur le 0 -- exactement le
+   geste enseigne (« je place le 0 au bout du segment »). */
+function regleSvg(exercise) {
+  const longueurMm = exercise.variables?.longueur_mm || 0;
+  const PX = 2; /* 1 mm = 2 unites SVG */
+  const X0 = 12;
+  const CM = 12;
+  let graduations = "";
+  for (let mm = 0; mm <= CM * 10; mm += 1) {
+    const x = X0 + mm * PX;
+    const h = mm % 10 === 0 ? 14 : mm % 5 === 0 ? 9 : 5;
+    graduations += `<line class="regle-trait" x1="${x}" y1="40" x2="${x}" y2="${40 + h}"></line>`;
+    if (mm % 10 === 0) {
+      graduations += `<text class="regle-nombre" x="${x}" y="66" text-anchor="middle">${mm / 10}</text>`;
+    }
+  }
+  const fin = X0 + longueurMm * PX;
+  return `
+    <line class="regle-segment" x1="${X0}" y1="26" x2="${fin}" y2="26"></line>
+    <line class="regle-borne" x1="${X0}" y1="19" x2="${X0}" y2="33"></line>
+    <line class="regle-borne" x1="${fin}" y1="19" x2="${fin}" y2="33"></line>
+    <line class="regle-guide" x1="${fin}" y1="33" x2="${fin}" y2="40"></line>
+    <rect class="regle-corps" x="2" y="38" width="${CM * 10 * PX + 34}" height="34" rx="4"></rect>
+    ${graduations}
+    <text class="regle-unite" x="${X0 + CM * 10 * PX + 15}" y="66" text-anchor="middle">cm</text>
+  `;
+}
+
+/* Collection melangee a trier (CE1, semaine 3 : تصنيف المعطيات). */
+function collectionMarkup(exercise) {
+  const objets = exercise.variables?.objets || [];
+  return `<div class="collection-figure" role="img" aria-label="Collection d'objets à trier">${objets
+    .map((o) => `<span class="collection-objet" aria-hidden="true">${o}</span>`)
+    .join("")}</div>`;
+}
+
 function renderExerciseModal() {
   if (!state.panelOpen || !state.currentExercise || !state.session) {
     return;
@@ -639,6 +721,10 @@ function renderExerciseModal() {
   const isBarres = exercise.pattern?.pattern_name === "graphique_barres";
   const isProportion = exercise.pattern?.pattern_name === "graphique_proportionnalite";
   const isFractionFigure = exercise.pattern?.pattern_name === "fraction_lire_figure";
+  const isMonnaie = exercise.pattern?.pattern_name === "monnaie_valeur";
+  const isRegle = exercise.pattern?.pattern_name === "lecture_regle";
+  const isCollection = exercise.pattern?.pattern_name === "classer_compter";
+  const monnaie = isMonnaie ? monnaieFigure(exercise) : null;
   const fractionVB =
     exercise.variables?.forme === "disque" ? "-56 -56 112 112" : "-62 -26 124 52";
   const confidence = isConfidenceExercise();
@@ -825,6 +911,21 @@ function renderExerciseModal() {
              </div>`
           : ""
       }
+      ${
+        isMonnaie
+          ? `<div class="figure-figure figure-monnaie">
+               <svg viewBox="${monnaie.viewBox}" style="--monnaie-largeur:${monnaie.largeur}" role="img" aria-label="Pièces et billets à compter">${monnaie.dessin}</svg>
+             </div>`
+          : ""
+      }
+      ${
+        isRegle
+          ? `<div class="figure-figure figure-wide figure-regle">
+               <svg viewBox="0 0 280 76" role="img" aria-label="Segment posé sur une règle graduée">${regleSvg(exercise)}</svg>
+             </div>`
+          : ""
+      }
+      ${isCollection ? collectionMarkup(exercise) : ""}
       ${
         steps && details.aide_affichee
           ? `<div class="method-block">

@@ -6,6 +6,7 @@ from diagnostic import (
     ERREUR_DISTRACTION,
     INVERSION_OPERANDES,
     OPERATION_INVERSEE,
+    RETENUE_OUBLIEE,
     TABLE_MULTIPLICATION_PROCHE,
     ZERO_OUBLIE,
     diagnostiquer_erreur,
@@ -152,6 +153,24 @@ class DiagnosticTests(unittest.TestCase):
                 "6",
             )
         )
+
+
+class RetenueOublieeTests(unittest.TestCase):
+    def test_addition_posee_sans_la_retenue(self) -> None:
+        # 37 + 24 = 61 ; sans la retenue des unites (7 + 4 = 11), l'eleve ecrit 51.
+        self.assertEqual(diagnostiquer_erreur("addition_posee", {"a": 37, "b": 24}, 61, 51), RETENUE_OUBLIEE)
+
+    def test_addition_posee_sans_retenue_a_faire(self) -> None:
+        # 32 + 24 = 56 : pas de retenue, 46 n'est pas un oubli de retenue.
+        self.assertNotEqual(diagnostiquer_erreur("addition_posee", {"a": 32, "b": 24}, 56, 46), RETENUE_OUBLIEE)
+
+    def test_soustraction_posee_sans_l_echange(self) -> None:
+        # 52 - 18 = 34 : dizaine echangee non retiree (44) ou 8 - 2 aux unites (46).
+        for faux in (44, 46):
+            self.assertEqual(diagnostiquer_erreur("soustraction_posee", {"a": 52, "b": 18}, 34, faux), RETENUE_OUBLIEE)
+
+    def test_soustraction_posee_sans_emprunt_a_faire(self) -> None:
+        self.assertNotEqual(diagnostiquer_erreur("soustraction_posee", {"a": 58, "b": 12}, 46, 56), RETENUE_OUBLIEE)
 
 
 if __name__ == "__main__":
