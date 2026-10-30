@@ -698,32 +698,36 @@ function renderExerciseModal() {
   }
 
   const exercise = state.currentExercise;
-  const isClock = exercise.pattern?.pattern_name === "lecture_heure_analogique";
-  const isTable = exercise.pattern?.pattern_name === "completer_tableau_proportionnalite";
+  /* Probleme raconte (aspect « recit ») : le meme concept, mais en histoire.
+     Pas de figure du calcul (pieces, regle, horloge...) : l'histoire suffit. */
+  const estRecit = exercise.contexte_narratif?.aspect === "recit";
+  const nomFigure = estRecit ? null : exercise.pattern?.pattern_name;
+  const isClock = nomFigure === "lecture_heure_analogique";
+  const isTable = nomFigure === "completer_tableau_proportionnalite";
   // La base cotee d'un prisme reutilise le meme composant que figure_cotee.
   const isFigure = ["figure_cotee_simple", "prisme_aire_base", "prisme_aire_totale"].includes(
-    exercise.pattern?.pattern_name,
+    nomFigure,
   );
   const isCercle = ["cercle_identifier_elements", "circonference_cercle", "aire_disque"].includes(
-    exercise.pattern?.pattern_name,
+    nomFigure,
   );
   const isTriangle = ["triangle_classer_cotes", "triangle_classer_angles"].includes(
-    exercise.pattern?.pattern_name,
+    nomFigure,
   );
-  const isAngle = exercise.pattern?.pattern_name === "angle_type";
-  const isSymetrie = exercise.pattern?.pattern_name === "symetrie_axes";
-  const isAgrandissement = exercise.pattern?.pattern_name === "agrandissement_facteur";
+  const isAngle = nomFigure === "angle_type";
+  const isSymetrie = nomFigure === "symetrie_axes";
+  const isAgrandissement = nomFigure === "agrandissement_facteur";
   const isSolide = ["solide_nommer", "solide_compter"].includes(
-    exercise.pattern?.pattern_name,
+    nomFigure,
   );
-  const isPictogramme = exercise.pattern?.pattern_name === "graphique_pictogramme";
-  const isCamembert = exercise.pattern?.pattern_name === "graphique_circulaire";
-  const isBarres = exercise.pattern?.pattern_name === "graphique_barres";
-  const isProportion = exercise.pattern?.pattern_name === "graphique_proportionnalite";
-  const isFractionFigure = exercise.pattern?.pattern_name === "fraction_lire_figure";
-  const isMonnaie = exercise.pattern?.pattern_name === "monnaie_valeur";
-  const isRegle = exercise.pattern?.pattern_name === "lecture_regle";
-  const isCollection = exercise.pattern?.pattern_name === "classer_compter";
+  const isPictogramme = nomFigure === "graphique_pictogramme";
+  const isCamembert = nomFigure === "graphique_circulaire";
+  const isBarres = nomFigure === "graphique_barres";
+  const isProportion = nomFigure === "graphique_proportionnalite";
+  const isFractionFigure = nomFigure === "fraction_lire_figure";
+  const isMonnaie = nomFigure === "monnaie_valeur";
+  const isRegle = nomFigure === "lecture_regle";
+  const isCollection = nomFigure === "classer_compter";
   const monnaie = isMonnaie ? monnaieFigure(exercise) : null;
   const fractionVB =
     exercise.variables?.forme === "disque" ? "-56 -56 112 112" : "-62 -26 124 52";
@@ -802,6 +806,7 @@ function renderExerciseModal() {
       <div>
         <h2 class="modal-title">${theme.title}</h2>
         <p class="modal-intro">${theme.intro}</p>
+        ${estRecit && !confidence ? '<p class="aspect-recit">Problème raconté : lis l\'histoire, puis calcule.</p>' : ""}
       </div>
     </div>
     <div class="modal-paper">

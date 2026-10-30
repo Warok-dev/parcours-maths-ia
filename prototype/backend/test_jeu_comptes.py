@@ -70,6 +70,11 @@ class JeuComptesTests(unittest.TestCase):
         classe = self.client.post(
             "/classe", json={"nom": "C", "niveau_scolaire": niveau}, headers=self._auth(ptoken)
         ).json()
+        # Ces tests jouent des lecons ENTIERES : classe en acces libre (le
+        # programme de classe a ses propres tests, test_programme.py).
+        self.client.post(
+            f"/classe/{classe['id']}/programme", json={"actif": False}, headers=self._auth(ptoken)
+        )
         eleve = self.client.post(
             f"/classe/{classe['id']}/eleve", json={"prenom": prenom}, headers=self._auth(ptoken)
         ).json()

@@ -25,10 +25,14 @@
   function conceptsTermines(snapshot) {
     const concepts = snapshot?.concepts || [];
     const maitrises = snapshot?.maitrises_concepts_terminees || [];
-    return concepts.map((pattern_name, index) => ({
-      pattern_name,
-      maitrise: maitrises[index] || 1,
-    }));
+    /* Un meme concept peut occuper plusieurs etapes (calcul, probleme
+       raconte, defi) : on garde sa meilleure maitrise, une seule fois. */
+    const meilleures = new Map();
+    concepts.forEach((pattern_name, index) => {
+      const m = maitrises[index] || 1;
+      meilleures.set(pattern_name, Math.max(meilleures.get(pattern_name) || 0, m));
+    });
+    return [...meilleures].map(([pattern_name, maitrise]) => ({ pattern_name, maitrise }));
   }
 
   function memeEntree(entry, niveau, pattern) {

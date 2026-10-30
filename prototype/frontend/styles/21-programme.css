@@ -1,0 +1,201 @@
+/* ============================================================
+   PROGRAMME DE CLASSE
+   - ecran des lecons (eleve) : « Mes concepts du moment »
+   - fenetre d'exercice : etiquette « Probleme raconte »
+   - tableau de bord enseignant : onglet Programme
+   ============================================================ */
+
+/* ---------- Eleve : concepts ouverts ---------- */
+.programme-zone {
+  margin: 4px 0 14px;
+}
+
+.programme-zone.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.programme-titre {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.programme-liste {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.programme-concept {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  background: var(--cream);
+  border: 3px solid var(--grass-light);
+  border-radius: 16px;
+  transition: transform 130ms ease, border-color 130ms ease;
+}
+
+.programme-concept:hover,
+.programme-concept:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--grass-dark);
+}
+
+.programme-concept.is-nouveau {
+  border-color: var(--gold-dark);
+  background: #fff6db;
+}
+
+.programme-concept-nom {
+  flex: 1 1 180px;
+  font-weight: 700;
+}
+
+.programme-badge {
+  padding: 2px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--gold);
+  border-radius: 999px;
+}
+
+.programme-etoiles {
+  color: var(--gold-dark);
+  letter-spacing: 2px;
+}
+
+.programme-etoiles-vides {
+  color: var(--cream-dark);
+}
+
+.programme-concept-action {
+  padding: 6px 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--grass-dark);
+  border-radius: 12px;
+}
+
+.programme-vide {
+  margin: 0;
+  padding: 14px 16px;
+  color: var(--ink-soft);
+  background: var(--cream);
+  border: 3px dashed var(--cream-dark);
+  border-radius: 16px;
+}
+
+/* ---------- Exercice : probleme raconte ---------- */
+.aspect-recit {
+  display: inline-block;
+  margin: 6px 0 0;
+  padding: 4px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: #e7f3ff;
+  border: 2px solid #8cb8e6;
+  border-radius: 999px;
+}
+
+/* ---------- Enseignant : onglet Programme ---------- */
+.prog-entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.prog-bascule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.prog-bascule input {
+  width: 20px;
+  height: 20px;
+}
+
+.prog-prochain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  background: #fff6db;
+  border: 2px solid var(--gold-dark);
+  border-radius: 14px;
+}
+
+.prog-prochain-texte {
+  margin: 0;
+}
+
+.prog-semaine {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+.prog-liste {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prog-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid var(--cream-dark);
+  border-radius: 10px;
+}
+
+.prog-ligne.is-ouvert {
+  border-color: var(--grass);
+  background: #f1faec;
+}
+
+.prog-ligne-nom {
+  flex: 1 1 200px;
+}
+
+.prog-ligne-lecon {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.prog-etat {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--grass-dark);
+}
+
+.prog-inactif {
+  color: var(--ink-soft);
+}

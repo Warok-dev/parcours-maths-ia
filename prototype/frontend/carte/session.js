@@ -273,7 +273,12 @@ function renderLessonChoices() {
   backToLevelsButton.classList.toggle("hidden", Boolean(niveauImposeEleve()));
 
   renderAssignationBanner();
+  renderProgrammeConcepts();
 
+  /* Avec le programme, une carte a toujours au moins 3 etapes : un concept
+     seul y est vu en calcul, en probleme raconte, puis en defi. */
+  const etapes = (lesson) =>
+    state.programme ? Math.max(3, lesson.pattern_count) : lesson.pattern_count;
   lessonActions.innerHTML = state.availableLessons
     .map(
       (lesson) => `
@@ -281,7 +286,7 @@ function renderLessonChoices() {
           <span class="lesson-card-icon">${LESSON_ICONS[lesson.lecon_id] || "★"}</span>
           <span>
             <span class="lesson-card-title">${lesson.nom}</span><br />
-            <span class="lesson-card-copy">${lesson.pattern_count} défi${lesson.pattern_count > 1 ? "s" : ""} à relever</span>
+            <span class="lesson-card-copy">${etapes(lesson)} défi${etapes(lesson) > 1 ? "s" : ""} à relever</span>
           </span>
         </button>
       `,
@@ -309,6 +314,64 @@ function renderLessonChoices() {
   });
 
   renderRevisionChoice();
+}
+
+/* « Mes concepts » : ce que la classe travaille en ce moment (programme de
+   classe). Chaque concept se rejoue autant qu'on veut, sur une carte de 3
+   etapes : calcul, probleme raconte, defi. Le dernier ouvert par
+   l'enseignant porte le badge « Nouveau ». */
+function etoilesMarkup(n) {
+  const plein = Math.max(0, Math.min(3, n || 0));
+  return `<span class="programme-etoiles" aria-label="${plein} étoile${plein > 1 ? "s" : ""} sur 3">${"★".repeat(plein)}<span class="programme-etoiles-vides">${"★".repeat(3 - plein)}</span></span>`;
+}
+
+function renderProgrammeConcepts() {
+  const concepts = state.programme?.concepts || [];
+  if (!state.programme) {
+    programmeZone.classList.add("hidden");
+    programmeZone.innerHTML = "";
+    return;
+  }
+  programmeZone.classList.remove("hidden");
+  if (!concepts.length) {
+    programmeZone.innerHTML = `
+      <p class="programme-vide">Ton enseignant n'a pas encore ouvert de concept. Reviens bientôt !</p>
+    `;
+    return;
+  }
+  /* Le plus recent en premier : c'est celui que la classe vient de commencer. */
+  const ordonnes = [...concepts].reverse();
+  programmeZone.innerHTML = `
+    <h2 class="programme-titre">Mes concepts du moment</h2>
+    <ul class="programme-liste">
+      ${ordonnes
+        .map(
+          (c) => `
+        <li>
+          <button class="programme-concept${c.nouveau ? " is-nouveau" : ""}" type="button" data-pattern="${c.pattern}">
+            <span class="programme-concept-nom">${c.libelle}</span>
+            ${c.nouveau ? '<span class="programme-badge">Nouveau</span>' : ""}
+            ${etoilesMarkup(c.maitrise)}
+            <span class="programme-concept-action">${c.maitrise >= 3 ? "Rejouer" : "S'entraîner"}</span>
+          </button>
+        </li>`,
+        )
+        .join("")}
+    </ul>
+  `;
+  programmeZone.querySelectorAll(".programme-concept").forEach((button) => {
+    button.addEventListener("click", async () => {
+      programmeZone.classList.add("is-loading");
+      lessonStatus.textContent = "Préparation de ton entraînement...";
+      try {
+        await startConceptSession(state.selectedLevel, button.dataset.pattern);
+      } catch (error) {
+        lessonStatus.textContent = `Impossible de démarrer l'entraînement : ${error.message}`;
+      } finally {
+        programmeZone.classList.remove("is-loading");
+      }
+    });
+  });
 }
 
 /* Bouton de revision ciblee : affiche uniquement si des faiblesses sont
@@ -398,7 +461,10 @@ async function loadLessons(level) {
   lessonStatus.textContent = "Chargement des leçons...";
   const payload = await request(`/lecons/${level}`, { method: "GET" });
   state.availableLessons = payload.lecons || [];
-  if (!state.availableLessons.length) {
+  /* Programme de classe : null en essai libre ou pour une classe en acces
+     libre ; sinon les concepts que l'enseignant a ouverts. */
+  state.programme = payload.programme || null;
+  if (!state.availableLessons.length && !state.programme) {
     throw new Error("Aucune leçon disponible pour ce niveau.");
   }
   renderLessonChoices();
@@ -462,6 +528,23 @@ async function startSession(level, lessonId) {
     nom: lessonId,
   };
   enterSession(payload, lesson);
+}
+
+/* Entrainement sur UN concept du programme : la carte montre ce concept sous
+   plusieurs aspects (le backend choisit lesquels). */
+async function startConceptSession(level, pattern) {
+  const payload = await request("/session/demarrer_concept", {
+    method: "POST",
+    body: JSON.stringify({
+      niveau_scolaire: level,
+      pattern,
+      theme: window.ParcoursTheme?.getTheme?.(),
+    }),
+  });
+  enterSession(payload, {
+    lecon_id: payload.progression.lecon_id,
+    nom: payload.progression.lecon_nom,
+  });
 }
 
 /* Revision ciblee : meme jeu, mais la carte n'est faite que des concepts

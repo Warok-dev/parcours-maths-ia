@@ -430,6 +430,42 @@ class EtatSessionJeu(Base):
     maj_a: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
 
+class ProgrammeClasse(Base):
+    """Une classe qui SUIT LE PROGRAMME : ses eleves ne voient que les
+    concepts ouverts par l'enseignant (ConceptOuvert), dans l'ordre du
+    calendrier du ministere (data/programme.json). Sans ligne ici, la classe
+    reste en acces libre a toutes les lecons de son niveau (comportement
+    historique, inchange pour les classes deja creees)."""
+
+    __tablename__ = "programme_classe"
+
+    classe_id: Mapped[int] = mapped_column(
+        ForeignKey("classe.id", ondelete="CASCADE"), primary_key=True
+    )
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    date_maj: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+
+class ConceptOuvert(Base):
+    """Un concept (pattern_name) ouvert par l'enseignant pour toute sa classe."""
+
+    __tablename__ = "concept_ouvert"
+    __table_args__ = (
+        UniqueConstraint("classe_id", "pattern_name", name="uq_concept_ouvert_classe_pattern"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    classe_id: Mapped[int] = mapped_column(
+        ForeignKey("classe.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    pattern_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    date_ouverture: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
 class InvitationEnseignant(Base):
     """Invitation a rejoindre une ecole comme enseignant simple.
 
