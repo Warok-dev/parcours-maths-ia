@@ -1,6 +1,6 @@
-/* Tests du tresor du raccourci (tresor.js).
+/* Tests du tresor de l'excellence (tresor.js).
    Lancer avec : node test_tresor.js
-   Regle centrale : le tresor n'existe QUE sur la route courte. */
+   Regle centrale : le tresor n'existe QUE pour la maitrise 3. */
 const tresor = require("./tresor.js");
 
 let failures = 0;
@@ -22,32 +22,26 @@ function session(maitrise, extra = {}) {
   };
 }
 
-/* --- 1. Correspondance maitrise -> route (source unique, utilisee aussi
-       par le jeu (carte/) pour tracer le chemin reellement emprunte) --- */
+/* --- 1. LE test central : un tresor pour la maitrise 3, jamais ailleurs --- */
 {
-  check(tresor.routePourMaitrise(3) === "courte", "maitrise 3 -> route courte");
-  check(tresor.routePourMaitrise(2) === "moyenne", "maitrise 2 -> route moyenne");
-  check(tresor.routePourMaitrise(1) === "longue", "maitrise 1 -> route longue");
-  check(tresor.routePourMaitrise(0) === "moyenne", "maitrise inconnue -> route moyenne par defaut");
-  check(tresor.routePourMaitrise(undefined) === "moyenne", "maitrise absente -> route moyenne par defaut");
-  check(tresor.ROUTE_AVEC_TRESOR === "courte", "la route au tresor est la courte");
-}
-
-/* --- 2. LE test central : un tresor sur la courte, jamais sur les autres --- */
-{
-  check(tresor.tresorSurRoute(3) === true, "route courte (maitrise 3) : tresor");
-  check(tresor.tresorSurRoute(2) === false, "route moyenne (maitrise 2) : AUCUN tresor");
-  check(tresor.tresorSurRoute(1) === false, "route longue (maitrise 1) : AUCUN tresor");
+  check(tresor.tresorPourMaitrise(3) === true, "maitrise 3 (chaine parfaite) : tresor");
+  check(tresor.tresorPourMaitrise(2) === false, "maitrise 2 : AUCUN tresor");
+  check(tresor.tresorPourMaitrise(1) === false, "maitrise 1 : AUCUN tresor");
+  check(tresor.MAITRISE_AVEC_TRESOR === 3, "seule la maitrise 3 est recompensee");
 
   /* Aucune autre valeur de maitrise ne doit ouvrir une porte derobee. */
   const autres = [undefined, null, 0, 4, 99, -1, "3", 2.5];
   check(
-    autres.every((maitrise) => tresor.tresorSurRoute(maitrise) === false),
+    autres.every((maitrise) => tresor.tresorPourMaitrise(maitrise) === false),
     `aucune maitrise inattendue ne donne de tresor (${autres.length} cas testes)`,
   );
+}
+
+/* --- 2. Le tresor se pose AVANT l'unique fanion bonus (50 % du trace) --- */
+{
   check(
-    Object.entries(tresor.ROUTE_PAR_MAITRISE).filter(([, r]) => r === tresor.ROUTE_AVEC_TRESOR).length === 1,
-    "une seule maitrise mene a la route au tresor",
+    tresor.FRACTION_SUR_ROUTE > 0 && tresor.FRACTION_SUR_ROUTE < 0.5,
+    "tresor place avant le fanion bonus, sans le chevaucher",
   );
 }
 
@@ -98,13 +92,9 @@ function session(maitrise, extra = {}) {
   );
 }
 
-/* --- 6. Bonus et placement --- */
+/* --- 6. Bonus --- */
 {
   check(tresor.BONUS === 50, "le bonus vaut 50 etoiles");
-  check(
-    tresor.FRACTION_SUR_ROUTE > 0.18 && tresor.FRACTION_SUR_ROUTE < 0.85,
-    "le tresor se pose entre les deux haltes d'entrainement (18 % et 85 %)",
-  );
 }
 
 console.log(`\n${total - failures}/${total} cas passent`);

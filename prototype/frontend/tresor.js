@@ -1,48 +1,34 @@
 /* ============================================================
-   TRESOR DE LA ROUTE COURTE
-   Recompense discrete de l'excellence : un petit coffre pose sur
-   le raccourci, celui qu'on n'emprunte QUE lorsque la maitrise 3
-   est detectee. Les routes moyenne (maitrise 2) et longue
-   (maitrise 1) n'en portent jamais.
+   TRESOR DE L'EXCELLENCE
+   Recompense discrete de la chaine parfaite : quand la maitrise 3
+   est detectee (guide, semi-guide et autonome reussis du premier
+   coup), le renforcement se reduit a UN exercice bonus et un petit
+   coffre est pose sur le chemin, juste avant ce fanion. Les
+   maitrises 1 et 2 n'en ont jamais.
 
    Ce module ne contient que la regle, sans DOM ni geometrie : le
-   trace et le rendu restent a le jeu (carte/), qui possede la scene. La
-   table ROUTE_PAR_MAITRISE est la SEULE source de verite du lien
-   maitrise -> route, utilisee aussi bien pour dessiner le chemin
-   que pour decider du tresor : impossible que le test valide une
-   route que le rendu n'emprunte pas.
+   trace et le rendu restent dans carte/monde.js, qui possede la
+   scene.
    ============================================================ */
 (function () {
-  /* Miroir de reinforcementRouteD (le jeu (carte/)) et de REINFORCEMENT_BY_MASTERY
-     cote backend : 3 = raccourci, 2 = route principale, 1 = grand detour. */
-  const ROUTE_PAR_MAITRISE = { 1: "longue", 2: "moyenne", 3: "courte" };
-  const ROUTE_PAR_DEFAUT = "moyenne";
-  /* Une seule route porte un tresor, et c'est la plus courte. */
-  const ROUTE_AVEC_TRESOR = "courte";
+  /* Seule la maitrise 3 (autonome du premier coup) gagne un tresor. */
+  const MAITRISE_AVEC_TRESOR = 3;
   const BONUS = 50;
-  /* Position le long du trace : les haltes d'entrainement occupent 18 % et
-     85 %, le tresor se pose entre les deux, bien en vue. */
-  const FRACTION_SUR_ROUTE = 0.5;
+  /* Position le long du trace : l'unique fanion bonus est a 50 %, le
+     tresor se pose avant, sur le passage de l'eleve. */
+  const FRACTION_SUR_ROUTE = 0.3;
   /* Ramassage au contact : plus court que INTERACTION_DISTANCE (118), qui
      sert a ouvrir un exercice. Un tresor se cueille en marchant dessus. */
   const DISTANCE_RAMASSAGE = 52;
 
-  /* Le type est verifie, pas seulement la valeur : les cles d'objet etant
-     des chaines en JS, un "3" venu d'ailleurs decrocherait sinon la route
-     courte -- et son tresor -- par simple coercition. */
-  function routePourMaitrise(maitrise) {
-    if (typeof maitrise !== "number") {
-      return ROUTE_PAR_DEFAUT;
-    }
-    return ROUTE_PAR_MAITRISE[maitrise] || ROUTE_PAR_DEFAUT;
-  }
-
-  function tresorSurRoute(maitrise) {
-    return routePourMaitrise(maitrise) === ROUTE_AVEC_TRESOR;
+  /* Le type est verifie, pas seulement la valeur : un "3" venu d'ailleurs
+     ne doit pas decrocher le tresor par simple coercition. */
+  function tresorPourMaitrise(maitrise) {
+    return typeof maitrise === "number" && maitrise === MAITRISE_AVEC_TRESOR;
   }
 
   /* Un tresor par troncon de concept : la cle suffit a empecher qu'un
-     aller-retour sur la meme route le fasse reapparaitre. */
+     aller-retour sur le meme troncon le fasse reapparaitre. */
   function cleTresor(session) {
     if (!session || typeof session.concept_index !== "number") {
       return null;
@@ -66,7 +52,7 @@
     if (session.phase !== "renforcement") {
       return false;
     }
-    if (!tresorSurRoute(session.maitrise_actuelle)) {
+    if (!tresorPourMaitrise(session.maitrise_actuelle)) {
       return false;
     }
     return !estRamasse(session, ramasses);
@@ -77,13 +63,11 @@
   }
 
   const api = {
-    ROUTE_PAR_MAITRISE,
-    ROUTE_AVEC_TRESOR,
+    MAITRISE_AVEC_TRESOR,
     BONUS,
     FRACTION_SUR_ROUTE,
     DISTANCE_RAMASSAGE,
-    routePourMaitrise,
-    tresorSurRoute,
+    tresorPourMaitrise,
     cleTresor,
     estRamasse,
     tresorDisponible,

@@ -27,14 +27,13 @@ function branchGeometry(scene, obstacleIndex) {
   return window.ParcoursWorld.branchGeometry(scene, obstacleIndex);
 }
 
-/* Chemin de renforcement : UN SEUL trace continu, le troncon principal entre
-   l'obstacle courant et le suivant, quelle que soit la maitrise. Il n'y a plus
-   de variantes visuelles courte/moyenne/longue (elles semaient la confusion et
-   causaient des bugs) : seul le NOMBRE de haltes varie selon la maitrise
-   (REINFORCEMENT_TOTALS), pas le trace. Le mastery en 2e argument est ignore,
-   conserve pour ne pas casser les appels existants. */
-function reinforcementRouteD(geometry) {
-  return geometry.medium;
+/* Chemin de renforcement : UN SEUL trace continu entre l'obstacle courant et
+   le suivant, quelle que soit la maitrise. Seul le NOMBRE de haltes varie
+   (REINFORCEMENT_TOTALS). */
+function reinforcementPath(geometry) {
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", geometry.d);
+  return path;
 }
 
 /* ============================================================
@@ -55,8 +54,7 @@ function computeReinforcementStops() {
     return null;
   }
 
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("d", reinforcementRouteD(geometry, mastery));
+  const path = reinforcementPath(geometry);
   const length = path.getTotalLength();
   if (!length) {
     return null;
@@ -99,10 +97,9 @@ function stopIconSvg() {
 
 /* ============================================================
    TRESOR (recompense d'excellence)
-   Accorde a la maitrise 3 uniquement (regle dans tresor.js) et pose
-   sur l'unique chemin de renforcement -- il n'y a plus de "raccourci"
-   visuel, mais l'excellence reste recompensee. Ici on ne fait que le
-   placer sur le trace et le ramasser.
+   Accorde a la maitrise 3 uniquement (regle dans tresor.js), pose sur
+   le chemin AVANT l'unique fanion bonus : l'eleve le ramasse en
+   marchant. Ici on ne fait que le placer sur le trace et le ramasser.
    ============================================================ */
 function computeTreasure() {
   if (!state.scene || !window.ParcoursTresor?.tresorDisponible(state.session, state.treasuresCollected)) {
@@ -112,8 +109,7 @@ function computeTreasure() {
   if (!geometry) {
     return null;
   }
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("d", reinforcementRouteD(geometry, state.session.maitrise_actuelle));
+  const path = reinforcementPath(geometry);
   const length = path.getTotalLength();
   if (!length) {
     return null;
@@ -226,7 +222,7 @@ function collectTreasure() {
   addScore(window.ParcoursTresor.BONUS);
   spawnTreasureFx(x, y, window.ParcoursTresor.BONUS);
   window.ParcoursAudio?.playUnlock();
-  setFeedback(`Trésor du raccourci ! +${window.ParcoursTresor.BONUS} étoiles`, "success");
+  setFeedback(`Trésor de l’excellence ! +${window.ParcoursTresor.BONUS} étoiles`, "success");
 }
 
 /* Scintillement + "+50" qui monte et s'efface. Le calque d'effets est

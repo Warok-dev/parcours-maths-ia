@@ -21,7 +21,7 @@
    `monter` affiche le jeu dans `zone` ; il appelle `terminer(bonus)`
    quand c'est fini (ou quitte), et peut retourner une fonction de
    nettoyage. Le `bonus` (optionnel) n'alimente QUE le score cosmetique
-   (etoiles de garde-robe), comme le tresor du raccourci -- jamais la
+   (etoiles de garde-robe), comme le tresor de l'excellence -- jamais la
    maitrise ni la progression.
    ============================================================ */
 (function () {

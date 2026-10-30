@@ -21,7 +21,7 @@
   /* Couleurs du corps. Les valeurs pointent vers la palette du systeme de
      design : aucune couleur ad hoc n'est introduite ici.
      `teinte` reprend la valeur de la variable CSS (miroir de :root, comme
-     REINFORCEMENT_TOTALS l'est du backend dans le jeu (carte/)) : elle sert au calcul
+     REINFORCEMENT_TOTALS l'est du backend dans carte/etat.js) : elle sert au calcul
      de contraste avec le decor, qui doit rester pur et testable. */
   /* Seuils d'etoiles CUMULEES (jamais une depense) pour debloquer chaque
      couleur. Calibres pour que completer TOUT le catalogue (couleurs +

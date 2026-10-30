@@ -35,9 +35,10 @@ const SCENE_IDLE_DELAY_MS = 700;
 /* Positions/ordre des obstacles et tracé du chemin : desormais procéduraux,
    generes par world.js a partir de la graine de session (state.mapSeed). */
 const RIVER_HALF_HEIGHT = 62;
-/* Miroir de REINFORCEMENT_BY_MASTERY cote backend : nombre total de points
-   d'arret sur la route de renforcement selon la maitrise detectee. */
-const REINFORCEMENT_TOTALS = { 1: 4, 2: 3, 3: 2 };
+/* Miroir de REINFORCEMENT_PLAN cote backend (main.py) : nombre de fanions
+   d'entrainement selon la maitrise detectee. Maitrise 1 -> 3 exercices en
+   semi-guide, 2 -> 2 en autonome, 3 -> 1 exercice bonus (avec le tresor). */
+const REINFORCEMENT_TOTALS = { 1: 3, 2: 2, 3: 1 };
 
 const LESSON_ICONS = {
   addition: "+",
@@ -118,7 +119,7 @@ const state = {
   selectedLesson: null,
   assignations: [], /* travaux assignes en attente (eleve connecte) */
   reinforcement: null,
-  /* Tresor du raccourci courant, et cles de ceux deja ramasses dans cette
+  /* Tresor de l'excellence courant, et cles de ceux deja ramasses dans cette
      session (persistees avec la reference de session : un rechargement ne
      doit pas les faire repousser). */
   treasure: null,

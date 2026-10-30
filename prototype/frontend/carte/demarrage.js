@@ -210,7 +210,7 @@ window.ParcoursApp = {
     majControlesTactiles();
   },
   /* Bonus purement cosmetique d'un mini-jeu : alimente les memes etoiles
-     que le tresor du raccourci (garde-robe), jamais la maitrise ni la
+     que le tresor de l'excellence (garde-robe), jamais la maitrise ni la
      progression pedagogique. */
   ajouterBonusCosmetique: (points) => addScore(points),
   /* Personnalisation : le dessin du personnage et son rafraichissement sur
