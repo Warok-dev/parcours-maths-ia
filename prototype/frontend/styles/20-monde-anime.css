@@ -261,21 +261,6 @@
   50% { opacity: 0.35; }
 }
 
-/* La riviere coule : les vagues glissent d'un motif (26 + 34 = 60 px de
-   pointilles), en transform, pour une boucle sans raccord visible. */
-.river-wave {
-  animation: courant 2.8s linear infinite;
-}
-
-.river-wave + .river-wave {
-  animation-duration: 3.6s;
-}
-
-@keyframes courant {
-  from { transform: translateX(0); }
-  to { transform: translateX(60px); }
-}
-
 /* Lanternes qui vacillent et fanions du chateau dans le vent. */
 .lantern-glass {
   animation: vacille 2.3s ease-in-out infinite;
@@ -298,46 +283,16 @@
 }
 
 /* ---------- Le ciel au-dessus de la carte ----------
-   Calque HTML (index.html, #ciel-anime) pose sur la carte : ombres de
-   nuages qui glissent et vols d'oiseaux. Animes en transform sur leur
-   propre couche, ils ne redessinent jamais la carte. */
+   Calque HTML (index.html, #ciel-anime) pose sur la carte : des vols
+   d'oiseaux, petits calques animes en transform. (Des ombres de nuages
+   plein ecran ont ete essayees puis retirees : sur un ecran 1440p elles
+   faisaient chuter la carte sous 20 images/s pendant la marche.) */
 .ciel-anime {
   position: absolute;
   inset: 0;
   z-index: 2;
   overflow: hidden;
   pointer-events: none;
-}
-
-.nuage-ombre {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 46vmax;
-  height: 30vmax;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(40, 60, 40, 0.16), rgba(40, 60, 40, 0.08) 60%, transparent);
-  will-change: transform;
-  animation: nuageGlisse 70s linear infinite;
-}
-
-.nuage-ombre.n2 {
-  width: 34vmax;
-  height: 22vmax;
-  animation-duration: 95s;
-  animation-delay: -40s;
-}
-
-.nuage-ombre.n3 {
-  width: 56vmax;
-  height: 34vmax;
-  animation-duration: 120s;
-  animation-delay: -85s;
-}
-
-@keyframes nuageGlisse {
-  0% { transform: translate(-60vmax, 10vh); }
-  100% { transform: translate(110vw, 55vh); }
 }
 
 .vol-oiseaux {
@@ -409,7 +364,6 @@ body[data-perf="econome"] #map .npc-outil,
 body[data-perf="econome"] #map .npc-plumet,
 body[data-perf="econome"] #map .npc-main-droite,
 body[data-perf="econome"] #map .pond-glint,
-body[data-perf="econome"] #map .river-wave,
 body[data-perf="econome"] #map .lantern-glass,
 body[data-perf="econome"] #map .castle-banner,
 body[data-perf="econome"] #map .collectible-float,

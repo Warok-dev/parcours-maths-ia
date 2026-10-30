@@ -93,7 +93,14 @@
       const b = o.ri(1, a - 1);
       return carte(`${a} − ${b}`, a - b);
     },
-    table(o) {
+    /* Le signe × n'arrive qu'au CE2 (programme P4) : au CE1, la meme idee
+       s'ecrit en addition repetee, comme dans les seances du ministere. */
+    table(o, r) {
+      if (r <= 1) {
+        const terme = o.ri(2, 5);
+        const fois = o.ri(2, 4);
+        return carte(Array(fois).fill(terme).join(" + "), terme * fois, { pas: terme });
+      }
       const a = o.ri(2, 9);
       const b = o.ri(2, 9);
       return carte(`${a} × ${b}`, a * b, { pas: a });
@@ -107,10 +114,12 @@
       const b = o.ri(2, 9) * 10;
       return carte(`${a} × ${b}`, a * b, { pas: 10 });
     },
-    division(o) {
-      const b = o.ri(2, 9);
-      const q = o.ri(2, 9);
-      return carte(`${b * q} ÷ ${b}`, q);
+    /* Le signe ÷ n'est pas au programme du CE1/CE2 : on y dit « partagé
+       en » (partage egal, seances التوزيع بالتساوي). */
+    division(o, r) {
+      const b = o.ri(2, r <= 1 ? 4 : 9);
+      const q = o.ri(2, r <= 1 ? 5 : 9);
+      return r <= 2 ? carte(`${b * q} partagé en ${b}`, q, { liaison: " → " }) : carte(`${b * q} ÷ ${b}`, q);
     },
     moitie(o) {
       const n = o.ri(2, 30) * 2;
@@ -260,9 +269,11 @@
       return carte(`aire d'un rectangle ${a} cm × ${b} cm`, a * b, { unite: " cm²", pas: a });
     },
     monnaie(o) {
-      const billets = o.ri(1, 4);
-      const pieces = o.ri(1, 9);
-      return carte(`${billets} × 10 DH + ${pieces} × 1 DH`, billets * 10 + pieces, { unite: " DH" });
+      const tas = [];
+      const n = o.ri(2, 4);
+      for (let i = 0; i < n; i += 1) tas.push(o.un([1, 2, 5, 10, 10, 20]));
+      tas.sort((x, y) => y - x);
+      return carte(tas.map((v) => `${v} DH`).join(" + "), tas.reduce((x, y) => x + y, 0), { unite: " DH" });
     },
     arrondi(o) {
       const n = o.ri(11, 99) + o.ri(1, 9) / 10;

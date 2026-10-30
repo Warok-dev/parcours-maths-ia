@@ -39,10 +39,10 @@
   /* ---------- Moniteur d'images (pur) ----------
      On lui donne la duree de chaque image (ms) PENDANT LE JEU. Il repond
      true une seule fois si le jeu rame durablement : mediane d'une fenetre
-     glissante au-dessus du seuil (34 ms = moins de ~30 images/s), sur
-     plusieurs fenetres d'affilee. Les trous (onglet cache, chargement) au
+     glissante au-dessus du seuil (24 ms = moins de ~40 images/s : une
+     saccade nette sur un ecran a 60 Hz), sur 2 fenetres d'affilee (~3 s). Les trous (onglet cache, chargement) au
      dela de 250 ms sont ignores : ce n'est pas de la lenteur d'animation. */
-  function creerMoniteur({ seuilMs = 34, taille = 90, fenetresLentes = 3 } = {}) {
+  function creerMoniteur({ seuilMs = 24, taille = 60, fenetresLentes = 2 } = {}) {
     let images = [];
     let lentesDAffilee = 0;
     let declenche = false;

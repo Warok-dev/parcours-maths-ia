@@ -66,9 +66,13 @@ function propsMarkup(scene) {
   const brins = econome ? [] : decor.brins || [];
   /* Arbres dans le vent (mode vivant) : un groupe interieur ondule, le
      groupe exterieur garde le placement (meme motif que le decor vivant). */
-  const arbre = (p, dessin, periode) => {
+  /* Un arbre sur trois seulement : chaque arbre anime oblige le navigateur a
+     redessiner sa zone de la carte a chaque image, et une carte compte des
+     dizaines d'arbres (mesure : 15 images/s en marchant sur ecran 1440p
+     quand ils ondulaient tous). Un sur trois suffit a donner du vent. */
+  const arbre = (p, dessin, periode, i) => {
     const pos = `translate(${Number(p.x).toFixed(1)}, ${Number(p.y).toFixed(1)})`;
-    return econome
+    return econome || i % 3 !== 0
       ? `<g transform="${pos}">${dessin}</g>`
       : `<g transform="${pos}"><g class="sway" style="${decalageAnimation(p.x, p.y, periode)}">${dessin}</g></g>`;
   };
@@ -84,9 +88,9 @@ function propsMarkup(scene) {
     ${(decor.stumps || []).map((p) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.stump()}</g>`).join("")}
     ${decor.rocks.map((p) => `<g transform="translate(${p.x}, ${p.y})${uprightSuffix()}">${ASSETS.rock()}</g>`).join("")}
     ${decor.bushes.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.bush()}</g>`).join("")}
-    ${decor.trees.map((p) => arbre(p, ASSETS.tree(), 6)).join("")}
-    ${(decor.fruitTrees || []).map((p, i) => arbre(p, ASSETS.fruitTree(i), 6)).join("")}
-    ${(decor.pines || []).map((p) => arbre(p, ASSETS.pine(), 7)).join("")}
+    ${decor.trees.map((p, i) => arbre(p, ASSETS.tree(), 6, i)).join("")}
+    ${(decor.fruitTrees || []).map((p, i) => arbre(p, ASSETS.fruitTree(i), 6, i + 1)).join("")}
+    ${(decor.pines || []).map((p, i) => arbre(p, ASSETS.pine(), 7, i + 2)).join("")}
   `;
 }
 

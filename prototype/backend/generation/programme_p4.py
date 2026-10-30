@@ -112,27 +112,30 @@ def _decompositions(cible: int, max_pieces: int = 5) -> list[list[int]]:
 
 
 def generer_monnaie_echange(niveau: str = "CE1") -> dict:
-    """Quelles pieces ont la meme valeur qu'un billet ? (corpus : « ابادل »)."""
-    billet = random.choice(BILLETS)
-    bonnes = _decompositions(billet)
-    bonne = random.choice(bonnes)
+    """Quelles pieces ont la meme valeur qu'un billet ou qu'une piece ?
+    (corpus : « ابادل » -- echanger contre un billet de 20 ou de 50 DH).
+    La piece de 10 DH s'ajoute aux deux billets pour varier les cibles."""
+    cible = random.choice([10, 20, 20, 50, 50])
+    nom_cible = "une pièce de 10 DH" if cible == 10 else f"un billet de {cible} DH"
+    bonne = random.choice(_decompositions(cible))
+    texte_bonne = " + ".join(f"{v} DH" for v in bonne)
     fausses: list[str] = []
     while len(fausses) < 2:
         ecart = random.choice([-5, -2, -1, 1, 2, 5])
-        facons = _decompositions(billet + ecart)
+        facons = _decompositions(cible + ecart) if cible + ecart > 1 else []
         if not facons:
             continue
         texte = " + ".join(f"{v} DH" for v in random.choice(facons))
-        if texte not in fausses:
+        if texte not in fausses and texte != texte_bonne:
             fausses.append(texte)
-    texte_bonne = " + ".join(f"{v} DH" for v in bonne)
+    groupe = "pièces et billets" if any("20 DH" in t for t in (texte_bonne, *fausses)) else "pièces"
     return _qcm(
         niveau, "monnaie_echange",
-        f"Quel groupe de pièces a la même valeur qu'un billet de {billet} DH ?",
-        texte_bonne, fausses, {"billet": billet},
+        f"Quel groupe de {groupe} a la même valeur qu'{nom_cible} ?",
+        texte_bonne, fausses, {"billet": cible},
         [
-            "Calcule la valeur de chaque groupe de pièces.",
-            f"{texte_bonne} = {billet} DH : on peut l'échanger contre le billet.",
+            "Calcule la valeur de chaque groupe, en commençant par la plus grande.",
+            f"{texte_bonne} = {cible} DH : on peut l'échanger contre {nom_cible}.",
         ],
     )
 

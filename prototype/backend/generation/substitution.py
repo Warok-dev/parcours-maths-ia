@@ -58,9 +58,15 @@ def _source_files(pattern_def: dict) -> list[str]:
 
 
 def _exercise_signature(exercice: dict) -> str:
+    """Ce qui distingue deux exercices pour l'eleve. L'ordre des options d'un
+    QCM est tire au hasard : on l'ignore et on garde la BONNE REPONSE, sinon
+    deux QCM identiques (« 10 DH + 10 DH + 10 DH + 10 DH + 10 DH » deux fois
+    de suite) passaient pour differents et le dedoublonnage ne servait a rien."""
+    variables = {k: v for k, v in (exercice.get("variables") or {}).items() if k != "options"}
     signature = {
         "pattern_name": exercice["pattern"]["pattern_name"],
-        "variables": exercice["variables"],
+        "variables": variables,
+        "reponse": (exercice.get("reponse_attendue") or {}).get("valeur"),
     }
     return json.dumps(signature, sort_keys=True, ensure_ascii=False)
 

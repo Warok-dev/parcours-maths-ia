@@ -101,6 +101,28 @@ for (const lecon of lecons) {
   check(contenu.nombre(3.7) === "3,7", "virgule decimale : 3,7");
 }
 
+/* --- 3b. Pas de signe que l'eleve n'a pas encore appris --- */
+/* Comme en jeu : seuls les concepts de la lecon disponibles a ce niveau
+   (session.concepts), d'apres les niveaux du catalogue. */
+const catalogue = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "pattern_catalog.json"), "utf8"));
+const niveauxDe = {};
+for (const p of [...catalogue.pure_substitution_patterns, ...catalogue.llm_required_patterns]) niveauxDe[p.pattern_name] = p.levels;
+for (const lecon of lecons) {
+  for (const [niveau, interdits] of [["CE1", /[×÷]/], ["CE2", /÷/]]) {
+    const concepts = lecon.patterns.filter((p) => (niveauxDe[p] || []).includes(`N${niveau[2]}`));
+    if (!concepts.length) continue;
+    for (let s = 1; s <= 8; s += 1) {
+      for (const i of contenu.itemsPourConcepts(concepts, niveau, graine(s * 7), 6)) {
+        check(!interdits.test(i.question + i.reponse), `${lecon.lecon_id}/${niveau} : pas de « ${interdits.source} » (${i.question})`);
+      }
+    }
+  }
+}
+for (const niveau of ["CE1", "CE2"]) {
+  const cartes = contenu.itemsPourConcepts(["monnaie_valeur", "monnaie_echange"], niveau, graine(5), 6);
+  check(cartes.every((c) => !/×/.test(c.question)), `monnaie ${niveau} : pieces additionnees, sans ×`);
+}
+
 /* --- 4. Repli : lecon vide ou inconnue -> calcul de l'age, jamais vide --- */
 {
   const ce1 = contenu.itemsPourConcepts([], "CE1", graine(3), 6);

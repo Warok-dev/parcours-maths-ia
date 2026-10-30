@@ -85,6 +85,16 @@ class CalculsJustesTests(unittest.TestCase):
         self.assertNotIn([20], _decompositions(20), "jamais le billet seul")
         self.assertTrue(all(2 <= len(t) <= 5 for t in _decompositions(50)))
 
+    def test_qcm_jamais_la_meme_reponse_deux_fois_de_suite(self) -> None:
+        """Signale en test : « 10 DH + 10 DH + 10 DH + 10 DH + 10 DH » deux
+        exercices d'affilee. L'ordre des options ne suffit plus a faire deux
+        exercices differents."""
+        for pattern in ("monnaie_echange", "heure_ecrite", "decimal_ranger", "symetrie_lettre"):
+            niveau = _niveaux(pattern)[0]
+            reponses = [substitution.generer_exercice(pattern, niveau)["reponse_attendue"]["valeur"] for _ in range(200)]
+            repetitions = sum(1 for a, b in zip(reponses, reponses[1:]) if a == b)
+            self.assertEqual(repetitions, 0, pattern)
+
     def test_partage_et_groupement(self) -> None:
         for niveau in ("CE1", "CE2"):
             for ex in _beaucoup("partage_equitable", niveau):
