@@ -6,14 +6,14 @@
    (maitrise 1) n'en portent jamais.
 
    Ce module ne contient que la regle, sans DOM ni geometrie : le
-   trace et le rendu restent a map.js, qui possede la scene. La
+   trace et le rendu restent a le jeu (carte/), qui possede la scene. La
    table ROUTE_PAR_MAITRISE est la SEULE source de verite du lien
    maitrise -> route, utilisee aussi bien pour dessiner le chemin
    que pour decider du tresor : impossible que le test valide une
    route que le rendu n'emprunte pas.
    ============================================================ */
 (function () {
-  /* Miroir de reinforcementRouteD (map.js) et de REINFORCEMENT_BY_MASTERY
+  /* Miroir de reinforcementRouteD (le jeu (carte/)) et de REINFORCEMENT_BY_MASTERY
      cote backend : 3 = raccourci, 2 = route principale, 1 = grand detour. */
   const ROUTE_PAR_MAITRISE = { 1: "longue", 2: "moyenne", 3: "courte" };
   const ROUTE_PAR_DEFAUT = "moyenne";

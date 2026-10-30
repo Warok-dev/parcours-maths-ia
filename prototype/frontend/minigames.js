@@ -1176,7 +1176,7 @@
   /* ============================================================
      MINI-JEU : LE PUZZLE DE LA CARTE
      ------------------------------------------------------------
-     Une fresque du monde (chateau, route, decor -- reutilisee de map.js via
+     Une fresque du monde (chateau, route, decor -- reutilisee de le jeu (carte/) via
      ParcoursApp.fresqueMondeMarkup) decoupee en grille 3x3. PARTICULARITE :
      la progression est PERSISTANTE d'une session a l'autre (localStorage,
      comme le carnet). A chaque declenchement on debloque UNE piece de plus ;
@@ -1957,7 +1957,7 @@
   });
 
   const api = {
-    /* Appele par map.js apres un correct_concept_debloque OU en fin de carte
+    /* Appele par le jeu (carte/) apres un correct_concept_debloque OU en fin de carte
        (carte_terminee), avec le niveau scolaire et le nombre total de concepts
        de la carte (pour l'eligibilite, l'adaptation par age et l'assouplissement
        de la garde sur les cartes courtes). */
@@ -1970,7 +1970,7 @@
     estActif() {
       return orchestrateurReel.getPhase() !== "repos";
     },
-    /* A appeler par map.js au demarrage d'un nouveau parcours : remet a zero
+    /* A appeler par le jeu (carte/) au demarrage d'un nouveau parcours : remet a zero
        l'espacement des propositions (le declencheur etant un singleton). */
     reinitialiserParcours() {
       orchestrateurReel.reinitialiser();

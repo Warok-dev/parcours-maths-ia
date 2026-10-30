@@ -6,7 +6,7 @@
    liste : c'est une photo a jour des points faibles, pas un
    historique qui s'accumule.
    Alimente le bouton "Revoir mes points faibles" de l'ecran de choix
-   de lecon (rendu par map.js) et donc le pool de la session de
+   de lecon (rendu par le jeu (carte/)) et donc le pool de la session de
    revision ciblee.
    Le coeur (pur, sans stockage) s'exporte en Node pour les tests
    (test_faiblesses.js).

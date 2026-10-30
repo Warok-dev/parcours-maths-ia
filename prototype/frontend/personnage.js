@@ -9,7 +9,7 @@
    (--player-shirt / --player-shirt-dark) : le jeton sur la carte
    et l'apercu de cet ecran suivent automatiquement.
    Les accessoires sont injectes dans le dessin du personnage
-   (ASSETS.player de map.js) en deux couches : derriere le corps
+   (ASSETS.player de le jeu (carte/)) en deux couches : derriere le corps
    (cape) et devant (chapeau, lunettes, badge).
 
    Le coeur (catalogue, seuils, selection) est pur et s'exporte en
@@ -21,7 +21,7 @@
   /* Couleurs du corps. Les valeurs pointent vers la palette du systeme de
      design : aucune couleur ad hoc n'est introduite ici.
      `teinte` reprend la valeur de la variable CSS (miroir de :root, comme
-     REINFORCEMENT_TOTALS l'est du backend dans map.js) : elle sert au calcul
+     REINFORCEMENT_TOTALS l'est du backend dans le jeu (carte/)) : elle sert au calcul
      de contraste avec le decor, qui doit rester pur et testable. */
   /* Seuils d'etoiles CUMULEES (jamais une depense) pour debloquer chaque
      couleur. Calibres pour que completer TOUT le catalogue (couleurs +
@@ -240,7 +240,7 @@
     };
   }
 
-  /* Markup injecte par ASSETS.player() (map.js), couche par couche. */
+  /* Markup injecte par ASSETS.player() (le jeu (carte/)), couche par couche. */
   function markupAccessoire(couche, etat) {
     const item = apparence(etat || charger()).accessoire;
     return (item && item[couche]) || "";

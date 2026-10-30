@@ -1,0 +1,899 @@
+/* styles/08-mini-jeux.css — Mini-jeux : invitation, chasse, memory, puzzle, jardin.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   MINI-JEUX : proposition de pause + ecran du mini-jeu
+   ============================================================ */
+
+/* --- La proposition : meme carte que le bilan, ton festif --- */
+.minigame-invite-overlay {
+  z-index: 59; /* au-dessus du bilan, sous le carnet/personnage */
+}
+
+.minigame-invite-card {
+  text-align: center;
+  border-top-color: var(--sky, #3d9cd4);
+}
+
+.minigame-invite-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--road-dark);
+}
+
+.minigame-invite-emoji {
+  font-size: 2.8rem;
+  line-height: 1;
+  margin: 4px 0 6px;
+  animation: minigameBob 1.8s ease-in-out infinite;
+}
+
+.minigame-invite-title {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  color: var(--ink);
+}
+
+.minigame-invite-text {
+  margin: 0 0 18px;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.minigame-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* --- L'ecran du mini-jeu : zone plein cadre, distincte de la carte --- */
+.minigame-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 61; /* au-dessus de tout le HUD de la carte */
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto; /* grilles hautes (memory) : jamais tronquees */
+  /* Fond franchement different de la carte : ciel nocturne ludique, pour
+     bien signaler qu'on a quitte l'aventure le temps d'une pause. */
+  background: radial-gradient(circle at 50% 20%, #3a4d8c, #22305f 60%, #161f42);
+}
+
+.minigame-stage {
+  width: min(640px, 100%);
+  min-height: min(60vh, 420px);
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-radius: 24px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- Placeholder "Mini-jeu a venir" --- */
+.minigame-placeholder {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+  color: var(--cream);
+}
+
+.minigame-placeholder-emoji {
+  font-size: 4rem;
+  line-height: 1;
+  animation: minigameBob 1.8s ease-in-out infinite;
+}
+
+.minigame-placeholder-title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.minigame-placeholder-text {
+  margin: 0;
+  max-width: 380px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(251, 243, 231, 0.82);
+}
+
+@keyframes minigameBob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* --- Mini-jeu : la chasse aux nombres --- */
+.chasse {
+  position: relative;
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+
+.chasse-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.chasse-cible {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chasse-cible-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cream);
+  opacity: 0.85;
+}
+
+.chasse-cible-valeur {
+  display: grid;
+  place-items: center;
+  min-width: 54px;
+  height: 54px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: var(--gold);
+  border: 3px solid var(--gold-dark);
+  color: var(--wood-dark);
+  font-size: 1.9rem;
+  font-weight: 700;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
+}
+
+.chasse-compteur {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--cream);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chasse-timer {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.chasse-timer-bar {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(1);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--grass-light), var(--gold) 70%, var(--road));
+}
+
+.chasse-aire {
+  width: 100%;
+  aspect-ratio: 640 / 420;
+  max-height: 58vh;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  touch-action: manipulation;
+}
+
+.chasse-nombre {
+  cursor: pointer;
+}
+
+.chasse-nombre-inner {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.chasse-nombre-bulle {
+  fill: var(--cream);
+  stroke: var(--wood);
+  stroke-width: 3;
+  transition: fill 0.12s ease;
+}
+
+.chasse-nombre:hover .chasse-nombre-bulle {
+  fill: #ffffff;
+}
+
+.chasse-nombre-texte {
+  font-family: "Fredoka", "Segoe UI", sans-serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  fill: var(--ink);
+  pointer-events: none;
+  user-select: none;
+}
+
+.chasse-nombre.trouve .chasse-nombre-inner {
+  animation: chassePop 0.26s ease-out forwards;
+}
+
+.chasse-nombre.rate .chasse-nombre-inner {
+  animation: chasseRate 0.3s ease;
+}
+
+@keyframes chassePop {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  40% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes chasseRate {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/* Ecran de fin : superpose l'aire, message positif quel que soit le score */
+.chasse-fin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(22, 31, 66, 0.7);
+}
+
+.chasse-fin-carte {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 26px 30px;
+  text-align: center;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chasse-fin-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.chasse-fin-titre {
+  margin: 0;
+  font-size: 1.6rem;
+  color: var(--ink);
+}
+
+.chasse-fin-detail {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.chasse-fin-bonus {
+  margin: 2px 0 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
+/* --- Mini-jeu : le memory des tables --- */
+.memory {
+  position: relative;
+  width: 100%;
+  display: grid;
+  gap: 16px;
+}
+
+.memory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.memory-consigne {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.9);
+}
+
+.memory-compteur {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--cream);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.memory-grille {
+  display: grid;
+  /* Colonnes plafonnees (jamais > 128px) et compressibles (min 0) : la grille
+     tient toujours dans la zone de jeu, meme pour la variante la plus large
+     (8 paires = 16 cartes), sans jamais deborder a droite ni couper une
+     colonne. `minmax(0, ...)` autorise la compression sous la taille du
+     contenu ; le plafond evite des cartes geantes sur un conteneur large. */
+  /* Colonnes adaptees au nombre de cartes (--memory-cols pose par minigames.js)
+     pour que la grille soit toujours pleine, sans cellule vide en bout de
+     rangee : 12 cartes -> 4 col, 14 -> 7, 16 -> 4. Repli sur 4. */
+  grid-template-columns: repeat(var(--memory-cols, 4), minmax(0, 128px));
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+}
+
+.memory-carte {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 3px solid var(--wood);
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: "Fredoka", "Segoe UI", sans-serif;
+  font-weight: 700;
+  /* Dos de carte : motif bois/creme, sobre. */
+  background: linear-gradient(160deg, #6a86c4, #43589a 60%, #33447d);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+  transition: transform 0.12s ease, background 0.18s ease;
+}
+
+.memory-carte:hover {
+  transform: translateY(-2px);
+}
+
+.memory-carte-dos {
+  font-size: 1.8rem;
+  color: rgba(251, 243, 231, 0.85);
+}
+
+.memory-carte-face {
+  display: none;
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+
+/* Carte retournee ou trouvee : on montre la face creme, on cache le dos. */
+.memory-carte.retournee,
+.memory-carte.trouvee {
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 78%, var(--cream-dark));
+  animation: memoryFlip 0.22s ease-out;
+}
+
+.memory-carte.retournee .memory-carte-dos,
+.memory-carte.trouvee .memory-carte-dos {
+  display: none;
+}
+
+.memory-carte.retournee .memory-carte-face,
+.memory-carte.trouvee .memory-carte-face {
+  display: block;
+}
+
+.memory-carte.trouvee {
+  border-color: #2c8440;
+  box-shadow: 0 0 0 3px rgba(127, 209, 139, 0.55), 0 4px 0 rgba(0, 0, 0, 0.18);
+  cursor: default;
+  animation: memoryTrouve 0.4s ease-out;
+}
+
+.memory-carte:disabled {
+  cursor: default;
+}
+
+@keyframes memoryFlip {
+  0% {
+    transform: rotateY(80deg);
+  }
+  100% {
+    transform: rotateY(0);
+  }
+}
+
+@keyframes memoryTrouve {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.08);
+  }
+}
+
+/* Ecran de fin du memory : reprend la carte de fin de la chasse */
+.memory-fin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(22, 31, 66, 0.72);
+}
+
+.memory-fin-carte {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 26px 30px;
+  text-align: center;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.memory-fin-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.memory-fin-titre {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+
+.memory-fin-detail {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.memory-fin-bonus {
+  margin: 2px 0 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
+/* --- Mini-jeu : le puzzle de la carte --- */
+.puzzle {
+  position: relative;
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+
+.puzzle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.puzzle-consigne {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.9);
+}
+
+.puzzle-compteur {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--cream);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.puzzle-plateau {
+  display: grid;
+  gap: 16px;
+}
+
+/* Cadre du puzzle : grille de slots, garde le ratio de la fresque. */
+.puzzle-cadre {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-rows: repeat(var(--rows), 1fr);
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 3px solid rgba(255, 255, 255, 0.22);
+}
+
+.puzzle-slot {
+  position: relative;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  outline: 1px dashed rgba(255, 255, 255, 0.18);
+  outline-offset: -3px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.puzzle-slot.placee {
+  outline: none;
+  cursor: default;
+}
+
+.puzzle-slot.vient-de-placer {
+  animation: puzzleSnap 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.puzzle-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Bac de pieces melangees, sous le cadre. */
+.puzzle-bac {
+  min-height: 76px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 2px dashed rgba(255, 255, 255, 0.22);
+}
+
+.puzzle-piece {
+  width: 74px;
+  aspect-ratio: 5 / 4;
+  padding: 0;
+  border: 3px solid var(--wood);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #bfe6f5;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.22);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.puzzle-piece:hover {
+  transform: translateY(-2px);
+}
+
+.puzzle-piece.selectionnee {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(240, 184, 75, 0.6), 0 3px 0 rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Piece tout juste debloquee : petite pulsation pour attirer l'oeil. */
+.puzzle-piece.nouvelle {
+  animation: puzzleNouvelle 1.4s ease-in-out 2;
+}
+
+.puzzle-piece.rate {
+  animation: chasseRate 0.3s ease;
+}
+
+.puzzle-bac-vide {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.75);
+}
+
+.puzzle-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.puzzle-retour {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(251, 243, 231, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cream);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.puzzle-retour:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@keyframes puzzleSnap {
+  0% {
+    transform: scale(1.18);
+    filter: brightness(1.4);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes puzzleNouvelle {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(240, 184, 75, 0), 0 3px 0 rgba(0, 0, 0, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(240, 184, 75, 0.75), 0 3px 0 rgba(0, 0, 0, 0.22);
+  }
+}
+
+/* Ecran de fin du puzzle : la carte complete + celebration. */
+.puzzle-fin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(22, 31, 66, 0.74);
+}
+
+.puzzle-fin-carte {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px 26px;
+  text-align: center;
+  background: linear-gradient(180deg, #fffdf6, var(--cream) 72%, var(--cream-dark));
+  border: 4px solid var(--wood);
+  border-top: 10px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop);
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.puzzle-fin-image {
+  width: min(280px, 70vw);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 3px solid var(--wood);
+}
+
+.puzzle-fin-image svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.puzzle-fin-titre {
+  margin: 4px 0 0;
+  font-size: 1.4rem;
+  color: var(--ink);
+}
+
+.puzzle-fin-detail {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  max-width: 320px;
+}
+
+.puzzle-fin-bonus {
+  margin: 2px 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--road-dark);
+}
+
+/* --- Mini-jeu : la decoration (le petit jardin) --- */
+.deco {
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+
+.deco-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.deco-consigne {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(251, 243, 231, 0.9);
+}
+
+.deco-etoiles {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--gold);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* La scene : une pelouse ronde avec les emplacements et le personnage. */
+.deco-scene {
+  position: relative;
+  width: min(460px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+  border-radius: 20px;
+  background: radial-gradient(circle at 50% 40%, var(--grass-light), var(--grass) 78%);
+  border: 4px solid var(--grass-dark);
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.deco-grille {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.deco-spot {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.deco-spot:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.deco-spot.occupe {
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.deco-spot.vient-de-poser {
+  animation: puzzleSnap 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.deco-objet-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Le personnage personnalise, pose dans un coin du jardin. */
+.deco-perso {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  width: 58px;
+  height: 58px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.25));
+  pointer-events: none;
+}
+
+.deco-perso-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.deco-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: rgba(251, 243, 231, 0.82);
+}
+
+/* Reserve d'objets : debloques (cliquables) ou verrouilles (seuil affiche). */
+.deco-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 10px;
+}
+
+.deco-objet {
+  width: 78px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 3px solid var(--wood);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffdf6, var(--cream));
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.deco-objet .deco-objet-svg {
+  width: 44px;
+  height: 44px;
+}
+
+.deco-objet:hover {
+  transform: translateY(-2px);
+}
+
+.deco-objet.selectionne {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(240, 184, 75, 0.6);
+  transform: translateY(-2px);
+}
+
+.deco-objet.verrouille {
+  filter: grayscale(0.7);
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.deco-objet-nom {
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--ink);
+  text-align: center;
+}
+
+.deco-objet-verrou {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--road-dark);
+  white-space: nowrap;
+}
+
+.deco-gomme {
+  background: linear-gradient(180deg, #fffdf6, #f0e2cd);
+}
+
+.deco-gomme-icone {
+  font-size: 1.6rem;
+  line-height: 1;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--road-dark);
+}
+
+.deco-actions {
+  display: flex;
+  justify-content: center;
+}

@@ -1,0 +1,1114 @@
+/* styles/05-mecaniques.css — Mécaniques : planches, ordre, roue, balance, ligne, cadenas, horloge, graphiques, panier.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   MECANIQUES D'INTERACTION (planches, ligne, cadenas, panier)
+   ============================================================ */
+.mechanic-area {
+  display: grid;
+  gap: 10px;
+}
+
+.mech-hint {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* ----- Planches du pont ----- */
+.plank-slots,
+.plank-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.plank-slots {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(95, 159, 192, 0.18);
+  border: 3px dashed var(--water-dark);
+}
+
+.plank-slot,
+.plank-piece {
+  min-width: 54px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-family: var(--font-round);
+  font-size: 1.3rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plank-slot {
+  background: rgba(61, 44, 30, 0.12);
+  border: 3px dashed var(--wood);
+  color: var(--wood);
+}
+
+.plank-slot.filled {
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border: 3px solid var(--wood-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+}
+
+.plank-piece {
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border: 3px solid var(--wood-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+}
+
+.plank-piece:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.plank-piece:not(:disabled):hover,
+.plank-slot.filled:hover {
+  transform: translateY(-2px);
+}
+
+/* ----- Glisser-deposer en ordre ----- */
+.order-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(124, 182, 104, 0.16);
+  border: 3px dashed var(--grass-dark);
+}
+
+.order-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.order-slot,
+.order-piece {
+  min-width: 54px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-family: var(--font-round);
+  font-size: 1.3rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.order-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: rgba(61, 44, 30, 0.1);
+  border: 3px dashed var(--grass-dark);
+  color: var(--grass-dark);
+}
+
+.order-slot-rang {
+  font-size: 0.9rem;
+  opacity: 0.55;
+}
+
+.order-slot.rempli {
+  background: linear-gradient(180deg, var(--grass-light), var(--grass));
+  border: 3px solid var(--grass-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+}
+
+.order-piece {
+  background: linear-gradient(180deg, var(--grass-light), var(--grass));
+  border: 3px solid var(--grass-dark);
+  color: var(--cream);
+  box-shadow: var(--shadow-chip);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.order-piece.selectionne {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(240, 184, 75, 0.6), var(--shadow-chip);
+  transform: translateY(-2px);
+}
+
+.order-piece.placee {
+  opacity: 0.28;
+  cursor: default;
+  pointer-events: none;
+}
+
+.order-piece:not(.placee):hover,
+.order-slot.rempli:hover {
+  transform: translateY(-2px);
+}
+
+/* ----- Roue a tourner ----- */
+.mech-wheel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.roue-cadre {
+  position: relative;
+  width: min(280px, 74vw);
+  max-width: 280px;
+}
+
+.roue-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 18px rgba(61, 44, 30, 0.25));
+}
+
+/* Le plateau tourne via l'attribut SVG transform="rotate(angle)", pivot au
+   centre du viewBox (0,0) : aucune promotion de couche GPU, rendu stable. */
+.roue-secteur {
+  transition: filter 0.15s ease;
+}
+
+.roue-secteur.visee {
+  filter: brightness(1.12) saturate(1.15);
+}
+
+.roue-label {
+  font-family: var(--font-round);
+  font-size: 20px;
+  font-weight: 800;
+  fill: var(--cream);
+  paint-order: stroke;
+  stroke: rgba(61, 44, 30, 0.55);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+/* Repere fixe : fleche pointant vers le bas, en haut de la roue. */
+.roue-repere {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 15px solid transparent;
+  border-right: 15px solid transparent;
+  border-top: 26px solid var(--road-dark);
+  filter: drop-shadow(0 3px 3px rgba(61, 44, 30, 0.35));
+  z-index: 2;
+}
+
+.roue-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.roue-force-label {
+  font-family: var(--font-round);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.roue-force {
+  flex: 1 1 140px;
+  max-width: 200px;
+  accent-color: var(--road);
+  cursor: pointer;
+}
+
+.roue-spin {
+  cursor: pointer;
+}
+
+.roue-statut {
+  margin: 0;
+  min-height: 1.4em;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.roue-cadre {
+  touch-action: none; /* le glissement pilote la rotation, pas le scroll */
+}
+
+/* ----- Balance a equilibrer ----- */
+.mech-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.balance-svg {
+  width: min(320px, 82vw);
+  max-width: 320px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(61, 44, 30, 0.2));
+}
+
+.balance-beam {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.balance-pivot {
+  fill: var(--wood-dark);
+}
+
+.balance-socle {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.balance-string {
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.balance-bowl {
+  fill: var(--water-light);
+  stroke: var(--water-dark);
+  stroke-width: 3;
+}
+
+.balance-plate-val {
+  font-family: var(--font-round);
+  font-size: 22px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+
+.balance-plate-cap {
+  font-family: var(--font-round);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.balance-chip-disc {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.balance-chip-val {
+  font-family: var(--font-round);
+  font-size: 12px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+
+.balance-chip {
+  cursor: pointer;
+}
+
+.balance-chip:hover .balance-chip-disc {
+  filter: brightness(1.08);
+}
+
+.balance-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.balance-poids {
+  min-width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  font-family: var(--font-round);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  border: 3px solid var(--gold-dark);
+  box-shadow: var(--shadow-chip);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.balance-poids:hover {
+  transform: translateY(-2px);
+}
+
+.balance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+
+.balance-statut {
+  font-family: var(--font-round);
+  font-weight: 700;
+  color: var(--ink-soft);
+  min-height: 1.4em;
+  text-align: center;
+}
+
+.balance-statut.equilibre {
+  color: var(--success);
+}
+
+/* ----- Ligne numerique ----- */
+.mech-line {
+  padding: 12px 8px 8px;
+  border-radius: 14px;
+  background: rgba(124, 182, 104, 0.14);
+  border: 3px solid var(--grass-dark);
+  outline: none;
+}
+
+.mech-line:focus-visible {
+  border-color: var(--gold-dark);
+}
+
+.line-track {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 26px 4px 4px;
+  border-bottom: 5px solid var(--wood);
+  border-radius: 2px;
+}
+
+.line-tick {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 30px;
+  padding: 0 2px 4px;
+  background: transparent;
+  border: none;
+  font-family: var(--font-round);
+  cursor: pointer;
+}
+
+.line-notch {
+  width: 4px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--wood);
+}
+
+.line-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* Position a deviner d'une suite a trous : "?" au lieu de la valeur. */
+.line-label.masked {
+  color: var(--water);
+}
+
+/* Trou que l'eleve vient de completer : sa valeur, mise en avant. */
+.line-label.placed {
+  color: var(--water-dark, #2b7ba8);
+  font-weight: 700;
+}
+
+/* Prochain trou a remplir : c'est la que partira le nombre clique. */
+.line-tick.on .line-notch {
+  background: var(--water);
+}
+
+.line-tick:disabled {
+  cursor: default;
+}
+
+/* Nombres melanges a placer dans les trous de la suite. */
+.line-pool {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.line-number {
+  min-width: 54px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 3px solid var(--water);
+  background: #eaf6fc;
+  color: var(--ink);
+  font-family: var(--font-round);
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-chip);
+  transition: transform 120ms ease;
+}
+
+.line-number:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.line-number.used {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+  transform: none;
+}
+
+.line-hop {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--player-shirt);
+  border: 3px solid var(--player-shirt-dark);
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.line-tick.on .line-hop {
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 140ms ease;
+}
+
+.line-tick.on .line-label {
+  color: var(--ink);
+  font-size: 1.1rem;
+}
+
+.line-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.line-progress {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* ----- Cadenas a combinaison ----- */
+.mech-lock {
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  outline: none;
+}
+
+.lock-shackle {
+  width: 74px;
+  height: 34px;
+  border: 10px solid var(--stone-dark);
+  border-bottom: none;
+  border-radius: 40px 40px 0 0;
+}
+
+.lock-body {
+  display: flex;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  border: 4px solid var(--wood-dark);
+  box-shadow: var(--shadow-chip);
+}
+
+.lock-wheel {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 3px solid transparent;
+}
+
+.lock-wheel.active {
+  border-color: var(--cream);
+  background: rgba(251, 243, 231, 0.25);
+}
+
+.lock-digit {
+  min-width: 40px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--cream);
+  border: 3px solid var(--wood-dark);
+  font-family: var(--font-round);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+}
+
+.lock-up,
+.lock-down {
+  width: 34px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid var(--wood-dark);
+  background: var(--cream);
+  color: var(--wood-dark);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.lock-up:hover,
+.lock-down:hover {
+  background: var(--cream-dark);
+}
+
+/* ----- Horloge analogique (asset a lire dans l'enonce) ----- */
+.clock-figure {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 16px;
+}
+
+.clock-figure svg {
+  width: min(190px, 60vw);
+  height: auto;
+}
+
+.clock-shadow {
+  fill: rgba(60, 40, 20, 0.16);
+}
+
+.clock-rim {
+  fill: var(--wood-dark);
+}
+
+.clock-face {
+  fill: var(--cream);
+}
+
+.clock-tick {
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.clock-tick.major {
+  stroke-width: 3.6;
+}
+
+.clock-hand {
+  stroke-linecap: round;
+}
+
+.clock-hand.hour {
+  stroke: var(--ink);
+  stroke-width: 5.2;
+}
+
+.clock-hand.minute {
+  stroke: var(--water-dark);
+  stroke-width: 3.4;
+}
+
+.clock-center {
+  fill: var(--gold);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+/* ----- Horloge : reglage a deux molettes (mecanique de reponse) ----- */
+.mech-clock-set {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  border: 4px solid var(--wood-dark);
+  box-shadow: var(--shadow-chip);
+  outline: none;
+}
+
+.clock-dial {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 3px solid transparent;
+}
+
+.clock-dial.active {
+  border-color: var(--cream);
+  background: rgba(251, 243, 231, 0.25);
+}
+
+.clock-value {
+  min-width: 52px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--cream);
+  border: 3px solid var(--wood-dark);
+  font-family: var(--font-round);
+  font-size: 1.7rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-caption {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--wood-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.clock-colon {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--cream);
+  padding-bottom: 18px;
+}
+
+.clock-up,
+.clock-down {
+  width: 40px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid var(--wood-dark);
+  background: var(--cream);
+  color: var(--wood-dark);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.clock-up:hover,
+.clock-down:hover {
+  background: var(--cream-dark);
+}
+
+/* ----- Tableau de proportionnalite (visuel a lire dans l'enonce) ----- */
+.prop-table-wrap {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  margin: 4px 0 16px;
+}
+
+.prop-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 3px solid var(--wood-dark);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.prop-table th,
+.prop-table td {
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border-right: 2px solid var(--cream-dark);
+  border-bottom: 2px solid var(--cream-dark);
+}
+
+.prop-table tr:last-child th,
+.prop-table tr:last-child td {
+  border-bottom: none;
+}
+
+.prop-table td:last-child {
+  border-right: none;
+}
+
+.prop-table th[scope="row"] {
+  background: var(--cream-dark);
+  color: var(--wood-dark);
+  font-size: 0.95rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.prop-table td {
+  color: var(--ink);
+}
+
+.prop-table td.prop-hole {
+  background: #d6effb;
+  color: var(--water-dark);
+  font-size: 1.5rem;
+}
+
+/* ----- Figure geometrique cotee (visuel a lire dans l'enonce) ----- */
+.figure-figure {
+  display: flex;
+  justify-content: center;
+  /* Marge haute franche : la cote du haut ("3 cm") ne doit jamais toucher
+     l'enonce au-dessus (le viewBox du SVG reserve deja du vide en haut). */
+  margin: 12px 0 16px;
+}
+
+.figure-figure svg {
+  width: min(200px, 62vw);
+  height: auto;
+}
+
+.figure-shape {
+  fill: rgba(111, 194, 236, 0.18);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.figure-label {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cercle : disque legerement rempli, segments (rayon/diametre/corde) et points
+   nommes. Meme langage visuel que la figure cotee (bois + creme). */
+.figure-disk {
+  fill: rgba(111, 194, 236, 0.28);
+}
+
+.figure-segment {
+  stroke: var(--wood-dark);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.figure-point {
+  fill: var(--wood-dark);
+  stroke: none;
+}
+
+/* ----- Graphiques (lecture de donnees) ------------------------------------
+   Regle : la valeur est TOUJOURS ecrite (symboles denombrables, pourcentages
+   sur chaque part). Aucune reponse ne depend d'une estimation a l'oeil. */
+.figure-figure.figure-wide svg {
+  width: min(300px, 86vw);
+}
+
+.chart-title {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-weight: 800;
+  font-size: 11.5px;
+}
+
+.chart-axis {
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+  opacity: 0.5;
+}
+
+.figure-legend {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+/* Pictogramme : 1 symbole = 1 unite. */
+.picto-icon {
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.picto-bille {
+  fill: #6fc2ec;
+}
+
+.picto-medaille {
+  fill: #e6b34a;
+}
+
+.picto-fleur {
+  fill: #e8734a;
+}
+
+.picto-fleur-coeur {
+  fill: #e6b34a;
+  stroke: none;
+}
+
+/* Diagramme circulaire : secteurs colores, pourcentage ecrit sur chaque part. */
+.pie-sector {
+  stroke: var(--paper, #fffaf0);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.pie-pct {
+  fill: #ffffff;
+  font-family: var(--font-round);
+  font-weight: 800;
+  font-size: 12px;
+  paint-order: stroke;
+  stroke: rgba(60, 40, 20, 0.55);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+.pie-swatch {
+  stroke: var(--wood-dark);
+  stroke-width: 1.2;
+}
+
+/* Diagramme en batons : axe gradue (lecture exacte, une ligne par unite). */
+.bar-grid {
+  stroke: var(--wood-dark);
+  stroke-width: 1;
+  opacity: 0.18;
+}
+
+.bar-axis {
+  stroke: var(--wood-dark);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.bar-rect {
+  fill: #6fc2ec;
+  stroke: var(--wood-dark);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+/* Proportionnalite graphique : droite y=k*x, point interroge + guide vertical. */
+.graph-line {
+  stroke: #e8734a;
+  stroke-width: 2.6;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.graph-point {
+  fill: #e8734a;
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+}
+
+.graph-guide {
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 3;
+  opacity: 0.6;
+}
+
+.graph-axis-title {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+/* Fraction sur une figure : parts EGALES nettement delimitees ; coloriees
+   (plein) vs vides (creme), separateurs marques -> denombrement sans ambiguite. */
+.frac-fill {
+  fill: #6fb46f;
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.frac-empty {
+  fill: #fffaf0;
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.frac-border {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 3.4;
+  stroke-linejoin: round;
+}
+
+/* Angle : demi-droites (traits pleins) + arc/marque d'angle droit (plus fin). */
+.figure-ray {
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.figure-arc {
+  stroke: var(--road-dark);
+  stroke-width: 2.2;
+}
+
+/* Solides en perspective cavaliere : faces nuancees pour la profondeur (avant,
+   dessus plus clair, cote plus fonce), aretes cachees en pointilles. */
+.solide-front {
+  fill: rgba(111, 194, 236, 0.18);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.solide-top {
+  fill: rgba(111, 194, 236, 0.34);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.solide-side {
+  fill: rgba(74, 140, 190, 0.3);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.solide-edge {
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.solide-hidden {
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 4 4;
+  opacity: 0.55;
+}
+
+/* ----- Panier a remplir ----- */
+.basket-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(124, 182, 104, 0.14);
+  border: 3px solid var(--grass-dark);
+}
+
+.basket-item {
+  width: 44px;
+  height: 44px;
+  padding: 4px;
+  background: transparent;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.basket-item:hover {
+  border-color: var(--gold);
+}
+
+.basket-item.in-basket {
+  background: rgba(240, 184, 75, 0.3);
+  border-color: var(--gold-dark);
+}
+
+.basket-fruit {
+  fill: var(--npc-body);
+  stroke: var(--npc-body-dark);
+  stroke-width: 2;
+}
+
+.basket-shine {
+  fill: rgba(251, 243, 231, 0.55);
+}
+
+.basket-leaf {
+  fill: var(--grass-dark);
+}
+
+.basket-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.basket-svg {
+  width: 64px;
+  height: 40px;
+}
+
+.basket-body {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.basket-handle {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 4;
+}
+
+.basket-counter {
+  min-width: 46px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--cream);
+  border: 3px solid var(--gold-dark);
+  font-family: var(--font-round);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+}
+
+/* ----- Theme CARREFOUR : panneau routier illustre ----- */
+.theme-crossroads {
+  background: linear-gradient(180deg, #f6c96a, var(--gold));
+  border: 6px solid var(--wood);
+  border-radius: 22px;
+  box-shadow: var(--shadow-pop), inset 0 3px 0 rgba(251, 243, 231, 0.5);
+}
+
+.theme-crossroads::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -34px;
+  width: 26px;
+  height: 34px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, var(--wood), var(--wood-dark));
+  border-radius: 0 0 8px 8px;
+  z-index: -1;
+}
+
+.theme-crossroads .modal-title {
+  color: var(--wood-dark);
+}

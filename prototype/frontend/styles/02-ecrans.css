@@ -1,0 +1,330 @@
+/* styles/02-ecrans.css — Écrans de menu : choix du niveau et de la leçon.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   ECRANS DE MENU (niveau / lecon)
+   ============================================================ */
+.menu-screen {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(251, 243, 231, 0.5), transparent 34%),
+    linear-gradient(180deg, var(--water-light) 0%, var(--water) 34%, var(--grass-light) 34.2%, var(--grass) 100%);
+}
+
+.menu-sky-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cloud {
+  position: absolute;
+  width: 140px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(251, 243, 231, 0.85);
+  animation: drift 26s linear infinite;
+}
+
+.cloud::before,
+.cloud::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: inherit;
+}
+
+.cloud::before {
+  width: 64px;
+  height: 64px;
+  left: 22px;
+  top: -26px;
+}
+
+.cloud::after {
+  width: 46px;
+  height: 46px;
+  right: 26px;
+  top: -16px;
+}
+
+.cloud-a { top: 8%; left: -160px; }
+.cloud-b { top: 16%; left: -160px; animation-delay: -12s; transform: scale(0.8); }
+.cloud-c { top: 5%; left: -160px; animation-delay: -20s; transform: scale(0.6); }
+
+@keyframes drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(100vw + 340px)); }
+}
+
+.menu-card {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 40px 36px;
+  text-align: center;
+  background: var(--cream);
+  border: 4px solid var(--wood);
+  border-radius: 30px;
+  box-shadow: var(--shadow-pop);
+}
+
+.menu-card-wide {
+  width: min(760px, 100%);
+}
+
+.menu-eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--road-dark);
+}
+
+.menu-card h1 {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.menu-lead {
+  margin: 0 auto 26px;
+  max-width: 480px;
+  color: var(--ink-soft);
+  font-size: 1.06rem;
+}
+
+.menu-note {
+  margin: 18px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.level-actions {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+/* Boutons de niveau : pancartes de bois */
+.level-button {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 18px 26px 16px;
+  min-width: 180px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  box-shadow:
+    inset 0 2px 0 rgba(251, 243, 231, 0.35),
+    inset 0 -4px 0 rgba(61, 44, 30, 0.35),
+    0 8px 18px rgba(61, 44, 30, 0.3);
+  transition: transform 130ms ease, box-shadow 130ms ease;
+}
+
+.level-button:hover {
+  transform: translateY(-3px) rotate(-1deg);
+}
+
+.level-sign {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 4px solid var(--cream);
+  color: var(--ink);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.level-copy {
+  color: var(--cream);
+  font-weight: 600;
+}
+
+.lesson-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin: 8px 0 18px;
+  text-align: left;
+}
+
+.lesson-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  min-height: 76px;
+  cursor: pointer;
+  border: 3px solid var(--cream-dark);
+  border-radius: 20px;
+  background: #fff;
+  transition: transform 130ms ease, border-color 130ms ease;
+}
+
+.lesson-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+}
+
+/* P3 : demarrage de session en cours. On neutralise les clics et on grise les
+   cartes, la carte choisie porte un spinner (l'attente reseau devient lisible). */
+.lesson-actions.is-loading {
+  pointer-events: none;
+  opacity: 0.72;
+}
+.lesson-card.is-loading {
+  border-color: var(--gold);
+}
+.lesson-card.is-loading::after {
+  content: "";
+  flex: none;
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--cream-dark, #d9cfc0);
+  border-top-color: var(--road, #8b5e3c);
+  border-radius: 50%;
+  animation: rapportSpin 0.7s linear infinite;
+}
+
+.lesson-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--gold);
+  border: 3px solid var(--gold-dark);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lesson-card-title {
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.lesson-card-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+
+/* Choix de l'univers narratif : meme famille que les cartes de lecon,
+   avec une pastille coloree par theme. */
+.theme-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin: 8px 0 18px;
+  text-align: left;
+}
+
+.theme-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  min-height: 76px;
+  cursor: pointer;
+  border: 3px solid var(--cream-dark);
+  border-radius: 20px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: left;
+  transition: transform 130ms ease, border-color 130ms ease;
+}
+
+.theme-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+}
+
+.theme-card.choisi {
+  border-color: var(--success);
+  background: rgba(58, 171, 82, 0.12);
+}
+
+.theme-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 3px solid var(--wood);
+  font-size: 1.5rem;
+}
+
+/* Revision ciblee : meme famille que les cartes de lecon, mais pleine
+   largeur et sur la couleur des routes pour se distinguer du choix
+   habituel sans crier a l'echec. */
+.revision-zone {
+  margin: 0 0 18px;
+  text-align: left;
+}
+
+.revision-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  min-height: 76px;
+  cursor: pointer;
+  border: 3px dashed var(--road-light);
+  border-radius: 20px;
+  background: var(--cream);
+  transition: transform 130ms ease, border-color 130ms ease;
+}
+
+.revision-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--road);
+}
+
+.revision-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--road-light);
+  border: 3px solid var(--road);
+  font-size: 1.3rem;
+}
+
+.lesson-footer {
+  margin-top: 4px;
+}
+
+.ghost-button {
+  padding: 12px 20px;
+  cursor: pointer;
+  border: 3px solid var(--wood);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wood-dark);
+  font-weight: 600;
+}
+
+.ghost-button:hover {
+  background: var(--cream-dark);
+}

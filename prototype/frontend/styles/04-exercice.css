@@ -1,0 +1,626 @@
+/* styles/04-exercice.css — Fenêtre d'exercice, thèmes d'obstacles, aparté de confiance, correction.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   POPUP D'EXERCICE THEMATIQUE
+   ============================================================ */
+.exercise-overlay {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  /* Voile dense plutot qu'un backdrop-filter : le flou obligeait le
+     navigateur a recalculer tout l'ecran a chaque frame tant qu'un element
+     bougeait devant ou derriere (pire frame mesuree : 97 ms contre 7 ms
+     sans flou). Le voile assombri donne la meme mise au point sur la popup. */
+  background: rgba(61, 44, 30, 0.52);
+}
+
+.exercise-modal {
+  position: relative;
+  width: min(620px, 100%);
+  padding: 26px 28px 24px;
+  animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalIn {
+  from { transform: scale(0.82) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* P2 : coquille instantanee du popup d'exercice. Le popup apparait tout de
+   suite avec ce spinner centre, puis son contenu lourd (icones SVG, figures,
+   formulaire, mecanique) se monte au frame suivant sans bloquer le tap. */
+.exercise-modal.is-preparing {
+  min-height: 220px;
+}
+.modal-preparing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+.modal-spinner {
+  width: 34px;
+  height: 34px;
+  border: 4px solid var(--cream-dark, #d9cfc0);
+  border-top-color: var(--road, #8b5e3c);
+  border-radius: 50%;
+  animation: rapportSpin 0.8s linear infinite;
+}
+
+.modal-close {
+  position: absolute;
+  z-index: 2;
+  top: -12px;
+  right: -12px;
+  width: 48px;
+  height: 48px;
+  cursor: pointer;
+  border: 3px solid var(--cream);
+  border-radius: 50%;
+  background: var(--road);
+  color: var(--cream);
+  font-size: 1.2rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-chip);
+}
+
+.modal-close:hover {
+  background: var(--road-dark);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.modal-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: var(--cream);
+  border: 3px solid rgba(61, 44, 30, 0.25);
+  box-shadow: var(--shadow-chip);
+}
+
+.modal-icon svg {
+  width: 58px;
+  height: 58px;
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.modal-intro {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+/* Zone de contenu toujours creme : lisibilite maximale pour l'enfant */
+.modal-paper {
+  padding: 18px;
+  background: linear-gradient(180deg, #fffdf6, var(--cream));
+  border-radius: 18px;
+  border: 3px solid rgba(61, 44, 30, 0.22);
+  border-top: 6px solid var(--gold);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.8);
+}
+
+.modal-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* Badge visuel du niveau de resolution : 3 etoiles */
+.stars {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.star {
+  color: rgba(61, 44, 30, 0.25);
+}
+
+.star.filled {
+  color: var(--gold);
+  text-shadow:
+    0 1px 0 var(--gold-dark),
+    0 0 10px rgba(255, 194, 62, 0.65);
+}
+
+.phase-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--gold);
+  border: 2px solid var(--gold-dark);
+  color: var(--wood-dark);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.exercise-statement {
+  margin: 0 0 14px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink);
+  font-variant-numeric: lining-nums;
+}
+
+.method-block {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(240, 184, 75, 0.22);
+  border: 2px dashed var(--gold-dark);
+}
+
+.method-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--gold-dark);
+}
+
+/* Enonce + bouton d'ecoute cote a cote (le bouton reste en haut si l'enonce
+   fait plusieurs lignes). */
+.statement-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.statement-row .exercise-statement {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Bouton "ecouter" : haut-parleur, memes codes que le bouton micro mais plus
+   discret (lecture, pas capture). */
+.listen-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  cursor: pointer;
+  border: 2px solid var(--water-dark);
+  border-radius: 50%;
+  background: var(--water-light);
+  color: var(--water-dark);
+  box-shadow: var(--shadow-chip);
+}
+
+.listen-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.listen-button:hover {
+  background: #bfe6f9;
+}
+
+.method-title .listen-button {
+  width: 32px;
+  height: 32px;
+  background: var(--cream);
+  border-color: var(--gold-dark);
+  color: var(--gold-dark);
+  box-shadow: none;
+}
+
+.method-title .listen-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.method-title span {
+  flex: 1;
+}
+
+.method-block ol {
+  margin: 0 0 0 22px;
+  padding: 0;
+  font-size: 1.02rem;
+}
+
+.method-block li {
+  margin-bottom: 4px;
+}
+
+.exercise-form {
+  display: grid;
+  gap: 10px;
+}
+
+.exercise-form label {
+  font-weight: 600;
+}
+
+.exercise-form input {
+  padding: 14px 16px;
+  font-size: 1.3rem;
+  text-align: center;
+  border: 3px solid var(--wood-light);
+  border-radius: 14px;
+  background: #fff;
+  font-variant-numeric: lining-nums;
+}
+
+.exercise-form input:focus {
+  outline: 3px solid var(--gold);
+  outline-offset: 1px;
+}
+
+/* ---------- Reponse a la voix (micro a cote du champ, jamais a la place) ---------- */
+.answer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.answer-row #answer-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.mic-button {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  cursor: pointer;
+  border: 3px solid var(--water-dark);
+  border-radius: 50%;
+  background: var(--water-light);
+  color: var(--water-dark);
+  box-shadow: var(--shadow-chip);
+}
+
+.mic-button svg {
+  width: 27px;
+  height: 27px;
+}
+
+.mic-button:hover {
+  background: #bfe6f9;
+}
+
+.mic-button.listening {
+  background: var(--gold);
+  border-color: var(--gold-dark);
+  color: var(--wood-dark);
+}
+
+.mic-pulse {
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  border: 3px solid var(--gold-dark);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.mic-button.listening .mic-pulse {
+  animation: micPulse 1.1s ease-out infinite;
+}
+
+@keyframes micPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+.mic-status {
+  min-height: 1.2em;
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.mic-status.listening {
+  color: var(--water-dark);
+}
+
+.mic-status.success {
+  color: var(--success);
+}
+
+.mic-status.warning {
+  color: var(--danger);
+}
+
+.exercise-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Boutons "bois sculpte" */
+.btn-primary,
+.btn-help {
+  flex: 1;
+  min-width: 130px;
+  min-height: 52px;
+  padding: 12px 20px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 14px;
+  font-size: 1.06rem;
+  font-weight: 700;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, var(--road-light), var(--road));
+  color: #fff;
+  box-shadow:
+    inset 0 2px 0 rgba(251, 243, 231, 0.45),
+    inset 0 -4px 0 var(--road-dark),
+    0 5px 12px rgba(61, 44, 30, 0.28);
+}
+
+.btn-help {
+  background: linear-gradient(180deg, var(--water-light), var(--water));
+  color: #234a5c;
+  box-shadow:
+    inset 0 2px 0 rgba(251, 243, 231, 0.5),
+    inset 0 -4px 0 var(--water-dark),
+    0 5px 12px rgba(61, 44, 30, 0.22);
+}
+
+.btn-primary:hover,
+.btn-help:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06) drop-shadow(0 0 8px rgba(255, 194, 62, 0.5));
+}
+
+.btn-primary:active,
+.btn-help:active {
+  transform: translateY(1px);
+}
+
+/* P3 : bouton "Valider" en attente pendant l'appel /evaluer (spinner a cote
+   du libelle). Rend l'attente reseau lisible plutot que muette (surtout un
+   cold start de plusieurs secondes). Le bouton est aussi disabled cote JS. */
+.btn-primary.is-loading {
+  cursor: default;
+  color: rgba(255, 255, 255, 0.78);
+}
+.btn-primary.is-loading:hover {
+  transform: none;
+  filter: none;
+}
+.btn-primary.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-left: 9px;
+  vertical-align: -2px;
+  border: 2.5px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rapportSpin 0.7s linear infinite;
+}
+
+/* ----- Theme CHATEAU : parchemin deroule ----- */
+.theme-castle {
+  background:
+    repeating-linear-gradient(0deg, rgba(139, 94, 60, 0.05) 0 3px, transparent 3px 9px),
+    radial-gradient(circle at 12% 8%, rgba(139, 94, 60, 0.14), transparent 42%),
+    radial-gradient(circle at 90% 94%, rgba(139, 94, 60, 0.16), transparent 40%),
+    var(--cream);
+  border: 3px solid var(--wood-light);
+  border-radius: 8px 26px 10px 30px / 30px 10px 26px 8px;
+  box-shadow: var(--shadow-pop);
+}
+
+.theme-castle::before,
+.theme-castle::after {
+  content: "";
+  position: absolute;
+  left: -14px;
+  right: -14px;
+  height: 20px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood-dark));
+  border-radius: 999px;
+  box-shadow: 0 3px 8px rgba(61, 44, 30, 0.35);
+}
+
+.theme-castle::before { top: -10px; }
+.theme-castle::after { bottom: -10px; }
+
+.theme-castle .modal-icon {
+  border-color: var(--stone-dark);
+}
+
+/* ----- Theme CABANE : planche de bois cloutee ----- */
+.theme-cabin {
+  background:
+    repeating-linear-gradient(
+      180deg,
+      var(--wood-light) 0 44px,
+      var(--wood) 44px 46px,
+      var(--wood-light) 46px 90px
+    );
+  border: 6px solid var(--wood-dark);
+  border-radius: 18px;
+  box-shadow: var(--shadow-pop), inset 0 0 40px rgba(61, 44, 30, 0.25);
+}
+
+.theme-cabin .modal-title,
+.theme-cabin .modal-intro {
+  color: var(--cream);
+  text-shadow: 0 1px 2px rgba(61, 44, 30, 0.6);
+}
+
+.theme-cabin::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 10px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 5px at 8px 8px, var(--ink) 4px, transparent 5px),
+    radial-gradient(circle 5px at calc(100% - 8px) 8px, var(--ink) 4px, transparent 5px),
+    radial-gradient(circle 5px at 8px calc(100% - 8px), var(--ink) 4px, transparent 5px),
+    radial-gradient(circle 5px at calc(100% - 8px) calc(100% - 8px), var(--ink) 4px, transparent 5px);
+  background-repeat: no-repeat;
+  opacity: 0.55;
+}
+
+/* ----- Theme PONT : pierre gravee / ardoise ----- */
+.theme-bridge {
+  background:
+    radial-gradient(circle at 20% 12%, rgba(251, 243, 231, 0.14), transparent 36%),
+    linear-gradient(180deg, #78868f, var(--stone-deep));
+  border: 5px solid var(--stone-dark);
+  border-radius: 26px;
+  box-shadow: var(--shadow-pop), inset 0 3px 0 rgba(251, 243, 231, 0.25), inset 0 -6px 0 rgba(0, 0, 0, 0.25);
+}
+
+.theme-bridge .modal-title,
+.theme-bridge .modal-intro {
+  color: var(--cream);
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.45);
+}
+
+.theme-bridge .modal-icon {
+  border-color: var(--stone-deep);
+}
+
+/* ----- Theme CAMP : halte d'entrainement sur la route ----- */
+.theme-camp {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(124, 182, 104, 0.2), transparent 40%),
+    radial-gradient(circle at 88% 92%, rgba(124, 182, 104, 0.24), transparent 42%),
+    var(--cream);
+  border: 5px solid var(--grass-dark);
+  border-radius: 24px;
+  box-shadow: var(--shadow-pop), inset 0 3px 0 rgba(251, 243, 231, 0.6);
+}
+
+.theme-camp .modal-title {
+  color: #2c5e35;
+}
+
+.theme-camp .modal-icon {
+  border-color: var(--grass-dark);
+}
+
+/* ----- Aparte de confiance : la scene du hibou -----
+   Volontairement distincte des obstacles du parcours (bleu calme, pas de
+   bois ni de pierre) : l'eleve doit comprendre au premier coup d'oeil que
+   ce n'est pas un defi de la carte mais une pause bienveillante. */
+.theme-confiance {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(143, 196, 222, 0.32), transparent 44%),
+    radial-gradient(circle at 90% 94%, rgba(143, 196, 222, 0.28), transparent 46%),
+    var(--cream);
+  border: 5px solid var(--water);
+  border-radius: 26px;
+  box-shadow: var(--shadow-pop), inset 0 3px 0 rgba(251, 243, 231, 0.7);
+}
+
+.theme-confiance .modal-title {
+  color: #1f5570;
+}
+
+.theme-confiance .modal-icon {
+  border-color: var(--water);
+  background: #eaf6fc;
+}
+
+.theme-confiance .modal-paper {
+  border-top-color: var(--water);
+}
+
+/* Dit explicitement que l'aparte ne compte pas dans la progression, a la
+   place des etoiles de niveau et du compteur d'entrainement. */
+.confiance-chip {
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eaf6fc;
+  border: 2px solid var(--water);
+  color: #1f5570;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ----- Correction apres coup (niveau 2 semi-guide) ----- */
+.correction-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 3px solid var(--success);
+  background: rgba(75, 143, 86, 0.12);
+}
+
+.correction-block.wrong {
+  border-color: var(--danger);
+  background: rgba(192, 91, 74, 0.12);
+}
+
+.correction-verdict {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2c5e35;
+}
+
+.correction-block.wrong .correction-verdict {
+  color: #8a3a2c;
+}
+
+.correction-answer {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.correction-answer strong {
+  font-size: 1.2rem;
+}
+
+.correction-explain {
+  margin: 0;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.correction-block .btn-primary {
+  justify-self: end;
+  margin-top: 4px;
+}

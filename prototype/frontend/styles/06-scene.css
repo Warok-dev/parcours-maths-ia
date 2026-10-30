@@ -1,0 +1,960 @@
+/* styles/06-scene.css — Scène SVG du monde : décor, obstacles, personnages, ambiance.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   SCENE SVG — monde vu du dessus
+   Chaque classe correspond a UN composant defini une fois dans map.js
+   ============================================================ */
+.ground {
+  fill: var(--grass);
+}
+
+.ground-patch {
+  fill: var(--grass-light);
+}
+
+.ground-patch.dark {
+  fill: var(--grass-dark);
+}
+
+/* Route principale (chemin moyen) : terre cuite, bords nets, pavee */
+.road-edge {
+  fill: none;
+  stroke: var(--wood);
+  stroke-width: 86;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.road-surface {
+  fill: none;
+  stroke: var(--road);
+  stroke-width: 72;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.road-paving {
+  fill: none;
+  stroke: var(--road-light);
+  stroke-width: 46;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 3 30;
+  opacity: 0.85;
+}
+
+.road-paving.offset {
+  stroke-width: 18;
+  stroke-dasharray: 3 22;
+}
+
+/* (Les variantes visuelles de route courte/moyenne/longue par maitrise ont ete
+   retirees : un seul chemin continu desormais, seul le nombre de haltes varie.) */
+
+/* Points d'arret de renforcement le long des routes */
+.stop-pad {
+  fill: var(--cream);
+  stroke: var(--gold-dark);
+  stroke-width: 4;
+}
+
+.stop-pad.done {
+  fill: var(--success);
+  stroke: #2c5e35;
+}
+
+.stop-check {
+  fill: none;
+  stroke: var(--cream);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stop-pole {
+  fill: var(--wood-dark);
+}
+
+.stop-flag {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.reinforcement-stop.stop-locked {
+  opacity: 0.5;
+}
+
+/* ----- Tresor du raccourci (route courte, maitrise 3 uniquement) ----- */
+.treasure-token {
+  pointer-events: none;
+  animation: treasureFloat 2400ms ease-in-out infinite;
+}
+
+.treasure-glow {
+  fill: var(--gold);
+  opacity: 0.28;
+  animation: treasurePulse 2400ms ease-in-out infinite;
+}
+
+.treasure-body {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.treasure-lid {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.treasure-band,
+.treasure-lock {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.treasure-sparkle {
+  fill: var(--cream);
+  stroke: var(--gold);
+  stroke-width: 1.6;
+  animation: treasureSparkle 1800ms ease-in-out infinite;
+}
+
+.treasure-sparkle.delayed {
+  animation-delay: 900ms;
+}
+
+/* Le "+50" de la collecte : monte et s'efface, comme les particules. */
+.treasure-bonus-text {
+  fill: var(--gold);
+  stroke: var(--wood-dark);
+  stroke-width: 4;
+  paint-order: stroke;
+  font-family: var(--font-round);
+  font-size: 40px;
+  font-weight: 700;
+  animation: treasureBonusRise 1400ms ease-out forwards;
+}
+
+@keyframes treasureFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes treasurePulse {
+  0%, 100% { opacity: 0.22; transform: scale(1); }
+  50% { opacity: 0.42; transform: scale(1.12); }
+}
+
+@keyframes treasureSparkle {
+  0%, 100% { opacity: 0.35; transform: scale(0.75) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(28deg); }
+}
+
+@keyframes treasureBonusRise {
+  0% { transform: translateY(0); opacity: 0; }
+  18% { opacity: 1; }
+  100% { transform: translateY(-72px); opacity: 0; }
+}
+
+/* ============================================================
+   AMBIANCE : ramassables d'exploration (purement decoratif).
+   Position portee par le groupe exterieur (attribut transform),
+   animation flottante sur le groupe interieur.
+   ============================================================ */
+.collectible-token {
+  pointer-events: none;
+}
+
+.collectible-float {
+  animation: collectibleFloat 1800ms ease-in-out infinite;
+}
+
+.collectible-shadow { fill: rgba(60, 40, 20, 0.16); }
+/* Piece brillante (doree, ronde) : distincte du coffre en bois du raccourci. */
+.collectible-glow { fill: var(--gold); opacity: 0.25; animation: collectibleGlow 1800ms ease-in-out infinite; }
+.collectible-coin { fill: var(--gold); stroke: var(--gold-dark); stroke-width: 2.4; }
+.collectible-coin-inner { fill: #ffdd8a; }
+.collectible-coin-star { fill: var(--gold-dark); }
+.collectible-coin-shine { fill: #fff7e0; opacity: 0.85; }
+/* Fleur vive (magenta) : distincte des fleurs de decor (petites, pales). */
+.collectible-stem { fill: var(--grass-dark); }
+.collectible-petal { fill: #ff5fa2; stroke: #d63c86; stroke-width: 1.4; }
+.collectible-flower-heart { fill: var(--gold); stroke: var(--gold-dark); stroke-width: 1.4; }
+
+@keyframes collectibleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes collectibleGlow {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collectible-float,
+  .collectible-glow { animation: none; }
+}
+
+.reinforcement-stop.stop-locked .stop-flag {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+}
+
+.stop-pulse-ring {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 3;
+  opacity: 0;
+}
+
+.reinforcement-stop.stop-current {
+  filter: drop-shadow(0 0 7px rgba(255, 194, 62, 0.85));
+}
+
+.reinforcement-stop.stop-current .stop-pulse-ring {
+  animation: stopPulse 1.6s ease-out infinite;
+}
+
+@keyframes stopPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* Riviere */
+.river {
+  fill: var(--water);
+}
+
+.river-bank {
+  fill: var(--water-dark);
+}
+
+.river-wave {
+  fill: none;
+  stroke: var(--water-light);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 26 34;
+}
+
+/* Vegetation (vue du dessus : couronnes circulaires) */
+.tree-canopy-back {
+  fill: var(--grass-dark);
+}
+
+.tree-canopy {
+  fill: #59a04f;
+}
+
+.tree-canopy-light {
+  fill: #74bd66;
+}
+
+.tree-shadow,
+.prop-shadow {
+  fill: rgba(61, 44, 30, 0.16);
+}
+
+.bush-leaf {
+  fill: #64ab58;
+}
+
+.bush-leaf-light {
+  fill: #7cc06d;
+}
+
+.flower-petal {
+  fill: var(--cream);
+}
+
+.flower-petal.pink {
+  fill: #f4b8c4;
+}
+
+.flower-center {
+  fill: var(--gold);
+}
+
+.grass-tuft {
+  stroke: var(--grass-dark);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  fill: none;
+  opacity: 0.8;
+}
+
+.deco-rock {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 3;
+}
+
+.deco-rock-small {
+  fill: var(--stone-dark);
+}
+
+/* ---------- Decor vivant : papillons + chat (anime, non-interactif) ----------
+   Tout est compose de transforms (GPU) et ne repeint jamais la carte. Le
+   calque entier ignore la souris : purement decoratif. */
+.living-decor-layer,
+.living-decor {
+  pointer-events: none;
+}
+
+/* Papillon */
+.critter-body {
+  fill: var(--wood-dark);
+}
+.critter-antenna {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+.critter-wing {
+  fill: #ffcf4d;
+  stroke: #e0a92e;
+  stroke-width: 0.7;
+}
+.critter-wing.bleu {
+  fill: #7ec4f0;
+  stroke: #4a9bd6;
+}
+/* Battement d'ailes : les ailes droites se replient en miroir (scaleX depuis
+   l'axe du corps -> transform-box sur la boite de chaque aile). */
+.critter-wings {
+  animation: wingFlap 320ms ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes wingFlap {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.62); }
+}
+/* Derive du papillon : petite boucle douce + montee/descente. */
+.critter-flutter {
+  animation: butterflyDrift 6.5s ease-in-out infinite;
+}
+@keyframes butterflyDrift {
+  0% { transform: translate(0, 0) rotate(-6deg); }
+  25% { transform: translate(16px, -10px) rotate(8deg); }
+  50% { transform: translate(4px, -22px) rotate(-4deg); }
+  75% { transform: translate(-14px, -8px) rotate(7deg); }
+  100% { transform: translate(0, 0) rotate(-6deg); }
+}
+
+/* Chat */
+.cat-body {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+}
+.cat-head {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 1.4;
+}
+.cat-eye {
+  fill: #33261a;
+}
+.cat-mouth {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+.cat-tail {
+  fill: none;
+  stroke: var(--wood);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transform-origin: 3px 8px;
+  animation: catTail 1.8s ease-in-out infinite;
+}
+@keyframes catTail {
+  0%, 100% { transform: rotate(-10deg); }
+  50% { transform: rotate(16deg); }
+}
+/* Flanerie du chat : petite boucle lente, il pivote pour suivre son chemin. */
+.cat-stroll {
+  animation: catStroll 18s ease-in-out infinite;
+}
+@keyframes catStroll {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(40px, 14px) rotate(70deg); }
+  50% { transform: translate(18px, 40px) rotate(175deg); }
+  75% { transform: translate(-24px, 18px) rotate(255deg); }
+  100% { transform: translate(0, 0) rotate(360deg); }
+}
+
+/* Machines modestes / accessibilite : on fige tout le decor vivant si l'usager
+   demande a reduire les animations. */
+@media (prefers-reduced-motion: reduce) {
+  .critter-wings,
+  .critter-flutter,
+  .cat-tail,
+  .cat-stroll {
+    animation: none;
+  }
+}
+
+/* ---------- Chateau (pierre grise) ---------- */
+.castle-wall {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 4;
+}
+
+.castle-wall-inner {
+  fill: var(--stone-dark);
+  opacity: 0.35;
+}
+
+.castle-tower {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 4;
+}
+
+.castle-tower-top {
+  fill: var(--stone-dark);
+}
+
+.castle-courtyard {
+  fill: var(--cream-dark);
+  stroke: var(--stone-dark);
+  stroke-width: 3;
+}
+
+.castle-banner {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.door-panel {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.door-plank {
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+  opacity: 0.6;
+}
+
+.door-lock-body {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2.5;
+}
+
+.door-lock-shackle {
+  fill: none;
+  stroke: var(--gold-dark);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.gate-left,
+.gate-right {
+  transform-box: fill-box;
+  transition: transform 900ms ease;
+}
+
+.gate-left {
+  transform-origin: left center;
+}
+
+.gate-right {
+  transform-origin: right center;
+}
+
+.obstacle-done .gate-left {
+  transform: rotate(-64deg);
+}
+
+.obstacle-done .gate-right {
+  transform: rotate(64deg);
+}
+
+/* ---------- Cabane (bois brun, vue du dessus = toit) ---------- */
+.cabin-roof {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 4;
+}
+
+.cabin-roof-half {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.cabin-ridge {
+  stroke: var(--wood-dark);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.cabin-chimney {
+  fill: var(--stone-dark);
+  stroke: var(--stone-deep);
+  stroke-width: 2;
+}
+
+.log-shape {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.log-end {
+  fill: var(--cream-dark);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.block-rock {
+  fill: var(--stone);
+  stroke: var(--stone-dark);
+  stroke-width: 3;
+}
+
+/* ---------- Pont (sur l'eau) ---------- */
+.bridge-deck {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.bridge-plank {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 2.5;
+}
+
+.bridge-plank.ghost {
+  fill: none;
+  stroke: var(--wood-dark);
+  stroke-dasharray: 7 7;
+  opacity: 0.55;
+}
+
+.bridge-rail {
+  stroke: var(--wood-dark);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+/* ---------- Carrefour (jaune, chemin cache) ---------- */
+.signpost-pole {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 2.5;
+}
+
+.signpost-board {
+  fill: var(--gold);
+  stroke: var(--wood-dark);
+  stroke-width: 3;
+}
+
+.signpost-text {
+  fill: var(--wood-dark);
+  font-family: var(--font-round);
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.hidden-path {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 26;
+  stroke-linecap: round;
+  stroke-dasharray: 16 14;
+  opacity: 0.25;
+}
+
+.hidden-path-edge {
+  fill: none;
+  stroke: var(--gold-dark);
+  stroke-width: 34;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+.obstacle-done .hidden-path {
+  opacity: 1;
+  transition: opacity 800ms ease;
+}
+
+.obstacle-done .hidden-path-edge {
+  opacity: 0.7;
+  transition: opacity 800ms ease;
+}
+
+.mist {
+  fill: var(--cream);
+  opacity: 0.75;
+}
+
+.obstacle-done .mist {
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+.hedge-line {
+  stroke: var(--grass-dark);
+  stroke-width: 30;
+  stroke-linecap: round;
+  stroke-dasharray: 2 40;
+}
+
+/* Barrieres en bois de part et d'autre de la route */
+.fence-rail {
+  stroke: var(--wood);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.fence-post {
+  fill: var(--wood-dark);
+}
+
+/* ---------- PNJ (defini une fois, couleur fixe) ---------- */
+.npc-shadow {
+  fill: rgba(61, 44, 30, 0.18);
+}
+
+.npc-body {
+  fill: var(--npc-body);
+  stroke: var(--npc-body-dark);
+  stroke-width: 2.5;
+}
+
+.npc-head {
+  fill: var(--skin);
+  stroke: var(--npc-body-dark);
+  stroke-width: 2;
+}
+
+.npc-hair {
+  fill: var(--hair);
+}
+
+.npc-hand {
+  fill: var(--skin);
+}
+
+/* ---------- Joueur (defini une fois) ---------- */
+.player-token {
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.55));
+}
+
+/* Tenue prise dans les couleurs du decor (vert de l'herbe, orange des
+   routes) : le personnage s'y noierait. Deux ombres empilees dessinent un
+   liseré net colle a la silhouette, puis une lueur plus large qui detache
+   du fond. Pose sur :root par personnage.js, donc valable aussi bien sur la
+   carte que dans l'apercu de l'ecran de personnalisation. */
+:root.player-halo-fort .player-token {
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+    drop-shadow(0 0 4px rgba(255, 255, 255, 0.9))
+    drop-shadow(0 0 9px rgba(61, 44, 30, 0.45));
+}
+
+.player-shadow {
+  fill: rgba(61, 44, 30, 0.22);
+}
+
+.player-body {
+  fill: var(--player-shirt);
+  stroke: var(--player-shirt-dark);
+  stroke-width: 3;
+}
+
+.player-head {
+  fill: var(--skin);
+  stroke: var(--player-shirt-dark);
+  stroke-width: 2;
+}
+
+.player-hair {
+  fill: var(--hair);
+}
+
+.player-hand {
+  fill: var(--skin);
+  stroke: var(--player-shirt-dark);
+  stroke-width: 2;
+}
+
+.player-foot {
+  fill: var(--wood-dark);
+}
+
+/* ----- Accessoires du personnage (palette du systeme de design) ----- */
+.acc-chapeau-bord {
+  fill: var(--wood-light);
+  stroke: var(--wood-dark);
+  stroke-width: 2;
+}
+
+.acc-chapeau-fond {
+  fill: var(--wood);
+  stroke: var(--wood-dark);
+  stroke-width: 1.6;
+}
+
+.acc-lunettes-verre {
+  fill: rgba(165, 220, 247, 0.75);
+  stroke: var(--ink);
+  stroke-width: 1.8;
+}
+
+.acc-lunettes-pont {
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.acc-cape {
+  fill: var(--road);
+  stroke: var(--road-dark);
+  stroke-width: 2.4;
+}
+
+.acc-cape-col {
+  fill: var(--road-dark);
+}
+
+.acc-badge-fond {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 1.8;
+}
+
+.acc-badge-etoile {
+  fill: var(--wood-dark);
+}
+
+/* Cycle de marche : les pieds alternent, les mains balancent */
+.player-walking .player-foot.left {
+  animation: stepLeft 380ms linear infinite;
+}
+
+.player-walking .player-foot.right {
+  animation: stepRight 380ms linear infinite;
+}
+
+.player-walking .player-hand.left {
+  animation: stepRight 380ms linear infinite;
+}
+
+.player-walking .player-hand.right {
+  animation: stepLeft 380ms linear infinite;
+}
+
+@keyframes stepLeft {
+  0%, 100% { transform: translateY(-7px); }
+  50% { transform: translateY(7px); }
+}
+
+@keyframes stepRight {
+  0%, 100% { transform: translateY(7px); }
+  50% { transform: translateY(-7px); }
+}
+
+/* ---------- Etats des obstacles ---------- */
+.obstacle-locked {
+  opacity: 0.62;
+  filter: saturate(0.55);
+}
+
+.obstacle-unlocking {
+  animation: unlockGlow 1100ms ease;
+}
+
+@keyframes unlockGlow {
+  0% { filter: brightness(1); }
+  35% { filter: brightness(1.5) drop-shadow(0 0 26px rgba(240, 184, 75, 0.95)); }
+  100% { filter: brightness(1); }
+}
+
+.obstacle-blocked_road.obstacle-unlocking .log-block {
+  animation: clearRoad 900ms ease forwards;
+}
+
+@keyframes clearRoad {
+  0% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-130px, 46px) rotate(-30deg); }
+}
+
+/* Carte en pause derriere un panneau plein ecran (exercice, carnet, bilan) :
+   ses animations infinies repeindraient la scene en continu alors que le
+   voile de l'overlay la masque. */
+#map.scene-paused * {
+  animation-play-state: paused;
+}
+
+/* Joueur immobile depuis un court instant (classe posee par map.js) : on fige
+   les seules animations d'AMBIANCE (papillons, chat, ramassables, marqueur).
+   Elles tournent en continu meme sans repeindre le DOM, mais tiennent le
+   compositeur eveille -> ~60 frames/s dessinees en permanence, coteux sur
+   machines modestes. On les reprend des que le joueur rebouge (retrait de la
+   classe). Contrairement a scene-paused, on ne fige que le decoratif : la
+   marche, la camera et les FX de reussite ne sont jamais concernes. */
+#map.scene-idle .critter-wings,
+#map.scene-idle .critter-flutter,
+#map.scene-idle .cat-tail,
+#map.scene-idle .cat-stroll,
+#map.scene-idle .collectible-float,
+#map.scene-idle .collectible-glow,
+#map.scene-idle .obstacle-marker {
+  animation-play-state: paused;
+}
+
+/* Allegement PERMANENT sur appareil tactile (mobile) : contrairement a
+   scene-idle (repos uniquement), on coupe ici les animations d'ambiance les
+   plus couteuses TOUT LE TEMPS, y compris en mouvement. En mouvement la carte
+   se repeint entierement a chaque frame (la camera suit le joueur en reecrivant
+   le viewBox) : chaque sous-arbre anime coute alors a chaque frame, et la marge
+   GPU d'un mobile d'entree de gamme est mince. On fige le battement d'ailes et
+   le chat, et on coupe la lueur des pieces (opacite + scale = recomposition) ;
+   le desktop, lui, garde l'ambiance complete et vivante (body sans .touch-active).
+   Le nombre de papillons est deja reduit a 1 sur tactile (voir livingDecorMarkup). */
+body.touch-active #map .critter-wings,
+body.touch-active #map .cat-tail,
+body.touch-active #map .cat-stroll,
+body.touch-active #map .collectible-glow {
+  animation: none;
+}
+
+/* Pastille "ici !" au-dessus de l'obstacle actif */
+.obstacle-marker {
+  animation: markerBounce 1.4s ease-in-out infinite;
+  transition: opacity 180ms ease;
+}
+
+/* Quand la bulle d'interaction est affichee, elle prend la place du "!" */
+#map.hint-visible .obstacle-marker {
+  opacity: 0;
+}
+
+@keyframes markerBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.marker-pin {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 3;
+}
+
+.obstacle-marker {
+  filter: drop-shadow(0 0 8px rgba(255, 194, 62, 0.75));
+}
+
+.marker-glyph {
+  fill: var(--wood-dark);
+  font-family: var(--font-round);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+/* Panneau nominatif de l'obstacle (icone + couleur, pas de jargon) */
+.obstacle-plate {
+  fill: var(--cream);
+  stroke: var(--wood);
+  stroke-width: 3;
+}
+
+.obstacle-plate-text {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.obstacle-done-check {
+  fill: var(--success);
+  stroke: var(--cream);
+  stroke-width: 2.5;
+}
+
+/* Bulle d'interaction */
+.interaction-hint {
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.interaction-hint.visible {
+  opacity: 1;
+}
+
+.hint-bubble {
+  fill: var(--cream);
+  stroke: var(--wood);
+  stroke-width: 3;
+}
+
+.hint-key {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.hint-text {
+  fill: var(--ink);
+  font-family: var(--font-round);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* Particules de reussite */
+.fx-particle {
+  animation: particleFly 1100ms ease-out forwards;
+}
+
+@keyframes particleFly {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0.35);
+    opacity: 0;
+  }
+}
+
+.fx-star {
+  fill: var(--gold);
+  stroke: var(--gold-dark);
+  stroke-width: 2;
+}
+
+.fx-dot {
+  fill: var(--cream);
+}

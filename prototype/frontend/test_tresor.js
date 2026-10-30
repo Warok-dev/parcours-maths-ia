@@ -23,7 +23,7 @@ function session(maitrise, extra = {}) {
 }
 
 /* --- 1. Correspondance maitrise -> route (source unique, utilisee aussi
-       par map.js pour tracer le chemin reellement emprunte) --- */
+       par le jeu (carte/) pour tracer le chemin reellement emprunte) --- */
 {
   check(tresor.routePourMaitrise(3) === "courte", "maitrise 3 -> route courte");
   check(tresor.routePourMaitrise(2) === "moyenne", "maitrise 2 -> route moyenne");
