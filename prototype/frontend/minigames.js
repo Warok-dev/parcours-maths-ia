@@ -1,23 +1,25 @@
 /* ============================================================
-   MINI-JEUX : pause detente optionnelle entre deux concepts
+   MINI-JEUX : recompense facultative de fin de lecon
    ------------------------------------------------------------
-   Apres qu'un concept vient d'etre debloque (correct_concept_debloque),
-   on PROPOSE parfois une pause ludique -- jamais imposee, sans aucun
-   enjeu pedagogique. Ce module ne connait rien aux maths : il ne lit
-   ni la maitrise, ni la progression, ni le score de reussite. Il ne
-   fait qu'orchestrer un aparte detente et revenir exactement d'ou l'on
-   vient.
+   Quand la carte est terminee (carte_terminee), on PROPOSE toujours un
+   mini-jeu -- jamais impose (« Non merci »), sans aucun enjeu
+   pedagogique : ni maitrise, ni progression, ni score de reussite. Le
+   jeu parle de la lecon qui vient de finir (cartes tirees de ses
+   concepts, voir minijeux_contenu.js) et revient exactement d'ou l'on
+   vient (le bilan de fin de carte attend la fin de la pause).
 
-   Trois coeurs testables sans navigateur (horloge/hasard injectes),
-   puis une fine couche navigateur -- meme decoupage que proactive.js :
+   Pas de hasard dans le CHOIX du jeu : une rotation par eleve fait
+   passer tous les jeux eligibles avant d'en revoir un.
 
-   - declencheur : DECIDE si l'on propose (probabilite + espacement) ;
-   - registre    : la liste des mini-jeux disponibles, interface commune ;
+   Coeurs testables sans navigateur, puis une fine couche navigateur :
+
+   - rotation      : quel jeu proposer (le moins recemment propose) ;
+   - registre      : la liste des mini-jeux disponibles, interface commune ;
    - orchestrateur : la machine a etats repos -> proposition -> enJeu -> repos,
                      pilotant un "adapter" (DOM/carte) injecte.
 
    Un mini-jeu expose une interface minimale :
-     { id, nom, monter(zone, { terminer }) -> demonter? }
+     { id, nom, monter(zone, { terminer, niveau, concepts }) -> demonter? }
    `monter` affiche le jeu dans `zone` ; il appelle `terminer(bonus)`
    quand c'est fini (ou quitte), et peut retourner une fonction de
    nettoyage. Le `bonus` (optionnel) n'alimente QUE le score cosmetique
@@ -34,19 +36,40 @@
     return `à ${n}`;
   }
 
-  /* Probabilite de proposer apres un concept debloque : ni systematique
-     (on ne ralentit pas un eleve presse), ni trop rare (l'effet de
-     surprise doit exister). Parametrable. */
-  const PROBABILITE_DEFAUT = 0.4;
-  /* Espacement minimal : au moins ce nombre de concepts debloques entre
-     deux propositions (meme esprit que le cooldown du tuteur proactif).
-     Avec 2, une proposition faite au concept N interdit N+1 et N+2, et la
-     suivante n'est possible qu'a partir de N+3 -- donc 2 concepts pleins
-     entre les deux propositions. */
-  const ESPACEMENT_MIN_CONCEPTS = 2;
+  /* Taille de l'historique de rotation garde par eleve : largement plus que
+     le nombre de jeux, pour que « le moins recemment propose » reste juste. */
+  const HISTORIQUE_MAX = 20;
 
-  function tirage(random) {
-    return typeof random === "function" ? random() : Math.random();
+  /* Cartes tirees des concepts de la lecon terminee (minijeux_contenu.js).
+     Tableau vide si le module manque ou si la lecon est inconnue : chaque jeu
+     retombe alors sur son contenu d'origine, adapte a l'age. */
+  function contenuLecon(concepts, niveau, combien) {
+    const module =
+      (typeof window !== "undefined" && window.ParcoursContenuMiniJeux) ||
+      (typeof require === "function" ? require("./minijeux_contenu.js") : null);
+    if (!module || !Array.isArray(concepts) || !concepts.length) {
+      return [];
+    }
+    return module.itemsPourConcepts(concepts, niveau, Math.random, combien);
+  }
+
+  /* Calcul de la chasse tire de la lecon : une carte a reponse ENTIERE
+     (les bulles affichent des nombres), d'au plus 3 chiffres. */
+  function calculChasseLecon(concepts, niveau) {
+    const carte = contenuLecon(concepts, niveau, 6).find(
+      (item) => Number.isInteger(item.valeur) && item.valeur > 0 && item.valeur < 1000,
+    );
+    if (!carte) {
+      return {};
+    }
+    const leurres = carte.leurres
+      .map((t) => Number(String(t).replace(/\s/g, "")))
+      .filter((v) => Number.isInteger(v) && v > 0 && v !== carte.valeur);
+    return {
+      CALCUL: { expression: carte.question, resultat: carte.valeur, leurres },
+      VALEUR_MIN: Math.max(1, carte.valeur - 12),
+      VALEUR_MAX: carte.valeur + 12,
+    };
   }
 
   /* Rang numerique du niveau scolaire (CE1 -> 1 ... CE6 -> 6). 0 si inconnu :
@@ -63,39 +86,50 @@
     return rang === 1 || rang === 2;
   }
 
-  /* ---------- Declencheur : la regle de decision (testable) ---------- */
-  function creerDeclencheur({ probabilite = PROBABILITE_DEFAUT, espacementMin = ESPACEMENT_MIN_CONCEPTS } = {}) {
-    const state = {
-      conceptsDepuisProposition: 0,
-      propositionFaite: false,
+  /* ---------- Rotation : quel jeu proposer (testable) ----------
+     Parmi les jeux eligibles, celui dont la DERNIERE proposition est la plus
+     ancienne (un jeu jamais propose passe en premier, dans l'ordre
+     d'enregistrement). Ainsi tous les jeux passent avant qu'un revienne, et
+     un jeu refuse (« Non merci ») ne revient pas tout de suite. */
+  function prochainEnRotation(pool, historique) {
+    if (!pool.length) {
+      return null;
+    }
+    const histo = Array.isArray(historique) ? historique : [];
+    let meilleur = null;
+    let meilleurRang = Infinity;
+    for (const jeu of pool) {
+      const rangJeu = histo.lastIndexOf(jeu.id); /* -1 si jamais propose */
+      if (rangJeu < meilleurRang) {
+        meilleur = jeu;
+        meilleurRang = rangJeu;
+      }
+    }
+    return meilleur;
+  }
+
+  /* Historique de rotation, persiste via un stockage injecte ({ lire, ecrire })
+     -- localStorage par eleve en vrai, un objet en memoire dans les tests. */
+  function creerRotation(stockage) {
+    const lire = () => {
+      try {
+        const brut = stockage?.lire?.();
+        return Array.isArray(brut) ? brut.filter((id) => typeof id === "string") : [];
+      } catch (_e) {
+        return [];
+      }
     };
     return {
-      /* A appeler au debut d'un NOUVEAU parcours (nouvelle aventure). Sans ce
-         reset, l'espacement etait un singleton reporte d'un parcours a l'autre :
-         un compteur herite eleve pouvait declencher une proposition des le 1er
-         concept du nouveau parcours. */
-      reinitialiser() {
-        state.conceptsDepuisProposition = 0;
-        state.propositionFaite = false;
-      },
-      /* Appele a CHAQUE concept debloque. Retourne true si l'on doit
-         proposer une pause maintenant. */
-      conceptDebloque(random) {
-        state.conceptsDepuisProposition += 1;
-        /* Espacement : tant que le quota de concepts depuis la derniere
-           proposition n'est pas atteint, on ne propose pas -- meme si le
-           tirage serait favorable. */
-        if (state.propositionFaite && state.conceptsDepuisProposition <= espacementMin) {
-          return false;
+      historique: lire,
+      noter(id) {
+        const histo = lire();
+        histo.push(id);
+        try {
+          stockage?.ecrire?.(histo.slice(-HISTORIQUE_MAX));
+        } catch (_e) {
+          /* stockage indisponible : la rotation repart de zero, sans gravite */
         }
-        if (tirage(random) < probabilite) {
-          state.propositionFaite = true;
-          state.conceptsDepuisProposition = 0;
-          return true;
-        }
-        return false;
       },
-      getState: () => ({ ...state }),
     };
   }
 
@@ -118,16 +152,11 @@
       eligibles(niveau) {
         return jeux.filter((jeu) => typeof jeu.estEligible !== "function" || jeu.estEligible(niveau));
       },
-      /* Tire un mini-jeu au hasard PARMI LES ELIGIBLES pour ce niveau (et non
-         plus uniformement sur les 4) : un CE1 ne peut pas tomber sur un jeu
-         reserve aux plus grands. Renvoie null si aucun n'est eligible. */
-      choisir(random, niveau) {
-        const pool = this.eligibles(niveau);
-        if (!pool.length) {
-          return null;
-        }
-        const index = Math.min(pool.length - 1, Math.floor(tirage(random) * pool.length));
-        return pool[index];
+      /* Prochain jeu de la rotation PARMI LES ELIGIBLES pour ce niveau : un
+         CE1 ne tombe jamais sur un jeu reserve aux plus grands. Renvoie null
+         si aucun n'est eligible. */
+      prochain(niveau, historique) {
+        return prochainEnRotation(this.eligibles(niveau), historique);
       },
     };
   }
@@ -137,14 +166,13 @@
      la couche navigateur fournit l'adapter reel, les tests un adapter
      factice. Garantit qu'on revient toujours a "repos" (donc a la carte,
      a la position exacte, la carte n'ayant jamais bouge pendant la pause). */
-  function creerOrchestrateur({ declencheur, registre, adapter, random } = {}) {
+  function creerOrchestrateur({ registre, adapter, rotation } = {}) {
+    const rot = rotation || creerRotation(null);
     let phase = "repos"; /* repos | proposition | enJeu */
     let demonterActif = null;
-    let niveauActif = ""; /* niveau scolaire de la session, transmis au mini-jeu */
-    /* Concepts debloques depuis le debut du parcours courant : on ne propose
-       JAMAIS de pause sur le tout premier, pour laisser l'eleve entrer dans
-       l'aventure. Remis a zero par reinitialiser() (nouvelle aventure). */
-    let conceptsVus = 0;
+    /* Contexte de la lecon terminee, transmis au mini-jeu : niveau scolaire
+       (age) et concepts (contenu). */
+    let contexte = { niveau: "", concepts: [] };
 
     function auRepos() {
       phase = "repos";
@@ -184,39 +212,31 @@
       phase = "enJeu";
       adapter.cacherProposition();
       /* La carte est deja en pause depuis l'affichage de la proposition ;
-         on bascule simplement vers l'ecran du mini-jeu. Le niveau scolaire est
-         transmis pour que le jeu adapte contenu et consignes a l'age. */
-      demonterActif = adapter.monterMinigame(minigame, { terminer, niveau: niveauActif }) || null;
+         on bascule simplement vers l'ecran du mini-jeu. */
+      demonterActif =
+        adapter.monterMinigame(minigame, {
+          terminer,
+          niveau: contexte.niveau,
+          concepts: contexte.concepts,
+        }) || null;
     }
 
     return {
-      /* Appele par la carte apres un concept debloque (ou en fin de carte),
-         avec le niveau scolaire et le NOMBRE TOTAL de concepts de la carte.
-         Retourne true si une proposition a ete affichee. */
-      conceptDebloque(niveau, totalConcepts) {
+      /* Appele par la carte en fin de lecon (carte_terminee). Propose TOUJOURS
+         un mini-jeu (le prochain de la rotation), sauf si une pause est deja
+         en cours ou qu'aucun jeu n'est eligible. Retourne true si une
+         proposition a ete affichee. */
+      finLecon({ niveau = "", concepts = [], leconNom = "" } = {}) {
         if (phase !== "repos" || registre.estVide()) {
           return false;
         }
-        conceptsVus += 1;
-        /* On ne saute le TOUT PREMIER concept que si la carte est assez longue
-           pour qu'il reste des occasions ensuite (>= 3 concepts). Sur une carte
-           COURTE (1-2 concepts), bloquer le premier eteindrait toute pause -- le
-           dernier concept, lui, arrive en "carte_terminee" et propose aussi
-           desormais, mais un blocage systematique du 1er laissait les cartes a 2
-           concepts sans aucune occasion. totalConcepts inconnu -> prudence
-           d'origine (on bloque le 1er). */
-        const carteAssezLongue = !Number.isFinite(totalConcepts) || totalConcepts >= 3;
-        if (conceptsVus <= 1 && carteAssezLongue) {
-          return false;
-        }
-        if (!declencheur.conceptDebloque(random)) {
-          return false;
-        }
-        niveauActif = niveau || "";
-        const minigame = registre.choisir(random, niveauActif);
+        const minigame = registre.prochain(niveau, rot.historique());
         if (!minigame) {
           return false;
         }
+        contexte = { niveau, concepts: Array.isArray(concepts) ? concepts.slice() : [] };
+        /* Note des la proposition : un jeu refuse cede sa place au suivant. */
+        rot.noter(minigame.id);
         phase = "proposition";
         /* On met la carte en pause DES la proposition : l'eleve ne doit pas
            continuer a marcher derriere le voile pendant qu'il choisit. */
@@ -224,18 +244,18 @@
         adapter.afficherProposition(minigame, {
           accepter: () => accepter(minigame),
           refuser,
+          leconNom,
         });
         return true;
       },
       refuser,
       terminer,
       getPhase: () => phase,
-      /* Reset au debut d'un nouveau parcours : compteur de concepts + espacement
-         du declencheur. Sort proprement de N'IMPORTE QUELLE phase : une nouvelle
-         partie peut demarrer alors qu'une proposition ou un mini-jeu etait encore
-         a l'ecran (l'eleve a quitte sans repondre). Sans ce nettoyage,
-         l'orchestrateur restait bloque hors "repos" et ne proposait plus jamais
-         de pause (mini-jeux eteints jusqu'au rechargement de la page). */
+      /* Reset au debut d'un nouveau parcours. Sort proprement de N'IMPORTE
+         QUELLE phase : une nouvelle partie peut demarrer alors qu'une
+         proposition ou un mini-jeu etait encore a l'ecran (l'eleve a quitte
+         sans repondre). Sans ce nettoyage, l'orchestrateur restait bloque
+         hors "repos" et ne proposait plus jamais de pause. */
       reinitialiser() {
         if (phase !== "repos") {
           if (typeof demonterActif === "function") {
@@ -245,8 +265,6 @@
           adapter.cacherMinigame?.();
         }
         auRepos();
-        conceptsVus = 0;
-        declencheur.reinitialiser?.();
       },
     };
   }
@@ -392,9 +410,12 @@
     const cfg = { ...CHASSE, ...options };
     const rnd = typeof random === "function" ? random : Math.random;
     const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
-    const calcul = cfg.OPERATION
-      ? tirerCalculChasse(rnd, cfg.OPERATION, cfg.VALEUR_MIN, cfg.VALEUR_MAX)
-      : null;
+    /* Calcul fourni (carte tiree de la lecon) ou tire selon l'age. */
+    const calcul = cfg.CALCUL
+      ? cfg.CALCUL
+      : cfg.OPERATION
+        ? tirerCalculChasse(rnd, cfg.OPERATION, cfg.VALEUR_MIN, cfg.VALEUR_MAX)
+        : null;
     const cible = calcul ? calcul.resultat : ri(cfg.VALEUR_MIN, cfg.VALEUR_MAX);
     const nbCibles = Math.min(cfg.NB_NOMBRES, ri(cfg.CIBLES_MIN, cfg.CIBLES_MAX));
     const valeurs = [];
@@ -651,21 +672,26 @@
     nom: "la chasse aux nombres",
     emoji: "&#127880;",
     accroche: "Éclate les bonnes bulles avant la fin du temps.",
-    monter(zone, { terminer, niveau }) {
+    monter(zone, { terminer, niveau, concepts }) {
       /* Sur un ecran etroit (telephone en portrait), l'aire paysage 640x420
          reduisait les bulles a ~30 px : trop petit pour un doigt d'enfant. On
          passe alors a une aire portrait plus etroite, ou chaque bulle garde
          ~55 px a l'ecran. */
       const etroit = (zone.clientWidth || 640) < 520;
       const format = etroit ? { LARGEUR: 380, HAUTEUR: 500 } : {};
-      const config = genererConfig(Math.random, { ...reglagesChasse(niveau), ...calculChasse(niveau), ...format });
+      const config = genererConfig(Math.random, {
+        ...reglagesChasse(niveau),
+        ...calculChasse(niveau),
+        ...calculChasseLecon(concepts, niveau),
+        ...format,
+      });
       const partie = creerChasseNombres(config);
       const W = config.largeur;
       const H = config.hauteur;
       const R = config.rayon;
       const tactile = estTactile();
       const cibleHtml = config.expression
-        ? `<span class="chasse-cible-label">${tactile ? "Touche" : "Attrape"} le résultat de</span>
+        ? `<span class="chasse-cible-label">${tactile ? "Touche" : "Attrape"} la réponse de</span>
            <span class="chasse-cible-valeur chasse-cible-calcul">${config.expression}</span>`
         : `<span class="chasse-cible-label">${tactile ? "Touche" : "Attrape"} tous les</span>
            <span class="chasse-cible-valeur">${config.cible}</span>`;
@@ -902,6 +928,14 @@
     const cfg = { ...MEMORY, ...options };
     const rnd = typeof random === "function" ? random : Math.random;
     const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+    /* Paires fournies (cartes tirees de la lecon) : on les distribue telles
+       quelles. Leurs reponses sont deja distinctes (minijeux_contenu.js). */
+    if (Array.isArray(options.paires) && options.paires.length >= 2) {
+      return distribuerPaires(
+        options.paires.map((p, paireId) => ({ paireId, calcul: p.calcul, valeur: p.valeur })),
+        rnd,
+      );
+    }
     /* 6 ou 8 paires (12 ou 16 cartes, grilles 4x3 / 4x4). 7 paires donnaient
        14 cartes, donc 7 colonnes : des cartes minuscules sur telephone. */
     const nbPairesVoulu = options.nbPaires || (ri(0, 1) === 0 ? cfg.PAIRES_MIN : cfg.PAIRES_MAX);
@@ -931,6 +965,11 @@
       paires.push({ paireId: paires.length, calcul, valeur });
     }
 
+    return distribuerPaires(paires, rnd);
+  }
+
+  /* Deux cartes par paire (calcul + resultat), positions melangees. */
+  function distribuerPaires(paires, rnd) {
     const cartes = [];
     for (const pr of paires) {
       cartes.push({ id: cartes.length, paireId: pr.paireId, face: "calcul", texte: pr.calcul, valeur: pr.valeur });
@@ -945,6 +984,13 @@
       cartes[j] = tmp;
     }
     return { nbPaires: paires.length, cartes };
+  }
+
+  /* Classe de taille du texte d'une carte : les cartes de lecon (« 3 côtés
+     égaux ») sont plus longues que « 6 × 7 » et doivent passer a la ligne. */
+  function longueurTexte(texte) {
+    const n = String(texte || "").length;
+    return n >= 13 ? " texte-tres-long" : n >= 6 ? " texte-long" : "";
   }
 
   /* Coeur de jeu (sans DOM) : etat mutable des cartes + methodes. */
@@ -1055,13 +1101,21 @@
     nom: "le memory des paires",
     emoji: "&#127183;",
     accroche: "Retourne les cartes et retrouve celles qui vont ensemble.",
-    monter(zone, { terminer, niveau }) {
-      const config = genererPaires(Math.random, reglagesMemory(niveau));
+    monter(zone, { terminer, niveau, concepts }) {
+      /* 6 paires de la lecon terminee (memory des doubles apres les doubles,
+         des solides apres les solides) ; sinon le memory d'origine. */
+      const cartesLecon = contenuLecon(concepts, niveau, 6);
+      const config = genererPaires(Math.random, {
+        ...reglagesMemory(niveau),
+        ...(cartesLecon.length >= 4
+          ? { paires: cartesLecon.map((c) => ({ calcul: c.question, valeur: c.reponse })) }
+          : {}),
+      });
       const jeu = creerMemory(config);
       const nbColonnes = colonnesMemory(jeu.cartes().length);
       const consigne = estPetitNiveau(niveau)
         ? "Trouve les 2 cartes qui vont ensemble."
-        : "Associe chaque calcul à son résultat.";
+        : "Associe chaque carte à sa réponse.";
 
       const cartesMarkup = jeu
         .cartes()
@@ -1069,7 +1123,7 @@
           (c) => `
             <button class="memory-carte face-${c.face}" type="button" data-id="${c.id}" aria-label="Carte à retourner" style="--paire-teinte:${(c.paireId * 47) % 360}">
               <span class="memory-carte-dos" aria-hidden="true">&#9733;</span>
-              <span class="memory-carte-face"><span class="memory-carte-texte">${c.texte}</span></span>
+              <span class="memory-carte-face"><span class="memory-carte-texte${longueurTexte(c.texte)}">${c.texte}</span></span>
             </button>`,
         )
         .join("");
@@ -1083,7 +1137,7 @@
               <div class="memory-compteur" id="memory-compteur">0/${jeu.nbPaires()} paires</div>
             </div>
           </div>
-          <div class="memory-grille" id="memory-grille" style="--memory-cols:${nbColonnes}; --memory-rows:${Math.ceil(jeu.cartes().length / nbColonnes)}">${cartesMarkup}</div>
+          <div class="memory-grille${cartesLecon.length >= 4 ? " cartes-texte" : ""}" id="memory-grille" style="--memory-cols:${nbColonnes}; --memory-rows:${Math.ceil(jeu.cartes().length / nbColonnes)}">${cartesMarkup}</div>
           <div class="minijeu-pied">
             <button id="memory-quitter" class="puzzle-retour" type="button">Revenir à l'aventure</button>
           </div>
@@ -1190,6 +1244,196 @@
           finTimer = null;
         }
         grille.removeEventListener("click", onClick);
+        zone.innerHTML = "";
+      };
+    },
+  };
+
+  /* ============================================================
+     MINI-JEU : VRAI OU FAUX ECLAIR
+     ------------------------------------------------------------
+     Des affirmations sur la lecon qui vient de finir (« double de 7 = 14 »,
+     « un cube a 8 faces ») : l'eleve tape Vrai ou Faux. Une sur deux
+     environ est fausse (un leurre plausible). Pas de chronometre : on
+     joue pour s'amuser, et chaque fausse affirmation est corrigee tout
+     de suite (« Non : un cube a 6 faces »).
+
+     Coeur pur : genererVraiFaux(cartes, random) et creerVraiFaux(questions).
+     ============================================================ */
+  const VRAI_FAUX = {
+    NB_QUESTIONS: 8,
+    BONUS_PAR_BONNE: 4,
+    BONUS_BASE: 6,
+    DELAI_SUIVANTE_MS: 1100,
+  };
+
+  /* Une affirmation par carte, vraie ou fausse (un leurre). Garantit au
+     moins 2 vraies et 2 fausses pour que le hasard ne fasse pas une partie
+     « tout vrai ». */
+  function genererVraiFaux(cartes, random = Math.random) {
+    const rnd = typeof random === "function" ? random : Math.random;
+    const utilisables = (cartes || []).filter((c) => c && c.question && c.reponse && (c.leurres || []).length);
+    const questions = utilisables.map((c) => {
+      const vrai = rnd() < 0.5;
+      const proposee = vrai ? c.reponse : c.leurres[Math.floor(rnd() * c.leurres.length)];
+      const liaison = c.liaison || " = ";
+      return {
+        enonce: `${c.question}${liaison}${proposee}`,
+        vrai,
+        correction: `${c.question}${liaison}${c.reponse}`,
+        leurre: c.leurres[0],
+        reponse: c.reponse,
+        question: c.question,
+        liaison,
+      };
+    });
+    const equilibrer = (cible) => {
+      const nb = questions.filter((q) => q.vrai === cible).length;
+      for (let i = 0; nb + i < Math.min(2, Math.floor(questions.length / 2)); i += 1) {
+        const q = questions.find((x) => x.vrai !== cible);
+        if (!q) break;
+        q.vrai = cible;
+        q.enonce = `${q.question}${q.liaison}${cible ? q.reponse : q.leurre}`;
+      }
+    };
+    equilibrer(true);
+    equilibrer(false);
+    return questions.map(({ enonce, vrai, correction }) => ({ enonce, vrai, correction }));
+  }
+
+  function creerVraiFaux(questions) {
+    const liste = questions.slice();
+    let index = 0;
+    let bonnes = 0;
+    return {
+      total: () => liste.length,
+      index: () => index,
+      bonnes: () => bonnes,
+      courante: () => liste[index] || null,
+      termine: () => index >= liste.length,
+      /* Repond a la question courante et passe a la suivante. */
+      repondre(dit) {
+        const q = liste[index];
+        if (!q) {
+          return null;
+        }
+        const juste = Boolean(dit) === q.vrai;
+        if (juste) bonnes += 1;
+        index += 1;
+        return { juste, vrai: q.vrai, correction: q.correction };
+      },
+      bonus: () => VRAI_FAUX.BONUS_BASE + bonnes * VRAI_FAUX.BONUS_PAR_BONNE,
+    };
+  }
+
+  const MINIGAME_VRAI_FAUX = {
+    id: "vrai-faux",
+    nom: "le vrai ou faux éclair",
+    emoji: "&#9889;",
+    accroche: "Des phrases sur ta leçon : vraies ou fausses ? À toi de dire !",
+    monter(zone, { terminer, niveau, concepts }) {
+      const cartes = contenuLecon(concepts, niveau, VRAI_FAUX.NB_QUESTIONS);
+      const sources = cartes.length >= 4
+        ? cartes
+        : contenuLecon([estPetitNiveau(niveau) ? "addition" : "multiplication"], niveau, VRAI_FAUX.NB_QUESTIONS);
+      const jeu = creerVraiFaux(genererVraiFaux(sources, Math.random));
+
+      zone.innerHTML = `
+        <div class="vf">
+          <div class="vf-header">
+            <p class="vf-consigne">Vrai ou faux ?</p>
+            <p class="vf-compteur" id="vf-compteur"></p>
+          </div>
+          <div class="vf-progres" aria-hidden="true"><span id="vf-progres-barre"></span></div>
+          <div class="vf-carte" id="vf-carte" aria-live="polite">
+            <p class="vf-enonce" id="vf-enonce"></p>
+            <p class="vf-retour" id="vf-retour"></p>
+          </div>
+          <div class="vf-boutons">
+            <button class="vf-btn vf-vrai" id="vf-vrai" type="button"><span aria-hidden="true">&#10003;</span> Vrai</button>
+            <button class="vf-btn vf-faux" id="vf-faux" type="button"><span aria-hidden="true">&#10007;</span> Faux</button>
+          </div>
+          <div class="minijeu-pied">
+            <button id="vf-quitter" class="puzzle-retour" type="button">Revenir à l'aventure</button>
+          </div>
+          <div class="memory-fin hidden" id="vf-fin"></div>
+        </div>
+      `;
+
+      const carte = zone.querySelector("#vf-carte");
+      const enonce = zone.querySelector("#vf-enonce");
+      const retour = zone.querySelector("#vf-retour");
+      const compteur = zone.querySelector("#vf-compteur");
+      const barre = zone.querySelector("#vf-progres-barre");
+      const btnVrai = zone.querySelector("#vf-vrai");
+      const btnFaux = zone.querySelector("#vf-faux");
+      const finBox = zone.querySelector("#vf-fin");
+      let suivanteTimer = null;
+      let finTimer = null;
+      let attente = false;
+
+      function afficher() {
+        const q = jeu.courante();
+        compteur.textContent = `${Math.min(jeu.index() + 1, jeu.total())}/${jeu.total()}`;
+        barre.style.width = `${Math.round((jeu.index() / Math.max(1, jeu.total())) * 100)}%`;
+        carte.classList.remove("juste", "faux");
+        retour.textContent = "";
+        enonce.textContent = q ? q.enonce : "";
+        btnVrai.disabled = false;
+        btnFaux.disabled = false;
+        attente = false;
+      }
+
+      function repondre(dit) {
+        if (attente || jeu.termine()) {
+          return;
+        }
+        attente = true;
+        btnVrai.disabled = true;
+        btnFaux.disabled = true;
+        const res = jeu.repondre(dit);
+        carte.classList.add(res.juste ? "juste" : "faux");
+        retour.textContent = res.juste
+          ? (res.vrai ? "Oui, c'est vrai !" : "Bien vu, c'était faux !")
+          : (res.vrai ? "Si, c'était vrai !" : `Non : ${res.correction}`);
+        suivanteTimer = window.setTimeout(() => {
+          if (jeu.termine()) {
+            finir();
+          } else {
+            afficher();
+          }
+        }, res.juste ? VRAI_FAUX.DELAI_SUIVANTE_MS : VRAI_FAUX.DELAI_SUIVANTE_MS * 1.8);
+      }
+
+      function finir() {
+        barre.style.width = "100%";
+        const bonus = jeu.bonus();
+        finBox.innerHTML = `
+          <div class="memory-fin-carte fin-carte">
+            ${etoilesFin(jeu.bonnes() / Math.max(1, jeu.total()))}
+            <h2 class="memory-fin-titre">${jeu.bonnes()} bonne${jeu.bonnes() > 1 ? "s" : ""} réponse${jeu.bonnes() > 1 ? "s" : ""} sur ${jeu.total()}</h2>
+            <p class="memory-fin-detail">Tu connais bien ta leçon !</p>
+            <p class="memory-fin-bonus">+${bonus} étoiles &#10024;</p>
+            <button id="vf-fin-btn" class="btn-primary" type="button">Revenir à l'aventure</button>
+          </div>
+        `;
+        finBox.classList.remove("hidden");
+        lancerConfettis(finBox);
+        const btn = finBox.querySelector("#vf-fin-btn");
+        btn.addEventListener("click", () => terminer(bonus));
+        btn.focus();
+        finTimer = window.setTimeout(() => terminer(bonus), 6000);
+      }
+
+      btnVrai.addEventListener("click", () => repondre(true));
+      btnFaux.addEventListener("click", () => repondre(false));
+      zone.querySelector("#vf-quitter").addEventListener("click", () => terminer(jeu.bonnes() ? jeu.bonus() : 0));
+      afficher();
+      btnVrai.focus();
+
+      return () => {
+        if (suivanteTimer) window.clearTimeout(suivanteTimer);
+        if (finTimer) window.clearTimeout(finTimer);
         zone.innerHTML = "";
       };
     },
@@ -1904,7 +2148,7 @@
       reprendreCarte() {
         window.ParcoursApp?.reprendreApresMinigame?.();
       },
-      afficherProposition(minigame, { accepter, refuser }) {
+      afficherProposition(minigame, { accepter, refuser, leconNom }) {
         const overlay = el("minigame-invite-overlay");
         const card = el("minigame-invite-card");
         if (!overlay || !card) {
@@ -1913,14 +2157,14 @@
           return;
         }
         card.innerHTML = `
-          <p class="minigame-invite-eyebrow">Pause détente !</p>
+          <p class="minigame-invite-eyebrow">Leçon terminée${leconNom ? ` : ${leconNom}` : ""}</p>
           <div class="minigame-invite-emoji" aria-hidden="true">${minigame.emoji || "&#127881;"}</div>
-          <h2 class="minigame-invite-title">Tu veux jouer ${aLeNom(minigame.nom)}&nbsp;?</h2>
+          <h2 class="minigame-invite-title">Tu veux jouer ${aLeNom(minigame.nom)} pour fêter ça&nbsp;?</h2>
           ${minigame.accroche ? `<p class="minigame-invite-accroche">${minigame.accroche}</p>` : ""}
-          <p class="minigame-invite-text">Juste pour s'amuser : ta progression t'attend sur la carte.</p>
+          <p class="minigame-invite-text">C'est ta récompense, juste pour t'amuser. Tu peux aussi passer.</p>
           <div class="minigame-invite-actions">
             <button id="minigame-invite-play" class="btn-primary" type="button">Jouer</button>
-            <button id="minigame-invite-skip" class="ghost-button" type="button">Non merci, continuer</button>
+            <button id="minigame-invite-skip" class="ghost-button" type="button">Non merci</button>
           </div>
         `;
         card.querySelector("#minigame-invite-play")?.addEventListener("click", accepter);
@@ -1938,7 +2182,7 @@
         }
         window.ParcoursApp?.refreshScenePaused?.();
       },
-      monterMinigame(minigame, { terminer, niveau }) {
+      monterMinigame(minigame, { terminer, niveau, concepts }) {
         const overlay = el("minigame-overlay");
         const stage = el("minigame-stage");
         if (!overlay || !stage) {
@@ -1948,7 +2192,7 @@
         }
         overlay.classList.remove("hidden");
         window.ParcoursApp?.refreshScenePaused?.();
-        const demonter = minigame.monter(stage, { terminer, niveau });
+        const demonter = minigame.monter(stage, { terminer, niveau, concepts });
         /* Variante visuelle mature (CE5/CE6) : la palette suit deja par cascade
            (body[data-visual]) ; on durcit en plus les angles des <rect> du
            mini-jeu, comme la scene de carte. */
@@ -1974,24 +2218,33 @@
      branche sur l'adapter navigateur. Le placeholder MINIGAME_A_VENIR reste
      defini (reference et tests) mais n'est plus propose : la chasse aux
      nombres est le premier vrai mini-jeu. */
+  /* Ordre d'enregistrement = ordre de la premiere rotation : d'abord les
+     jeux qui parlent de la lecon, puis les recompenses (puzzle, jardin). */
   const registreReel = creerRegistre();
-  registreReel.enregistrer(MINIGAME_CHASSE);
   registreReel.enregistrer(MINIGAME_MEMORY);
+  registreReel.enregistrer(MINIGAME_VRAI_FAUX);
+  registreReel.enregistrer(MINIGAME_CHASSE);
   registreReel.enregistrer(MINIGAME_PUZZLE);
   registreReel.enregistrer(MINIGAME_DECO);
+  const ROTATION_KEY = "parcours-minijeux-rotation-v1";
   const orchestrateurReel = creerOrchestrateur({
-    declencheur: creerDeclencheur(),
     registre: registreReel,
     adapter: creerAdapterNavigateur(),
+    rotation: creerRotation({
+      lire() {
+        return JSON.parse(window.localStorage.getItem(cleParEleve(ROTATION_KEY)) || "[]");
+      },
+      ecrire(historique) {
+        window.localStorage.setItem(cleParEleve(ROTATION_KEY), JSON.stringify(historique));
+      },
+    }),
   });
 
   const api = {
-    /* Appele par le jeu (carte/) apres un correct_concept_debloque OU en fin de carte
-       (carte_terminee), avec le niveau scolaire et le nombre total de concepts
-       de la carte (pour l'eligibilite, l'adaptation par age et l'assouplissement
-       de la garde sur les cartes courtes). */
-    conceptDebloque(niveau, totalConcepts) {
-      return orchestrateurReel.conceptDebloque(niveau, totalConcepts);
+    /* Appele par la carte en fin de lecon (carte_terminee) avec le niveau
+       scolaire, les concepts de la lecon (contenu des jeux) et son nom. */
+    finLecon(contexte) {
+      return orchestrateurReel.finLecon(contexte);
     },
     /* Vrai tant qu'une proposition ou un mini-jeu occupe l'ecran : le bilan de
        fin de carte (carnet.js) attend que la pause detente soit finie avant de
@@ -1999,8 +2252,8 @@
     estActif() {
       return orchestrateurReel.getPhase() !== "repos";
     },
-    /* A appeler par le jeu (carte/) au demarrage d'un nouveau parcours : remet a zero
-       l'espacement des propositions (le declencheur etant un singleton). */
+    /* A appeler par la carte au demarrage d'un nouveau parcours : ferme une
+       pause restee ouverte. */
     reinitialiserParcours() {
       orchestrateurReel.reinitialiser();
     },
@@ -2012,7 +2265,8 @@
       return registreReel.liste();
     },
     /* Exposes pour les tests (coeurs sans navigateur). */
-    creerDeclencheur,
+    prochainEnRotation,
+    creerRotation,
     creerRegistre,
     creerOrchestrateur,
     MINIGAME_A_VENIR,
@@ -2043,8 +2297,12 @@
     etoilesRestantesDeco,
     objetsDebloquesDeco,
     DECO,
-    PROBABILITE_DEFAUT,
-    ESPACEMENT_MIN_CONCEPTS,
+    MINIGAME_VRAI_FAUX,
+    genererVraiFaux,
+    creerVraiFaux,
+    VRAI_FAUX,
+    calculChasseLecon,
+    contenuLecon,
   };
 
   if (typeof window !== "undefined") {

@@ -618,16 +618,17 @@ function applyEvaluationResult(payload, context) {
     clearFeedback();
   }
 
-  /* Pause detente : apres un concept debloque ET en fin de carte
-     (carte_terminee, qui est la seule "occasion" des cartes a 1 concept et la
-     2e des cartes a 2 concepts), on PROPOSE parfois un mini-jeu (jamais impose,
-     sans aucun enjeu pedagogique). On transmet le nombre total de concepts pour
-     que le module assouplisse sa garde sur les cartes courtes. Le module decide
-     seul de la frequence et de l'espacement, gere sa propre bascule/retour ; la
-     progression sur la carte n'est jamais touchee. Le bilan de fin de carte
-     (carnet.js) attend la fin de la pause avant de s'afficher. */
-  if (unlocked || finished) {
-    window.ParcoursMinigames?.conceptDebloque?.(levelLabel(), state.session?.concepts?.length);
+  /* Recompense de fin de lecon : la carte terminee, on PROPOSE toujours un
+     mini-jeu (facultatif, sans enjeu pedagogique) qui parle de la lecon
+     qui vient de finir. Le module choisit le jeu par rotation et gere sa
+     propre bascule/retour ; le bilan de fin de carte (carnet.js) attend la
+     fin de la pause avant de s'afficher. */
+  if (finished) {
+    window.ParcoursMinigames?.finLecon?.({
+      niveau: levelLabel(),
+      concepts: state.session?.concepts || [],
+      leconNom: state.session?.lecon_nom || "",
+    });
   }
 
   if (state.panelOpen) {
