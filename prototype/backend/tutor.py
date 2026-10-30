@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import re
+import threading
+import time
+import unicodedata
+from collections import OrderedDict
 from functools import lru_cache
 from pathlib import Path
 
@@ -189,6 +195,102 @@ def _build_user_prompt(
     )
 
 
+# --- Cache des reponses du tuteur ---------------------------------------------
+#
+# Beaucoup d'eleves posent la meme question sur le meme calcul (« je comprends
+# pas » sur « 3 + 4 = ... » au CE1) : sans cache, chaque fois coute un appel
+# LLM. La cle reunit tout ce qui change la reponse : tranche d'age (registre),
+# enonce, reponse attendue, diagnostic de la derniere erreur, nombre d'essais
+# faux (borne a ESSAIS_AVANT_REPONSE : c'est ce seuil qui change la regle) et
+# la question NORMALISEE (casse, accents, ponctuation, lettres repetees).
+#
+# Memoire du processus seulement (rien en base) : une reponse peut reprendre
+# un mot de la question de l'eleve, on ne la conserve donc pas durablement.
+# Seules les questions courtes (<= QUESTION_MAX_CACHE caracteres) sont mises
+# en cache : ce sont les questions generiques, les plus repetees.
+
+CACHE_TAILLE = int(os.environ.get("TUTEUR_CACHE_TAILLE", "2000") or 0)
+CACHE_DUREE_S = int(os.environ.get("TUTEUR_CACHE_DUREE_S", str(7 * 24 * 3600)) or 0)
+QUESTION_MAX_CACHE = 80
+
+
+class _CacheReponses:
+    """LRU borne, avec expiration, partage entre les requetes (thread-safe)."""
+
+    def __init__(self, taille: int, duree_s: int) -> None:
+        self.taille = taille
+        self.duree_s = duree_s
+        self._donnees: OrderedDict[str, tuple[float, dict]] = OrderedDict()
+        self._verrou = threading.Lock()
+        self.succes = 0
+        self.echecs = 0
+
+    def lire(self, cle: str) -> dict | None:
+        with self._verrou:
+            entree = self._donnees.get(cle)
+            if entree is None or (self.duree_s and time.monotonic() - entree[0] > self.duree_s):
+                self._donnees.pop(cle, None)
+                self.echecs += 1
+                return None
+            self._donnees.move_to_end(cle)
+            self.succes += 1
+            return entree[1]
+
+    def ecrire(self, cle: str, valeur: dict) -> None:
+        if self.taille <= 0:
+            return
+        with self._verrou:
+            self._donnees[cle] = (time.monotonic(), valeur)
+            self._donnees.move_to_end(cle)
+            while len(self._donnees) > self.taille:
+                self._donnees.popitem(last=False)
+
+    def vider(self) -> None:
+        with self._verrou:
+            self._donnees.clear()
+            self.succes = self.echecs = 0
+
+    def __len__(self) -> int:
+        return len(self._donnees)
+
+
+CACHE_REPONSES = _CacheReponses(CACHE_TAILLE, CACHE_DUREE_S)
+
+
+def normaliser_question(question: str) -> str:
+    """« Je comprend PAS !! » et « je comprend pas » donnent la meme cle."""
+    texte = unicodedata.normalize("NFKD", question or "")
+    texte = "".join(c for c in texte if not unicodedata.combining(c)).lower()
+    texte = re.sub(r"[^a-z0-9]+", " ", texte)
+    texte = re.sub(r"(.)\1{2,}", r"\1", texte)  # « aiiide » -> « aide »
+    return " ".join(texte.split())
+
+
+def cle_cache(
+    exercice: dict,
+    question_filtree: str,
+    diagnostic: str | None,
+    essais_faux: int,
+    niveau: str | None,
+) -> str | None:
+    """Cle de cache, ou None si la question ne doit pas etre mise en cache."""
+    question = normaliser_question(question_filtree)
+    if not question or len(question) > QUESTION_MAX_CACHE or CACHE_TAILLE <= 0:
+        return None
+    contenu = json.dumps(
+        [
+            construire_system_instruction(niveau),
+            exercice.get("enonce", ""),
+            str(exercice.get("reponse_attendue", {}).get("valeur", "")),
+            diagnostic or "",
+            min(max(0, int(essais_faux)), ESSAIS_AVANT_REPONSE),
+            question,
+        ],
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(contenu.encode("utf-8")).hexdigest()
+
+
 def _is_valid_tutor_text(text: str) -> bool:
     stripped = text.strip()
     return len(stripped) >= 10 and stripped.endswith(VALID_ENDINGS)
@@ -301,8 +403,14 @@ def build_tutor_reply(
     pedagogiques restent identiques pour tous les niveaux.
     """
     question_filtree = filtrer_donnees_personnelles(question, prenoms)
-    prompt = _build_user_prompt(exercice, question_filtree, diagnostic, essais_faux)
     niveau = niveau or exercice.get("niveau_scolaire")
+    cle = cle_cache(exercice, question_filtree, diagnostic, essais_faux, niveau)
+    if cle is not None:
+        en_cache = CACHE_REPONSES.lire(cle)
+        if en_cache is not None:
+            LOGGER.info("Tuteur : reponse servie depuis le cache.")
+            return {**en_cache, "question_recue": question, "depuis_cache": True}
+    prompt = _build_user_prompt(exercice, question_filtree, diagnostic, essais_faux)
     system_instruction = construire_system_instruction(niveau)
 
     for provider_name, model_name, caller_name in TUTOR_PROVIDERS:
@@ -320,10 +428,13 @@ def build_tutor_reply(
             )
             continue
         LOGGER.info("Tuteur : reponse fournie par '%s'.", provider_name)
+        if cle is not None:
+            CACHE_REPONSES.ecrire(cle, {"modele": model_name, "reponse": text})
         return {
             "modele": model_name,
             "reponse": text,
             "question_recue": question,
+            "depuis_cache": False,
         }
 
     LOGGER.error("Tuteur : tous les fournisseurs ont echoue.")
