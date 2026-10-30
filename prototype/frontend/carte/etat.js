@@ -76,6 +76,7 @@ const lessonTitle = document.getElementById("lesson-title");
 const lessonActions = document.getElementById("lesson-actions");
 const revisionZone = document.getElementById("revision-zone");
 const assignationZone = document.getElementById("assignation-zone");
+const programmeZone = document.getElementById("programme-zone");
 const lessonStatus = document.getElementById("lesson-status");
 const sessionTitle = document.getElementById("session-title");
 const currentLevelBadge = document.getElementById("current-level-badge");
@@ -118,6 +119,7 @@ const state = {
   camera: { x: START_X, y: START_Y },
   selectedLevel: null,
   availableLessons: [],
+  programme: null,
   selectedLesson: null,
   assignations: [], /* travaux assignes en attente (eleve connecte) */
   reinforcement: null,

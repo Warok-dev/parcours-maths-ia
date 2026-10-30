@@ -83,7 +83,28 @@
       .slice(0, n);
   }
 
+  /* Coeur pur : regroupe les concepts du programme par semaine (ordre du
+     calendrier), les concepts hors calendrier a la fin. */
+  function grouperParSemaine(concepts) {
+    const groupes = [];
+    for (const c of concepts || []) {
+      const cle = c.semaine == null ? "hors" : String(c.semaine);
+      let groupe = groupes.find((g) => g.cle === cle);
+      if (!groupe) {
+        groupe = {
+          cle,
+          titre: c.semaine == null ? "Pour réviser, hors calendrier" : `Semaine ${c.semaine}`,
+          concepts: [],
+        };
+        groupes.push(groupe);
+      }
+      groupe.concepts.push(c);
+    }
+    return groupes;
+  }
+
   const coeur = {
+    grouperParSemaine,
     validerInscription,
     libelleErreur,
     NIVEAUX,
@@ -336,6 +357,32 @@
   }
 
   const _nomsLeconsCache = {};
+  /* --- Programme de classe --- */
+  async function chargerProgramme(classeId) {
+    return appel(`/classe/${classeId}/programme`, { method: "GET" });
+  }
+
+  async function activerProgramme(classeId, actif) {
+    return appel(`/classe/${classeId}/programme`, {
+      method: "POST",
+      body: JSON.stringify({ actif }),
+    });
+  }
+
+  async function ouvrirConcepts(classeId, patterns) {
+    return appel(`/classe/${classeId}/programme/ouvrir`, {
+      method: "POST",
+      body: JSON.stringify({ patterns }),
+    });
+  }
+
+  async function fermerConcepts(classeId, patterns) {
+    return appel(`/classe/${classeId}/programme/fermer`, {
+      method: "POST",
+      body: JSON.stringify({ patterns }),
+    });
+  }
+
   async function chargerNomsLecons(niveau) {
     if (_nomsLeconsCache[niveau]) {
       return _nomsLeconsCache[niveau];
@@ -964,6 +1011,7 @@
         <button type="button" id="ens-retour-dashboard" class="ghost-button">&#8592; Mes classes</button>
         <span class="teacher-topbar-actions">
           <button type="button" id="ens-tableau-bord" class="btn-primary teacher-dashboard-btn">Tableau de bord</button>
+          <button type="button" id="ens-programme" class="btn-primary">Programme</button>
           <button type="button" id="ens-assigner" class="btn-primary">Assigner un travail</button>
           <button type="button" id="ens-export-excel" class="ghost-button">Exporter en Excel</button>
           <button type="button" class="ghost-button teacher-copy" data-code="${classe.code_classe}">Copier le code ${classe.code_classe}</button>
@@ -988,6 +1036,7 @@
     body.querySelector("#ens-tableau-bord").addEventListener("click", () => vueTableauDeBord(classeId));
     body.querySelector("#ens-export-excel").addEventListener("click", () => exporterExcel(classe));
     body.querySelector("#ens-assigner").addEventListener("click", () => vueAssignerTravail(classeId, classe, eleves));
+    body.querySelector("#ens-programme").addEventListener("click", () => vueProgramme(classeId, classe));
     body.querySelector(".teacher-copy").addEventListener("click", () => copierCode(classe.code_classe));
     body.querySelector("#ens-nouveau-code").addEventListener("click", (event) =>
       demanderNouveauCode(classeId, event.currentTarget),
@@ -1020,6 +1069,93 @@
       } catch (error) {
         setStatut(error.message, "erreur");
       }
+    });
+  }
+
+  /* --- Vue : programme de classe ---
+     Le calendrier du ministere propose le concept suivant, l'enseignant
+     l'ouvre d'un clic quand la classe passe a la suite. Il peut aussi ouvrir
+     plus loin, refermer, ou revenir a l'acces libre (toutes les lecons). */
+  async function vueProgramme(classeId, classe, etatDeja = null) {
+    let etat = etatDeja;
+    if (!etat) {
+      setStatut("Chargement du programme...");
+      try {
+        etat = await chargerProgramme(classeId);
+      } catch (error) {
+        setStatut(error.message, "erreur");
+        return;
+      }
+    }
+    const actif = etat.actif;
+    const prochain = etat.prochain;
+    const groupes = grouperParSemaine(etat.concepts);
+    const ligne = (c) => `
+      <li class="prog-ligne${c.ouvert ? " is-ouvert" : ""}">
+        <span class="prog-ligne-nom">${echapper(c.libelle)}<br /><span class="prog-ligne-lecon">${echapper(c.lecon_nom || "")}</span></span>
+        ${c.ouvert ? `<span class="prog-etat">Ouvert le ${formaterDate(c.date_ouverture)}</span>` : ""}
+        <button type="button" class="ghost-button prog-basculer" data-pattern="${c.pattern}" data-ouvert="${c.ouvert ? "1" : "0"}">${c.ouvert ? "Fermer" : "Ouvrir"}</button>
+      </li>`;
+    body.innerHTML = `
+      <div class="teacher-topbar">
+        <button type="button" id="ens-retour-classe" class="ghost-button">&#8592; ${echapper(classe.nom)}</button>
+      </div>
+      <h2 class="teacher-subtitle">Programme de la classe <span class="hud-level">${etat.niveau_scolaire}</span></h2>
+      <div class="prog-entete">
+        <label class="prog-bascule">
+          <input type="checkbox" id="prog-actif" ${actif ? "checked" : ""} />
+          Mes élèves ne voient que les concepts ouverts
+        </label>
+        <span class="prog-ligne-lecon">${etat.nb_ouverts} concept${etat.nb_ouverts > 1 ? "s" : ""} ouvert${etat.nb_ouverts > 1 ? "s" : ""}</span>
+      </div>
+      ${
+        !actif
+          ? `<p class="prog-inactif">Accès libre : vos élèves voient toutes les leçons du niveau. Cochez la case pour avancer concept par concept.</p>`
+          : prochain
+            ? `<div class="prog-prochain">
+                <p class="prog-prochain-texte">Prochain au calendrier${prochain.semaine ? ` (semaine ${prochain.semaine})` : ""} : <strong>${echapper(prochain.libelle)}</strong></p>
+                <button type="button" id="prog-ouvrir-prochain" class="btn-primary" data-pattern="${prochain.pattern}">Ouvrir ce concept</button>
+              </div>`
+            : `<p class="prog-inactif">Tous les concepts du programme sont ouverts.</p>`
+      }
+      ${groupes
+        .map(
+          (g) => `
+        <h3 class="prog-semaine">${g.titre}</h3>
+        <ul class="prog-liste">${g.concepts.map(ligne).join("")}</ul>`,
+        )
+        .join("")}
+    `;
+    setStatut("");
+
+    const rafraichir = async (action) => {
+      setStatut("Enregistrement...");
+      try {
+        const nouvel = await action();
+        await vueProgramme(classeId, classe, nouvel);
+      } catch (error) {
+        setStatut(error.message, "erreur");
+      }
+    };
+    body.querySelector("#ens-retour-classe").addEventListener("click", () => vueClasseDetail(classeId));
+    body.querySelector("#prog-actif").addEventListener("change", (event) =>
+      rafraichir(() => activerProgramme(classeId, event.currentTarget.checked)),
+    );
+    const boutonProchain = body.querySelector("#prog-ouvrir-prochain");
+    if (boutonProchain) {
+      boutonProchain.addEventListener("click", () =>
+        rafraichir(() => ouvrirConcepts(classeId, [boutonProchain.dataset.pattern])),
+      );
+    }
+    body.querySelectorAll(".prog-basculer").forEach((bouton) => {
+      bouton.addEventListener("click", () => {
+        const pattern = bouton.dataset.pattern;
+        rafraichir(() =>
+          bouton.dataset.ouvert === "1"
+            ? fermerConcepts(classeId, [pattern])
+            : ouvrirConcepts(classeId, [pattern]),
+        );
+      });
     });
   }
 
@@ -1632,6 +1768,10 @@
     chargerLecons,
     chargerTableauDeBord,
     chargerConceptsDifficiles,
+    chargerProgramme,
+    activerProgramme,
+    ouvrirConcepts,
+    fermerConcepts,
     vueTableauDeBord,
     arreterRafraichissementTableauBord,
     /* Coeur pur */
@@ -1639,5 +1779,6 @@
     libelleErreur,
     trierElevesParDifficulte,
     conceptsLesPlusDifficiles,
+    grouperParSemaine,
   };
 })();

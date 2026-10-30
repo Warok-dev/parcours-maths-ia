@@ -41,7 +41,10 @@ from comptes import (
     router as comptes_router,
 )
 import database
-from database import Eleve, Progression, SessionJeu, init_db
+import notifications
+import programme
+from database import Assignation, Eleve, Progression, SessionJeu, init_db
+from generation.recits import generer_recit, recit_disponible
 from rate_limit import (
     LIMITE_IA,
     LIMITE_TTS,
@@ -208,6 +211,12 @@ Identifiant = Annotated[str, Field(max_length=IDENTIFIANT_MAX)]
 class SessionStartRequest(BaseModel):
     niveau_scolaire: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
     lecon_id: Identifiant | None = None
+    theme: Identifiant | None = None
+
+
+class ConceptStartRequest(BaseModel):
+    niveau_scolaire: Literal["CE1", "CE2", "CE3", "CE4", "CE5", "CE6"]
+    pattern: Identifiant
     theme: Identifiant | None = None
 
 
@@ -492,17 +501,69 @@ def _revision_concepts(niveau: str, patterns_cibles: list[str]) -> list[str]:
     return concepts[:REVISION_MAX_CONCEPTS]
 
 
+# ---------- Aspects d'un concept ----------
+# Un eleve qui n'a qu'un concept ouvert (programme de classe) doit pouvoir le
+# travailler longtemps sans tourner en rond : chaque etape de la carte est un
+# ASPECT du concept -- le calcul, ou le probleme raconte dans son univers.
+ASPECT_CALCUL = "calcul"
+ASPECT_RECIT = "recit"
+ETAPES_MIN_CARTE = 3
+
+
+def _plan_aspects(concepts: list[str], niveau: str) -> tuple[list[str], list[str]]:
+    """Etale une carte trop courte sur 3 etapes variees.
+
+    1 concept  -> calcul, probleme raconte, calcul (le defi final) ;
+    2 concepts -> les deux en calcul, puis le premier qui a une version
+                  racontee, en recit.
+    A partir de 3 concepts, la carte est deja variee : tout en calcul.
+    Sans version racontee possible, l'etape est un calcul de plus (la
+    presentation et les nombres changent a chaque exercice).
+    """
+    concepts = list(concepts)
+    if len(concepts) >= ETAPES_MIN_CARTE or not concepts:
+        return concepts, [ASPECT_CALCUL] * len(concepts)
+    generables = set(patterns_disponibles_pour_niveau(niveau))
+
+    def racontable(p: str) -> bool:
+        return recit_disponible(p) and p in generables
+
+    if len(concepts) == 1:
+        p = concepts[0]
+        milieu = ASPECT_RECIT if racontable(p) else ASPECT_CALCUL
+        return [p, p, p], [ASPECT_CALCUL, milieu, ASPECT_CALCUL]
+    a, b = concepts[0], concepts[1]
+    for p in (a, b):
+        if racontable(p):
+            return [a, b, p], [ASPECT_CALCUL, ASPECT_CALCUL, ASPECT_RECIT]
+    return [a, b, a], [ASPECT_CALCUL] * 3
+
+
+def _aspect_a(session: dict, index: int) -> str:
+    aspects = session.get("aspects") or []
+    return aspects[index] if 0 <= index < len(aspects) else ASPECT_CALCUL
+
+
 def _cache_exercise(exercice: dict) -> dict:
     EXERCICE_CACHE[exercice["id"]] = exercice
     return exercice
 
 
-def _generate_concept_exercise(niveau: str, concept: str, theme: str | None = None) -> dict:
+def _generate_concept_exercise(
+    niveau: str, concept: str, theme: str | None = None, aspect: str = ASPECT_CALCUL
+) -> dict:
     """Genere l'exercice d'un concept.
 
-    Le theme ne concerne que les patterns narratifs : les exercices
-    proceduraux n'ont pas d'habillage a colorer.
+    Le theme ne concerne que les patterns narratifs et les problemes racontes :
+    les exercices proceduraux n'ont pas d'habillage a colorer. L'aspect
+    "recit" habille le meme concept d'une petite histoire (generation/recits.py).
     """
+    if (
+        aspect == ASPECT_RECIT
+        and recit_disponible(concept)
+        and concept in patterns_disponibles_pour_niveau(niveau)
+    ):
+        return _cache_exercise(generer_recit(concept, niveau, theme))
     if concept in patterns_disponibles_pour_niveau(niveau):
         return _cache_exercise(generer_exercice(concept, niveau))
     if concept in patterns_narratifs_disponibles_pour_niveau(niveau):
@@ -527,6 +588,7 @@ def _ensure_session_fields(session: dict) -> dict:
     session.setdefault("confiance_deja_inseree", False)
     session.setdefault("confiance_maitrises_vues", 0)
     session.setdefault("revision", False)
+    session.setdefault("aspects", [ASPECT_CALCUL] * len(session.get("concepts") or []))
     session.setdefault("theme", THEME_NEUTRE)
     # Lien optionnel vers un compte eleve (mode connecte) : nul pour une
     # session invitee (mode essai libre, comportement localStorage inchange).
@@ -683,6 +745,8 @@ def _progression_payload(session: dict) -> dict:
         "etapes_debloquees": session["etapes_debloquees"],
         "concepts": session["concepts"],
         "concept_index": session["concept_index"],
+        "aspects": list(session["aspects"]),
+        "aspect_courant": _aspect_a(session, session["concept_index"]),
         "theme": session["theme"],
         # Maitrise atteinte sur chaque concept ACHEVE, dans l'ordre de
         # concepts : le frontend s'en sert pour memoriser les faiblesses en
@@ -735,6 +799,7 @@ def _build_session(
     lecon_nom: str | None = None,
     revision: bool = False,
     theme: str | None = None,
+    aspects: list[str] | None = None,
 ) -> dict:
     """Cree une session.
 
@@ -752,8 +817,10 @@ def _build_session(
             lecon_nom = lesson["nom"]
 
     theme = _valider_theme(theme)
+    if aspects is None or len(aspects) != len(concepts):
+        aspects = [ASPECT_CALCUL] * len(concepts)
     concept = concepts[0]
-    exercice = _generate_concept_exercise(niveau, concept, theme)
+    exercice = _generate_concept_exercise(niveau, concept, theme, aspects[0])
     session_id = uuid4().hex
     session = {
         "session_id": session_id,
@@ -762,6 +829,7 @@ def _build_session(
         "lecon_id": lecon_id,
         "lecon_nom": lecon_nom,
         "concepts": concepts,
+        "aspects": list(aspects),
         "concept_index": 0,
         "concept_courant": concept,
         "phase": "detection_maitrise",
@@ -826,11 +894,16 @@ def _mark_chain_broken(session: dict) -> None:
     session["erreurs_sur_chaine_actuelle"] = True
 
 
-def _generate_next_exercise(session: dict, concept: str) -> dict:
+def _generate_next_exercise(session: dict, concept: str, index: int | None = None) -> dict:
     # La session ne doit etre mutee qu'apres une generation reussie : toute
     # erreur ici doit laisser l'etat intact et signaler un indisponible au front.
+    # `index` = l'etape de la carte pour laquelle on genere (par defaut l'etape
+    # en cours) : son aspect (calcul / recit) decide de l'habillage.
+    aspect = _aspect_a(session, session["concept_index"] if index is None else index)
     try:
-        return _generate_concept_exercise(session["niveau_scolaire"], concept, session.get("theme"))
+        return _generate_concept_exercise(
+            session["niveau_scolaire"], concept, session.get("theme"), aspect
+        )
     except HTTPException:
         raise
     except Exception as exc:
@@ -876,7 +949,7 @@ def _unlock_next_concept(session: dict) -> tuple[str, dict | None]:
 
     next_concept = session["concepts"][next_index]
     # La generation peut echouer : rien ne doit etre mute avant sa reussite.
-    exercice = _generate_next_exercise(session, next_concept)
+    exercice = _generate_next_exercise(session, next_concept, next_index)
     session["maitrises_concepts_terminees"].append(maitrise_terminee)
     session["concept_index"] = next_index
     session["concept_courant"] = next_concept
@@ -1075,6 +1148,65 @@ def _niveau_scolaire_de_l_eleve(db: Session, eleve_id: int) -> str | None:
     return eleve.classe.niveau_scolaire
 
 
+# ---------- Programme de classe (programme.py) ----------
+def _concepts_ouverts_eleve(db: Session, eleve_id: int | None) -> set[str] | None:
+    """Concepts auxquels l'eleve a droit, ou None (acces libre : invite, ou
+    classe qui ne suit pas le programme)."""
+    if eleve_id is None:
+        return None
+    eleve = db.get(Eleve, eleve_id)
+    if eleve is None:
+        return None
+    return programme.filtre_eleve(db, eleve.classe)
+
+
+def _lecons_assignees(db: Session, eleve_id: int) -> set[str]:
+    """Lecons que l'enseignant a assignees a l'eleve (en attente) : elles
+    restent jouables en entier, meme hors des concepts ouverts."""
+    return set(
+        db.scalars(
+            select(Assignation.lecon_id).where(
+                Assignation.eleve_id == eleve_id,
+                Assignation.terminee.is_(False),
+                Assignation.lecon_id.is_not(None),
+            )
+        ).all()
+    )
+
+
+def _bloc_programme(db: Session, eleve_id: int, niveau: str, ouverts: set[str]) -> dict:
+    """Ce que l'eleve voit de son programme : les concepts ouverts, dans
+    l'ordre du calendrier, avec sa meilleure maitrise. Le dernier ouvert porte
+    `nouveau` (c'est celui que la classe vient de commencer)."""
+    dates = programme.concepts_ouverts(db, db.get(Eleve, eleve_id).classe_id)
+    meilleures: dict[str, int] = {}
+    for ligne in db.scalars(select(Progression).where(Progression.eleve_id == eleve_id)).all():
+        meilleures[ligne.pattern_name] = max(meilleures.get(ligne.pattern_name, 0), ligne.maitrise)
+    generables = _all_patterns_for_level(niveau)
+    plus_recent = max(
+        (p for p in ouverts if p in dates), key=lambda p: dates[p], default=None
+    )
+    concepts = []
+    for item in programme.ordre_du_niveau(niveau):
+        p = item["pattern"]
+        if p not in ouverts or p not in generables:
+            continue
+        lecon = programme.lecon_du_concept(p)
+        concepts.append(
+            {
+                "pattern": p,
+                "libelle": notifications._libelle_concept(p),
+                "semaine": item["semaine"],
+                "lecon_id": lecon["lecon_id"] if lecon else None,
+                "lecon_nom": lecon["nom"] if lecon else None,
+                "maitrise": meilleures.get(p, 0),
+                "nouveau": p == plus_recent,
+                "recit": recit_disponible(p) and p in patterns_disponibles_pour_niveau(niveau),
+            }
+        )
+    return {"actif": True, "concepts": concepts}
+
+
 def _lier_session_a_eleve(db: Session, session: dict, eleve_id: int, niveau: str) -> None:
     """Cree la ligne SessionJeu et note le lien dans la session de jeu."""
     if db.get(Eleve, eleve_id) is None:
@@ -1215,9 +1347,71 @@ def demarrer_session(
         niveau_classe = _niveau_scolaire_de_l_eleve(db, eleve_id)
         if niveau_classe is not None:
             niveau = niveau_classe
-    session = _build_session(niveau, payload.lecon_id, theme=payload.theme)
+    concepts = aspects = lecon_nom = None
+    ouverts = _concepts_ouverts_eleve(db, eleve_id)
+    if ouverts is not None and payload.lecon_id not in _lecons_assignees(db, eleve_id):
+        # Classe qui suit le programme : seuls les concepts ouverts par
+        # l'enseignant se jouent, sur une carte d'au moins 3 etapes variees.
+        if payload.lecon_id is None:
+            pool = [p for p in _concepts_for_level(niveau) if p in ouverts]
+        else:
+            lesson, pool = _lesson_concepts_for_level(niveau, payload.lecon_id)
+            pool = [p for p in pool if p in ouverts]
+            lecon_nom = lesson["nom"]
+        if not pool:
+            raise HTTPException(
+                status_code=403,
+                detail="Ton enseignant n'a pas encore ouvert de concept dans cette leçon.",
+            )
+        concepts, aspects = _plan_aspects(pool, niveau)
+    session = _build_session(
+        niveau, payload.lecon_id, concepts=concepts, lecon_nom=lecon_nom,
+        theme=payload.theme, aspects=aspects,
+    )
     # Token eleve valide -> on lie la session a son compte (sinon : invite, rien
     # en base, comportement inchange).
+    if eleve_id is not None:
+        _lier_session_a_eleve(db, session, eleve_id, niveau)
+    progression = _progression_payload(session)
+    return {
+        "session_id": session["session_id"],
+        "exercice": progression.get("exercice_courant"),
+        "progression": progression,
+    }
+
+
+@app.post("/session/demarrer_concept")
+def demarrer_session_concept(
+    payload: ConceptStartRequest,
+    db: Annotated[Session, Depends(get_db)],
+    eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
+) -> dict:
+    """S'entrainer sur UN concept : une carte de 3 etapes qui le montrent sous
+    plusieurs aspects (calcul, probleme raconte, defi). C'est le coeur du
+    programme de classe : tant que l'enseignant n'a ouvert qu'un concept,
+    l'eleve le retravaille autant qu'il veut, jamais deux fois pareil."""
+    niveau = payload.niveau_scolaire
+    if eleve_id is not None:
+        niveau_classe = _niveau_scolaire_de_l_eleve(db, eleve_id)
+        if niveau_classe is not None:
+            niveau = niveau_classe
+    if payload.pattern not in _all_patterns_for_level(niveau):
+        raise HTTPException(status_code=404, detail="Concept indisponible pour ce niveau.")
+    ouverts = _concepts_ouverts_eleve(db, eleve_id)
+    if ouverts is not None and payload.pattern not in ouverts:
+        raise HTTPException(
+            status_code=403, detail="Ce concept n'est pas encore ouvert par ton enseignant."
+        )
+    lecon = programme.lecon_du_concept(payload.pattern)
+    concepts, aspects = _plan_aspects([payload.pattern], niveau)
+    session = _build_session(
+        niveau,
+        lecon_id=lecon["lecon_id"] if lecon else None,
+        concepts=concepts,
+        lecon_nom=notifications._libelle_concept(payload.pattern),
+        theme=payload.theme,
+        aspects=aspects,
+    )
     if eleve_id is not None:
         _lier_session_a_eleve(db, session, eleve_id, niveau)
     progression = _progression_payload(session)
@@ -1277,13 +1471,36 @@ def get_session(
 
 
 @app.get("/lecons/{niveau_scolaire}")
-def get_lecons(niveau_scolaire: str) -> dict:
+def get_lecons(
+    niveau_scolaire: str,
+    db: Annotated[Session, Depends(get_db)],
+    eleve_id: Annotated[int | None, Depends(eleve_id_optionnel)] = None,
+) -> dict:
     if niveau_scolaire not in ALLOWED_LEVELS:
         raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
 
+    lecons = _available_lessons_for_level(niveau_scolaire)
+    ouverts = _concepts_ouverts_eleve(db, eleve_id)
+    if ouverts is None:
+        return {"niveau_scolaire": niveau_scolaire, "lecons": lecons, "programme": None}
+    # Eleve d'une classe qui suit le programme : ses lecons sont celles de SA
+    # classe, reduites aux concepts ouverts (plus les lecons assignees).
+    niveau = _niveau_scolaire_de_l_eleve(db, eleve_id) or niveau_scolaire
+    if niveau != niveau_scolaire:
+        lecons = _available_lessons_for_level(niveau)
+    assignees = _lecons_assignees(db, eleve_id)
+    filtrees = []
+    for lecon in lecons:
+        if lecon["lecon_id"] not in assignees:
+            patterns = [p for p in lecon["patterns"] if p in ouverts]
+            if not patterns:
+                continue
+            lecon = {**lecon, "patterns": patterns, "pattern_count": len(patterns)}
+        filtrees.append(lecon)
     return {
-        "niveau_scolaire": niveau_scolaire,
-        "lecons": _available_lessons_for_level(niveau_scolaire),
+        "niveau_scolaire": niveau,
+        "lecons": filtrees,
+        "programme": _bloc_programme(db, eleve_id, niveau, ouverts),
     }
 
 

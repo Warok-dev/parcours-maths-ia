@@ -170,7 +170,9 @@
 
   function recordCompletion(snapshot) {
     const mastery = masteryBySession[snapshot.session_id] || {};
-    let concepts = (snapshot.concepts || []).map((concept) => ({
+    /* Une carte peut repasser plusieurs fois par le meme concept (calcul,
+       probleme raconte, defi) : une seule ligne par concept dans le carnet. */
+    let concepts = [...new Set(snapshot.concepts || [])].map((concept) => ({
       concept,
       maitrise: mastery[concept] || 1,
     }));
@@ -189,6 +191,13 @@
           ? { ...item, maitrise: before.maitrise }
           : item;
       });
+      /* Programme de classe : une session peut ne porter que les concepts
+         ouverts d'une lecon. Ceux deja inscrits sur la page restent. */
+      for (const before of previousConcepts) {
+        if (!concepts.some((item) => item.concept === before.concept)) {
+          concepts.push(before);
+        }
+      }
     }
 
     const entry = {
@@ -342,7 +351,7 @@
 
   function showBilan(snapshot) {
     const mastery = masteryBySession[snapshot.session_id] || {};
-    const concepts = (snapshot.concepts || []).map((concept) => ({
+    const concepts = [...new Set(snapshot.concepts || [])].map((concept) => ({
       concept,
       maitrise: mastery[concept] || 1,
     }));
