@@ -36,7 +36,14 @@ function handleKeyUp(event) {
   }
 }
 
+/* Intention de deplacement en espace d'affichage : direction unitaire et
+   force (0..1). Le joystick tactile est analogique (direction libre, force
+   selon l'inclinaison) ; le clavier donne 8 directions a pleine vitesse. */
 function movementVector() {
+  const j = state.joystick;
+  if (j && j.force > 0) {
+    return { dx: j.x, dy: j.y, force: j.force };
+  }
   let dx = 0;
   let dy = 0;
   if (state.keysPressed.has("ArrowLeft")) dx -= 1;
@@ -49,7 +56,7 @@ function movementVector() {
   }
 
   const length = Math.hypot(dx, dy);
-  return { dx: dx / length, dy: dy / length };
+  return { dx: dx / length, dy: dy / length, force: 1 };
 }
 
 /* Rotation la plus courte vers l'angle cible (le perso regarde ou il va). */
@@ -77,9 +84,12 @@ function tick(timestamp) {
          espace de jeu. Le jeton, lui, est dans le groupe pivote, donc son angle
          natif s'affiche deja dans le bon sens a l'ecran. */
       const vector = window.ParcoursWorld.toNativeVector(input, state.scene.direction);
+      /* Vitesse proportionnelle a l'inclinaison du joystick (au moins un
+         petit pas, pour qu'un leger geste fasse toujours avancer). */
+      const vitesse = PLAYER_SPEED * Math.max(0.3, input.force ?? 1);
       const proposed = {
-        x: state.playerPosition.x + vector.dx * PLAYER_SPEED * deltaSeconds,
-        y: state.playerPosition.y + vector.dy * PLAYER_SPEED * deltaSeconds,
+        x: state.playerPosition.x + vector.dx * vitesse * deltaSeconds,
+        y: state.playerPosition.y + vector.dy * vitesse * deltaSeconds,
       };
       const bounded = clampToBounds(proposed);
       state.playerPosition = applyCurrentBarrier(bounded, state.playerPosition);

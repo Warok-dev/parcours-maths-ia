@@ -38,6 +38,7 @@
     <link rel="stylesheet" href="styles/14-assignations.css" />
     <link rel="stylesheet" href="styles/15-finitions.css" />
     <link rel="stylesheet" href="styles/16-mecaniques-v2.css" />
+    <link rel="stylesheet" href="styles/17-tablette.css" />
   </head>
   <body>
     <!-- ===== Ecran 0 : choix de l'univers (une seule fois) ===== -->
@@ -251,19 +252,15 @@
            équivalente ; map.js les câble sur state.keysPressed (comportement
            identique au clavier). Masqués par défaut (.hidden), affichés par
            map.js si ParcoursTouch.estTactile(). -->
-      <div id="touch-dpad" class="touch-dpad hidden" role="group" aria-label="Déplacement">
-        <button class="dpad-btn dpad-up" type="button" data-dir="ArrowUp" aria-label="Aller en haut">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6 L20 17 H4 Z" /></svg>
-        </button>
-        <button class="dpad-btn dpad-left" type="button" data-dir="ArrowLeft" aria-label="Aller à gauche">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12 L17 4 V20 Z" /></svg>
-        </button>
-        <button class="dpad-btn dpad-right" type="button" data-dir="ArrowRight" aria-label="Aller à droite">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 12 L7 4 V20 Z" /></svg>
-        </button>
-        <button class="dpad-btn dpad-down" type="button" data-dir="ArrowDown" aria-label="Aller en bas">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18 L20 7 H4 Z" /></svg>
-        </button>
+      <!-- Joystick analogique (tablette / téléphone) : glisser le doigt oriente
+           le personnage, l'inclinaison règle sa vitesse. Flottant : un appui
+           n'importe où en bas à gauche l'amène sous le pouce. -->
+      <div id="touch-joystick" class="joystick hidden" role="group" aria-label="Déplacement : glisse ton doigt">
+        <div class="joystick-zone" data-joystick-zone></div>
+        <div class="joystick-base" data-joystick-base aria-hidden="true">
+          <svg class="joystick-fleches" viewBox="-60 -60 120 120"><path d="M0 -50 l-8 10 h16 z M0 50 l-8 -10 h16 z M-50 0 l10 -8 v16 z M50 0 l-10 -8 v16 z" /></svg>
+          <div class="joystick-bouton" data-joystick-bouton></div>
+        </div>
       </div>
       <!-- Bouton d'action tactile : ouvre l'exercice quand on est près d'un
            obstacle/fanion (équivalent tactile de la touche Entrée). -->

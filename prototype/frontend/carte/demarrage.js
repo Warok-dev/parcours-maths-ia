@@ -87,23 +87,31 @@ window.addEventListener("resize", handleViewportResize);
 window.addEventListener("orientationchange", handleViewportResize);
 
 /* ============================================================
-   CONTROLES TACTILES : pave directionnel + bouton d'action
-   Sur appareil tactile uniquement (pas de clavier). Les fleches ecrivent dans
-   le MEME state.keysPressed que le clavier, donc movementVector()/tick() sont
-   inchanges : maintien = deplacement continu, relachement = arret. Le bouton
-   d'action ouvre l'exercice quand on est pres d'un obstacle/fanion (equivalent
-   tactile de la touche Entree). Voir touch.js (coeur teste).
+   CONTROLES TACTILES : joystick analogique + bouton d'action
+   Sur appareil tactile uniquement. Le joystick ecrit state.joystick
+   (direction libre + force), lu par movementVector() : glisser = avancer dans
+   la direction du doigt, plus ou moins vite selon l'inclinaison ; relacher =
+   arret. Le bouton d'action ouvre l'exercice pres d'un obstacle/fanion
+   (equivalent tactile de la touche Entree). Voir touch.js (coeur teste).
    ============================================================ */
+let joystickTactile = { reinitialiser() {} };
 if (estAppareilTactile) {
   document.body.classList.add("touch-active");
-  window.ParcoursTouch.brancherDpad(touchDpad, {
-    presser: (dir) => {
-      if (!state.panelOpen) {
-        state.keysPressed.add(dir);
-      }
+  joystickTactile = window.ParcoursTouch.brancherJoystick(
+    {
+      zone: touchDpad?.querySelector("[data-joystick-zone]"),
+      base: touchDpad?.querySelector("[data-joystick-base]"),
+      bouton: touchDpad?.querySelector("[data-joystick-bouton]"),
     },
-    relacher: (dir) => state.keysPressed.delete(dir),
-  });
+    {
+      changer: (v) => {
+        state.joystick = state.panelOpen ? null : v;
+      },
+      relacher: () => {
+        state.joystick = null;
+      },
+    },
+  );
   /* pointerup plutot que click : reponse immediate au doigt, sans le delai ni
      le risque de double-declenchement du click synthetique. */
   touchActionButton?.addEventListener("pointerup", (event) => {
@@ -129,9 +137,10 @@ function majControlesTactiles() {
     touchActionButton,
     window.ParcoursTouch.actionVisible({ ...contexte, presObstacle: state.nearObstacle }),
   );
-  /* Une fleche relachee par le masquage ne doit pas rester "enfoncee". */
+  /* Masque (popup, fin de partie) : le personnage ne doit pas continuer seul. */
   if (!enJeu || state.panelOpen) {
-    ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].forEach((k) => state.keysPressed.delete(k));
+    joystickTactile.reinitialiser();
+    state.joystick = null;
   }
 }
 

@@ -1,11 +1,10 @@
 /* ============================================================
    CONTROLES TACTILES (tablette / mobile)
    ------------------------------------------------------------
-   Detecte les appareils tactiles et cable un pave directionnel a
-   l'ecran sur les MEMES entrees que le clavier (le jeu (carte/) lit
-   state.keysPressed ; ici on ne fait qu'ajouter/retirer les memes
-   chaines "ArrowUp"/... au pointerdown/up). Le desktop garde le
-   clavier comme controle principal : rien ne s'affiche.
+   Detecte les appareils tactiles et cable un JOYSTICK analogique a
+   l'ecran (direction libre, vitesse selon l'inclinaison). Le jeu
+   (carte/boucle.js) lit state.joystick en plus du clavier. Le desktop
+   garde le clavier comme controle principal : rien ne s'affiche.
 
    Le COEUR (detection, decisions de visibilite) est PUR et sans DOM,
    donc testable en Node (test_touch.js) avec un matchMedia injecte.
@@ -57,48 +56,108 @@
     }
   }
 
-  /* ---------- Cablage DOM du pave directionnel ----------
-     Pour chaque bouton [data-dir], maintien = presser(dir), relachement =
-     relacher(dir). On utilise les Pointer Events (touch + souris unifies) et on
-     previent le comportement par defaut (scroll, double-tap zoom, menu
-     contextuel du maintien). pointerleave/cancel relachent aussi : un doigt qui
-     glisse hors du bouton ne reste jamais "coince" en appui. */
-  function brancherDpad(container, { presser, relacher } = {}) {
-    if (!container || typeof container.querySelectorAll !== "function") {
-      return;
+  /* ---------- Joystick analogique (coeur pur) ----------
+     Remplace l'ancien pave de 4 fleches : la direction est libre (360 degres)
+     et la vitesse suit l'inclinaison (petit geste = marche, grand geste =
+     course), comme une manette. `dx, dy` : decalage du doigt par rapport au
+     centre du joystick, en pixels. Renvoie la direction unitaire (x, y), la
+     force (0..1, zone morte au centre pour ne pas trembler) et la position du
+     bouton (borne au rayon) pour l'affichage. */
+  const JOYSTICK = { RAYON: 56, ZONE_MORTE: 0.15 };
+
+  function vecteurJoystick(dx, dy, rayon = JOYSTICK.RAYON, zoneMorte = JOYSTICK.ZONE_MORTE) {
+    const distance = Math.hypot(Number(dx) || 0, Number(dy) || 0);
+    if (!rayon || distance === 0) {
+      return { x: 0, y: 0, force: 0, boutonX: 0, boutonY: 0 };
     }
-    const boutons = Array.prototype.slice.call(container.querySelectorAll("[data-dir]"));
-    boutons.forEach((btn) => {
-      const dir = btn.dataset ? btn.dataset.dir : btn.getAttribute && btn.getAttribute("data-dir");
-      if (!DIRECTIONS[dir]) {
-        return;
-      }
-      const presse = (event) => {
-        if (event && typeof event.preventDefault === "function") event.preventDefault();
-        btn.classList.add("actif");
-        if (typeof presser === "function") presser(dir);
-      };
-      const relache = (event) => {
-        if (event && typeof event.preventDefault === "function") event.preventDefault();
-        if (!btn.classList.contains("actif")) return;
-        btn.classList.remove("actif");
-        if (typeof relacher === "function") relacher(dir);
-      };
-      btn.addEventListener("pointerdown", presse);
-      btn.addEventListener("pointerup", relache);
-      btn.addEventListener("pointercancel", relache);
-      btn.addEventListener("pointerleave", relache);
-      btn.addEventListener("contextmenu", (event) => event.preventDefault());
+    const borne = Math.min(distance, rayon);
+    const ux = dx / distance;
+    const uy = dy / distance;
+    const brute = borne / rayon;
+    const force = brute <= zoneMorte ? 0 : (brute - zoneMorte) / (1 - zoneMorte);
+    return {
+      x: force ? ux : 0,
+      y: force ? uy : 0,
+      force,
+      boutonX: ux * borne,
+      boutonY: uy * borne,
+    };
+  }
+
+  /* ---------- Cablage DOM du joystick ----------
+     `zone` : grande surface invisible (bas-gauche de l'ecran) ; `base` et
+     `bouton` : le joystick dessine. Joystick FLOTTANT : au repos il est visible
+     a sa place (l'enfant voit ou poser le doigt) ; un appui n'importe ou dans
+     la zone l'amene sous le pouce, puis glisser oriente le personnage.
+     Un seul doigt suivi (pointerId) : les autres touches (bouton d'action,
+     menu) restent libres. Relacher, sortir de l'ecran ou une annulation du
+     navigateur arretent toujours le personnage. */
+  function brancherJoystick({ zone, base, bouton, rayon = JOYSTICK.RAYON } = {}, { changer, relacher } = {}) {
+    if (!zone || !base || !bouton || typeof zone.addEventListener !== "function") {
+      return { reinitialiser() {} };
+    }
+    let doigt = null;
+    let centre = null;
+
+    function placerBouton(x, y) {
+      bouton.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    }
+
+    function reinitialiser() {
+      doigt = null;
+      centre = null;
+      base.classList.remove("actif");
+      base.style.left = "";
+      base.style.top = "";
+      placerBouton(0, 0);
+      if (typeof relacher === "function") relacher();
+    }
+
+    function suivre(event) {
+      const v = vecteurJoystick(event.clientX - centre.x, event.clientY - centre.y, rayon);
+      placerBouton(v.boutonX, v.boutonY);
+      if (typeof changer === "function") changer(v);
+    }
+
+    zone.addEventListener("pointerdown", (event) => {
+      if (doigt !== null) return;
+      if (typeof event.preventDefault === "function") event.preventDefault();
+      doigt = event.pointerId;
+      zone.setPointerCapture?.(event.pointerId);
+      /* Le joystick vient sous le pouce (coordonnees relatives a la zone). */
+      const cadre = zone.getBoundingClientRect ? zone.getBoundingClientRect() : { left: 0, top: 0 };
+      centre = { x: event.clientX, y: event.clientY };
+      base.style.left = `${event.clientX - cadre.left}px`;
+      base.style.top = `${event.clientY - cadre.top}px`;
+      base.classList.add("actif");
+      suivre(event);
     });
+    zone.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== doigt || !centre) return;
+      if (typeof event.preventDefault === "function") event.preventDefault();
+      suivre(event);
+    });
+    const fin = (event) => {
+      if (event.pointerId !== doigt) return;
+      reinitialiser();
+    };
+    zone.addEventListener("pointerup", fin);
+    zone.addEventListener("pointercancel", fin);
+    zone.addEventListener("lostpointercapture", fin);
+    zone.addEventListener("contextmenu", (event) => event.preventDefault());
+
+    return { reinitialiser, actif: () => doigt !== null };
   }
 
   const api = {
     DIRECTIONS,
+    JOYSTICK,
     estTactile,
     dpadVisible,
     actionVisible,
     appliquerVisibilite,
-    brancherDpad,
+    vecteurJoystick,
+    brancherJoystick,
   };
 
   if (typeof window !== "undefined") {
