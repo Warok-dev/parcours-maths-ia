@@ -30,7 +30,7 @@ import hashlib
 import random
 import re
 import secrets
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 # Variables lues par le frontend pour dessiner l'exercice ou monter sa
 # mecanique (releve exhaustif de map.js et mechanics.js). Toute autre variable
@@ -51,7 +51,6 @@ VARIABLES_CLIENT = frozenset(
 LIGNE_MAX = 40
 PANIER_MAX = 12
 BALANCE_MAX_CIBLE = 100
-ROUE_MIN_SECTIONS = 4
 ROUE_MAX_SECTIONS = 6
 
 # Patterns d'addition qui se pretent a la balance, et leurs deux operandes.
@@ -118,38 +117,6 @@ def _planches(valeur: int, rnd: random.Random) -> list[str]:
     return planches
 
 
-def _sections_roue(bonne, options, rnd: random.Random) -> list[str]:
-    """Valeurs de la roue : la bonne reponse, les options du QCM, et pour une
-    reponse numerique des voisins credibles. Sans indication de la bonne."""
-    vues: list[str] = []
-
-    def ajoute(v) -> None:
-        s = str(v)
-        if s not in ("", "None") and s not in vues:
-            vues.append(s)
-
-    ajoute(bonne)
-    for option in options or []:
-        ajoute(option)
-    cible = ROUE_MIN_SECTIONS + rnd.randrange(ROUE_MAX_SECTIONS - ROUE_MIN_SECTIONS + 1)
-    try:
-        base = Decimal(str(bonne))
-        numerique = all(_nombre(v) is not None for v in vues)
-    except InvalidOperation:
-        numerique = False
-    if numerique:
-        for delta in (10, -10, 1, -1, 20, -20, 2, -2, 11, -11, 9, -9, 3, -3, 30, -30):
-            if len(vues) >= cible:
-                break
-            if base + delta >= 0:
-                ajoute(_texte_nombre(base + delta))
-    else:
-        cible = len(vues)
-    retenues = vues[: min(max(cible, 1), ROUE_MAX_SECTIONS)]
-    rnd.shuffle(retenues)
-    return retenues
-
-
 def _positions_masquees(exercice: dict, longueur: int) -> list[int]:
     positions = (exercice.get("variables") or {}).get("positions_manquantes")
     if not isinstance(positions, list):
@@ -184,6 +151,7 @@ def hash_chaine(texte: str) -> int:
 
 
 VERROU_MAX_CHIFFRES = 3
+BLOCS_MAX = 999
 
 
 def mecaniques_possibles(exercice: dict) -> list[str]:
@@ -196,8 +164,10 @@ def mecaniques_possibles(exercice: dict) -> list[str]:
     famille = (exercice.get("pattern") or {}).get("pattern_family")
     if fmt == "heure":
         return ["horloge"]
-    if fmt == "expression":
-        return ["clavier"]
+    if fmt in ("expression", "decimal"):
+        # Calculette a grosses touches (virgule, ×, =) plutot que le clavier
+        # systeme, peu pratique sur tablette pour un enfant.
+        return ["calculette"]
     if fmt == "liste_ordonnee":
         if not (isinstance(valeur, list) and len(valeur) >= 2):
             return ["clavier"]
@@ -210,22 +180,30 @@ def mecaniques_possibles(exercice: dict) -> list[str]:
         numerique = isinstance(choix, list) and bool(choix) and all(
             o not in ("", None) and _nombre(o) is not None for o in choix
         )
-        return ["planches", "roue"] if numerique else ["planches"]
+        return ["planches", "roue", "bulles"] if numerique else ["planches", "bulles"]
     if not _entier_positif(valeur):
-        return ["clavier"]
+        return ["calculette"] if _nombre(valeur) is not None else ["clavier"]
     chiffres = len(str(valeur))
     if famille == "calcul_direct":
         options = (["ligne"] if valeur <= LIGNE_MAX else []) + ["planches"]
     elif famille == "exercice_a_trous_serie":
         options = (["cadenas"] if chiffres <= VERROU_MAX_CHIFFRES else []) + (["ligne"] if valeur <= LIGNE_MAX else [])
-        options = options or ["clavier"]
+        options = options or ["calculette"]
     elif famille == "probleme_narratif_simple":
         if valeur <= PANIER_MAX:
             options = ["panier"]
         else:
-            options = ["cadenas"] if chiffres <= VERROU_MAX_CHIFFRES else ["clavier"]
+            options = ["cadenas"] if chiffres <= VERROU_MAX_CHIFFRES else ["calculette"]
     else:
-        options = ["clavier"]
+        options = ["calculette"]
+    # Blocs de base dix (centaines, dizaines, unites) : la numeration du CE1 au
+    # CE3. Pas pour de tres petits nombres (un seul cube a poser n'apprend rien).
+    # Le nombre de colonnes depend du NIVEAU (dizaines/unites au CE1, centaines
+    # en plus ensuite), jamais de la reponse : les blocs ne revelent rien.
+    rang = _rang(exercice.get("niveau_scolaire"))
+    plafond_blocs = 99 if rang == 1 else BLOCS_MAX
+    if famille in ("calcul_direct", "exercice_a_trous_serie") and 10 <= valeur <= plafond_blocs and 1 <= rang <= 3:
+        options.append("blocs")
     if _balance(exercice, valeur) is not None and "balance" not in options:
         options.append("balance")
     return options
@@ -251,6 +229,9 @@ INDICES_PAR_MECANIQUE = {
     "balance": ("balance",),
     "horloge": (),
     "clavier": (),
+    "blocs": (),
+    "bulles": ("bulles",),
+    "calculette": (),
 }
 
 
@@ -290,7 +271,14 @@ def _tous_les_indices(exercice: dict) -> dict:
         rnd.shuffle(melange)
         indices["planches"] = melange
         indices["nb_planches"] = 1
-        indices["roue"] = _sections_roue(valeur, options, rnd)
+        # Seulement les choix du QCM : des voisins ajoutes (« 70 » pour « le
+        # multiple de 10 parmi 26, 67, 60 ») pouvaient eux aussi etre justes.
+        roue = [str(o) for o in options]
+        rnd.shuffle(roue)
+        indices["roue"] = roue
+        bulles = [str(o) for o in options]
+        rnd.shuffle(bulles)
+        indices["bulles"] = bulles
         return indices
 
     if _entier_positif(valeur):
