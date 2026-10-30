@@ -56,7 +56,13 @@ with TestClient(main.app) as c:  # ouvre le lifespan (init_db, purges)
     check(r.status_code == 200, "deverrouillage par nouveau PIN")
     E = {"Authorization": f"Bearer {r.json()['token']}"}
 
+    # Programme de classe (tables programme_classe / concept_ouvert) : la lecon
+    # est fermee tant que l'enseignant n'en a ouvert aucun concept.
+    check(c.post("/session/demarrer", json={"niveau_scolaire": "CE1", "lecon_id": "addition"}, headers=E).status_code == 403, "lecon fermee par le programme")
+    ouvert = c.post(f"/classe/{cl['id']}/programme/ouvrir", json={"patterns": ["addition_pas_a_pas_sans_retenue"]}, headers=H)
+    check(ouvert.status_code == 200 and ouvert.json()["nb_ouverts"] == 2, "ouverture d'un concept (PG)")
     s = c.post("/session/demarrer", json={"niveau_scolaire": "CE1", "lecon_id": "addition"}, headers=E).json()
+    check(s["progression"]["aspects"] == ["calcul", "recit", "calcul"], "carte d'un concept en 3 aspects")
     sid, ex = s["session_id"], s["exercice"]
     main.SESSION_STATE.clear()
     main.EXERCICE_CACHE.clear()
