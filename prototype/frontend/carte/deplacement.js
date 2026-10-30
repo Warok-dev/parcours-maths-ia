@@ -80,10 +80,10 @@ function updateNearObstacle() {
     Boolean(target) && distance(state.playerPosition, target) <= INTERACTION_DISTANCE;
 }
 
-/* Pose/retire #map.scene-idle selon l'immobilite du joueur : quand il ne bouge
-   plus depuis SCENE_IDLE_DELAY_MS, on fige les animations d'ambiance (la CSS
-   #map.scene-idle) pour laisser le compositeur s'endormir ; on les relance des
-   le premier deplacement. Le cache evite tout toggle a chaque frame. */
+/* Pose/retire #map.scene-idle selon l'immobilite du joueur : arrete depuis
+   SCENE_IDLE_DELAY_MS, le personnage regarde autour de lui (CSS de
+   styles/20-monde-anime.css) ; il reprend son allure des qu'il rebouge. Le
+   cache evite tout toggle a chaque frame. */
 function updateSceneIdle(timestamp) {
   if (state.playerMoving) {
     lastMoveAt = timestamp;
@@ -143,6 +143,22 @@ function updateSceneDynamics() {
 /* ============================================================
    PARTICULES DE REUSSITE
    ============================================================ */
+
+/* Le personnage saute de joie quand un obstacle s'ouvre ou qu'un fanion
+   est valide (classe retiree a la fin de l'animation CSS). */
+let celebrationTimer = null;
+function celebrerJoueur() {
+  const token = document.getElementById("player-token");
+  if (!token) {
+    return;
+  }
+  token.classList.remove("player-cheer");
+  /* Relance l'animation meme si la classe etait deja posee. */
+  void token.getBoundingClientRect();
+  token.classList.add("player-cheer");
+  window.clearTimeout(celebrationTimer);
+  celebrationTimer = window.setTimeout(() => token.classList.remove("player-cheer"), 900);
+}
 function starPathMarkup(radius) {
   const points = [];
   for (let index = 0; index < 10; index += 1) {
@@ -159,8 +175,10 @@ function spawnUnlockFx(x, y) {
     return;
   }
   const pieces = [];
-  for (let index = 0; index < 16; index += 1) {
-    const angle = (Math.PI * 2 * index) / 16 + Math.random() * 0.5;
+  /* Econome : 6 eclats au lieu de 16 (chacun est un calque anime). */
+  const nb = modeEconome() ? 6 : 16;
+  for (let index = 0; index < nb; index += 1) {
+    const angle = (Math.PI * 2 * index) / nb + Math.random() * 0.5;
     const range = 90 + Math.random() * 110;
     const tx = Math.cos(angle) * range;
     const ty = Math.sin(angle) * range - 40;
@@ -170,6 +188,7 @@ function spawnUnlockFx(x, y) {
       : `<circle r="6" class="fx-dot"></circle>`;
     pieces.push({ tx, ty, shape });
   }
+  celebrerJoueur();
   fxLayer.innerHTML = pieces
     .map(
       (piece) =>

@@ -5,6 +5,20 @@
 /* ============================================================
    RENDU DE LA SCENE
    ============================================================ */
+
+/* Mode d'animation (perf.js) : en econome, la carte est allegee (moins de
+   brins d'herbe, aucun element anime en plus) et la CSS coupe les
+   animations d'ambiance. Sans perf.js (tests), on reste vivant. */
+function modeEconome() {
+  return Boolean(window.ParcoursPerf?.estEconome?.());
+}
+
+/* Decalage d'animation stable par element : chaque arbre ondule a son
+   propre rythme, sans hasard (meme carte = meme mouvement). */
+function decalageAnimation(x, y, periode) {
+  const h = Math.abs(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+  return `animation-delay: ${(-h * periode).toFixed(2)}s`;
+}
 function decorMarkup(scene) {
   const { decor } = scene;
   return `
@@ -21,13 +35,15 @@ function decorMarkup(scene) {
   `;
 }
 
-/* Hameau : maisons (avec meule de foin) et signaletique du bord de route. */
+/* Hameau : maisons (avec meule de foin) et signaletique du bord de route.
+   Mode vivant : la cheminee fume. */
 function villageMarkup(scene) {
   const { decor } = scene;
+  const fumee = modeEconome() ? "" : `<g class="smoke" transform="translate(27.5, -44)">${ASSETS.smoke()}</g>`;
   const maisons = (decor.houses || [])
     .map(
       (h) => `
-      <g transform="translate(${h.x.toFixed(1)}, ${h.y.toFixed(1)})${uprightSuffix()}">${ASSETS.house(h.toit)}</g>
+      <g transform="translate(${h.x.toFixed(1)}, ${h.y.toFixed(1)})${uprightSuffix()}">${ASSETS.house(h.toit)}${fumee}</g>
       ${h.foin ? `<g transform="translate(${(h.x + h.foin.dx).toFixed(1)}, ${(h.y + h.foin.dy).toFixed(1)})">${ASSETS.hayBale()}</g>` : ""}
     `,
     )
@@ -43,9 +59,22 @@ function villageMarkup(scene) {
 
 function propsMarkup(scene) {
   const { decor } = scene;
+  const econome = modeEconome();
+  /* Econome : une touffe sur deux et pas de brins isoles (des centaines de
+     petits chemins a redessiner a chaque recentrage de la carte). */
+  const tufts = econome ? decor.tufts.filter((_, i) => i % 2 === 0) : decor.tufts;
+  const brins = econome ? [] : decor.brins || [];
+  /* Arbres dans le vent (mode vivant) : un groupe interieur ondule, le
+     groupe exterieur garde le placement (meme motif que le decor vivant). */
+  const arbre = (p, dessin, periode) => {
+    const pos = `translate(${Number(p.x).toFixed(1)}, ${Number(p.y).toFixed(1)})`;
+    return econome
+      ? `<g transform="${pos}">${dessin}</g>`
+      : `<g transform="${pos}"><g class="sway" style="${decalageAnimation(p.x, p.y, periode)}">${dessin}</g></g>`;
+  };
   return `
-    ${decor.tufts.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.grassTuft()}</g>`).join("")}
-    ${(decor.brins || [])
+    ${tufts.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.grassTuft()}</g>`).join("")}
+    ${brins
       .map((p, i) => `<path d="M ${(p.x - 4).toFixed(0)} ${p.y.toFixed(0)} q -1 -6 2 -9 M ${(p.x + 1).toFixed(0)} ${(p.y + 1).toFixed(0)} q 1 -7 4 -9" class="${i % 3 === 0 ? "grass-tuft clair" : "grass-tuft"}"></path>`)
       .join("")}
     ${decor.flowers
@@ -55,9 +84,9 @@ function propsMarkup(scene) {
     ${(decor.stumps || []).map((p) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.stump()}</g>`).join("")}
     ${decor.rocks.map((p) => `<g transform="translate(${p.x}, ${p.y})${uprightSuffix()}">${ASSETS.rock()}</g>`).join("")}
     ${decor.bushes.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.bush()}</g>`).join("")}
-    ${decor.trees.map((p) => `<g transform="translate(${p.x}, ${p.y})">${ASSETS.tree()}</g>`).join("")}
-    ${(decor.fruitTrees || []).map((p, i) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.fruitTree(i)}</g>`).join("")}
-    ${(decor.pines || []).map((p) => `<g transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)})">${ASSETS.pine()}</g>`).join("")}
+    ${decor.trees.map((p) => arbre(p, ASSETS.tree(), 6)).join("")}
+    ${(decor.fruitTrees || []).map((p, i) => arbre(p, ASSETS.fruitTree(i), 6)).join("")}
+    ${(decor.pines || []).map((p) => arbre(p, ASSETS.pine(), 7)).join("")}
   `;
 }
 
@@ -77,13 +106,13 @@ function livingDecorMarkup(scene) {
   const trees = decor.trees || [];
   const bits = [];
 
-  /* Jusqu'a 2 papillons, poses au-dessus d'une fleur (ils les butinent). Sur
-     appareil tactile (mobile), on n'en garde qu'UN : la marge GPU y est plus
-     mince et chaque sous-arbre anime est repeint a chaque frame en mouvement
-     (la carte se repeint entierement quand la camera suit le joueur). Le
-     desktop garde les deux, son GPU absorbe sans peine. */
-  const maxPapillons = estAppareilTactile ? 1 : 2;
-  flowers.slice(0, maxPapillons).forEach((f, i) => {
+  /* Mode econome : rien d'anime en plus du decor fixe. */
+  if (modeEconome()) {
+    return "";
+  }
+
+  /* Papillons poses au-dessus des fleurs (ils les butinent), jusqu'a 4. */
+  flowers.slice(0, 4).forEach((f, i) => {
     bits.push(`
       <g class="living-decor" transform="translate(${f.x.toFixed(1)}, ${(f.y - 24).toFixed(1)})${uprightSuffix()}">
         <g class="critter-flutter" style="animation-delay: ${(i * -1.9).toFixed(1)}s">
@@ -93,7 +122,7 @@ function livingDecorMarkup(scene) {
     `);
   });
 
-  /* 1 chat qui flane pres d'un buisson (a defaut d'un arbre) : zone degagee. */
+  /* Un chat qui flane pres d'un buisson (a defaut d'un arbre). */
   const perchoir = bushes[0] || trees[0] || null;
   if (perchoir) {
     bits.push(`
@@ -102,6 +131,32 @@ function livingDecorMarkup(scene) {
       </g>
     `);
   }
+
+  /* Sur chaque mare : un canard qui fait des ronds et des ronds dans l'eau. */
+  (decor.ponds || []).forEach((p, i) => {
+    const rx = Math.max(18, p.rx * 0.45);
+    const ry = Math.max(12, p.ry * 0.4);
+    bits.push(`
+      <g class="living-decor" transform="translate(${p.x.toFixed(1)}, ${p.y.toFixed(1)}) rotate(${p.tilt})">
+        <g class="ripple-wrap" transform="translate(${(-p.rx * 0.3).toFixed(1)}, ${(-p.ry * 0.15).toFixed(1)})">${ASSETS.ripple()}</g>
+        <g class="ripple-wrap ripple-tard" transform="translate(${(p.rx * 0.25).toFixed(1)}, ${(p.ry * 0.2).toFixed(1)})">${ASSETS.ripple()}</g>
+        <g class="duck-orbit" style="--orbite-x: ${rx.toFixed(0)}px; --orbite-y: ${ry.toFixed(0)}px; animation-delay: ${(i * -7).toFixed(0)}s">
+          <g class="duck-swim">${ASSETS.duck()}</g>
+        </g>
+      </g>
+    `);
+  });
+
+  /* Des villageois qui se promenent devant leur maison et reviennent. */
+  (decor.houses || []).slice(0, 2).forEach((h, i) => {
+    bits.push(`
+      <g class="living-decor" transform="translate(${(h.x - 30).toFixed(1)}, ${(h.y + 76).toFixed(1)})${uprightSuffix()}">
+        <g class="villager-walk${i % 2 ? " inverse" : ""}" style="animation-delay: ${(i * -5).toFixed(0)}s">
+          <g class="villager-pas">${ASSETS.npc("villageois")}</g>
+        </g>
+      </g>
+    `);
+  });
   return bits.join("");
 }
 
@@ -194,6 +249,7 @@ function refreshScenePaused() {
   ];
   const overlayOpen = overlays.some((node) => node && !node.classList.contains("hidden"));
   mapElement.classList.toggle("scene-paused", overlayOpen);
+  document.getElementById("ciel-anime")?.classList.toggle("pause", overlayOpen);
 }
 
 /* ============================================================

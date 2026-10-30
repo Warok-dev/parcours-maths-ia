@@ -31,7 +31,7 @@ const RECENTER_PAD = 0.12;          /* fraction de marge gardee en securite */
 /* Delai d'immobilite avant de figer les animations d'ambiance (Fix perf) :
    assez court pour endormir vite le compositeur au repos, assez long pour ne
    pas clignoter entre deux pas. */
-const SCENE_IDLE_DELAY_MS = 700;
+const SCENE_IDLE_DELAY_MS = 1500;
 /* Positions/ordre des obstacles et tracé du chemin : desormais procéduraux,
    generes par world.js a partir de la graine de session (state.mapSeed). */
 const RIVER_HALF_HEIGHT = 62;

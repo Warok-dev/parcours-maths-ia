@@ -1,0 +1,425 @@
+/* ============================================================
+   MONDE ANIME (mode vivant) et MODE ECONOME
+   ------------------------------------------------------------
+   Tout bouge par `transform` et `opacity` uniquement : jamais de
+   largeur, de couleur calculee ni de filtre anime. Le mode econome
+   (body[data-perf="econome"], pose par perf.js) coupe l'ambiance ;
+   le rendu de la carte, lui, n'y dessine meme pas les elements
+   animes en plus (carte/rendu.js).
+   ============================================================ */
+
+/* ---------- Le personnage ---------- */
+.player-corps,
+.player-yeux,
+.player-tete,
+.npc-anim,
+.npc-tete,
+.npc-hand,
+.npc-outil,
+.npc-plumet,
+.sway,
+.smoke-puff,
+.ripple,
+.castle-banner {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Il respire quand il attend... */
+.player-corps {
+  animation: respire 2.6s ease-in-out infinite;
+}
+
+/* ... rebondit a chaque pas quand il marche ... */
+.player-walking .player-corps {
+  animation: rebondPas 380ms ease-in-out infinite;
+}
+
+/* ... cligne des yeux ... */
+.player-yeux {
+  animation: cligne 4.3s linear infinite;
+}
+
+/* ... et, arrete un moment, regarde autour de lui. */
+#map.scene-idle .player-tete {
+  animation: regardeAutour 6.5s ease-in-out infinite;
+}
+
+/* Saut de joie (obstacle ouvert, fanion valide) : classe posee 0,9 s par
+   celebrerJoueur() (carte/deplacement.js). */
+#map .player-token.player-cheer .player-corps {
+  animation: joie 900ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes respire {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+
+@keyframes rebondPas {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.04) translateY(-1.5px); }
+}
+
+@keyframes cligne {
+  0%, 93%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.12); }
+}
+
+@keyframes regardeAutour {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-14deg); }
+  55% { transform: rotate(12deg); }
+  75% { transform: rotate(0deg); }
+}
+
+@keyframes joie {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.28) rotate(-6deg); }
+  55% { transform: scale(0.94) rotate(4deg); }
+  80% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Les habitants des obstacles ---------- */
+.npc-anim {
+  animation: respire 3.1s ease-in-out infinite;
+}
+
+.npc-tete {
+  animation: regardeAutour 8s ease-in-out infinite;
+}
+
+/* Le bucheron fend du bois, le pecheur surveille son bouchon, le
+   gardien a le plumet dans le vent, le voyageur se balance. */
+.npc-anim-bucheron .npc-outil {
+  transform-origin: 20% 90%;
+  animation: hache 1.5s ease-in-out infinite;
+}
+
+.npc-anim-pecheur .npc-outil {
+  transform-origin: 0% 100%;
+  animation: canne 2.6s ease-in-out infinite;
+}
+
+.npc-anim-gardien .npc-plumet {
+  transform-origin: 0% 100%;
+  animation: plumet 1.8s ease-in-out infinite;
+}
+
+.npc-anim-voyageur {
+  animation: balance 3.4s ease-in-out infinite;
+}
+
+/* L'eleve s'approche (bulle d'aide visible) : l'habitant de l'obstacle en
+   cours lui fait signe de la main. */
+#map.hint-visible .obstacle-current .npc-main-droite {
+  animation: salue 520ms ease-in-out infinite;
+}
+
+/* Obstacle ouvert : l'habitant saute de joie. */
+.obstacle-unlocking .npc-anim {
+  animation: joie 560ms ease-out 2;
+}
+
+@keyframes hache {
+  0%, 100% { transform: rotate(0deg); }
+  40% { transform: rotate(-38deg); }
+  55% { transform: rotate(14deg); }
+}
+
+@keyframes canne {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-5deg); }
+  60% { transform: rotate(3deg); }
+}
+
+@keyframes plumet {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(10deg); }
+}
+
+@keyframes balance {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+
+@keyframes salue {
+  0%, 100% { transform: translate(4px, -10px) scale(1.15); }
+  50% { transform: translate(9px, -15px) scale(1.15); }
+}
+
+/* Villageois en promenade : il va, se retourne, revient. Dessine face au
+   sud (vu du dessus) : -90deg le tourne vers l'est, 90deg vers l'ouest. */
+.villager-walk {
+  animation: promenade 16s ease-in-out infinite;
+}
+
+.villager-walk.inverse {
+  animation-direction: reverse;
+}
+
+.villager-pas {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: rebondPas 420ms ease-in-out infinite;
+}
+
+@keyframes promenade {
+  0% { transform: translate(0, 0) rotate(-90deg); }
+  42% { transform: translate(110px, 6px) rotate(-90deg); }
+  50% { transform: translate(110px, 6px) rotate(90deg); }
+  92% { transform: translate(0, 0) rotate(90deg); }
+  100% { transform: translate(0, 0) rotate(270deg); }
+}
+
+/* ---------- La nature ---------- */
+
+/* Arbres et buissons dans le vent. */
+.sway {
+  animation: vent 6s ease-in-out infinite;
+}
+
+@keyframes vent {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(1.6px, -1px) rotate(1.4deg); }
+}
+
+/* Fumee des cheminees. */
+.smoke-puff {
+  fill: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+  animation: fumee 3.9s ease-out infinite;
+}
+
+@keyframes fumee {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  15% { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(10px, -48px) scale(1.7); }
+}
+
+/* Canard : un tour de mare en 18 s, tete dans le sens de la nage
+   (angle + 180deg, le canard etant dessine tete vers le haut). */
+.duck-orbit {
+  animation: orbiteMare 18s linear infinite;
+}
+
+.duck-swim {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dandine 900ms ease-in-out infinite;
+}
+
+@keyframes orbiteMare {
+  0% { transform: translate(var(--orbite-x), 0) rotate(180deg); }
+  12.5% { transform: translate(calc(var(--orbite-x) * 0.707), calc(var(--orbite-y) * 0.707)) rotate(225deg); }
+  25% { transform: translate(0, var(--orbite-y)) rotate(270deg); }
+  37.5% { transform: translate(calc(var(--orbite-x) * -0.707), calc(var(--orbite-y) * 0.707)) rotate(315deg); }
+  50% { transform: translate(calc(var(--orbite-x) * -1), 0) rotate(360deg); }
+  62.5% { transform: translate(calc(var(--orbite-x) * -0.707), calc(var(--orbite-y) * -0.707)) rotate(405deg); }
+  75% { transform: translate(0, calc(var(--orbite-y) * -1)) rotate(450deg); }
+  87.5% { transform: translate(calc(var(--orbite-x) * 0.707), calc(var(--orbite-y) * -0.707)) rotate(495deg); }
+  100% { transform: translate(var(--orbite-x), 0) rotate(540deg); }
+}
+
+@keyframes dandine {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+
+.duck-body { fill: #fbf6ea; stroke: #c9b896; stroke-width: 1; }
+.duck-wing { fill: none; stroke: #c9b896; stroke-width: 1.2; stroke-linecap: round; }
+.duck-head { fill: #3f8f5a; stroke: #2f6b43; stroke-width: 1; }
+.duck-bec { fill: var(--gold); stroke: var(--gold-dark); stroke-width: 0.8; }
+.duck-sillage { fill: rgba(255, 255, 255, 0.28); }
+
+/* Ronds dans l'eau. */
+.ripple {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 1.4;
+  opacity: 0;
+  animation: rondDansLeau 3.6s ease-out infinite;
+}
+
+.ripple-tard .ripple {
+  animation-delay: -1.8s;
+}
+
+@keyframes rondDansLeau {
+  0% { opacity: 0.8; transform: scale(0.3); }
+  100% { opacity: 0; transform: scale(2.2); }
+}
+
+/* Reflet de la mare qui scintille. */
+.pond-glint {
+  animation: scintille 3.2s ease-in-out infinite;
+}
+
+@keyframes scintille {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.35; }
+}
+
+/* La riviere coule : les vagues glissent d'un motif (26 + 34 = 60 px de
+   pointilles), en transform, pour une boucle sans raccord visible. */
+.river-wave {
+  animation: courant 2.8s linear infinite;
+}
+
+.river-wave + .river-wave {
+  animation-duration: 3.6s;
+}
+
+@keyframes courant {
+  from { transform: translateX(0); }
+  to { transform: translateX(60px); }
+}
+
+/* Lanternes qui vacillent et fanions du chateau dans le vent. */
+.lantern-glass {
+  animation: vacille 2.3s ease-in-out infinite;
+}
+
+@keyframes vacille {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.78; }
+  60% { opacity: 0.95; }
+}
+
+.castle-banner {
+  transform-origin: 0% 50%;
+  animation: fanion 1.3s ease-in-out infinite alternate;
+}
+
+@keyframes fanion {
+  0% { transform: scaleX(1) skewY(0deg); }
+  100% { transform: scaleX(0.82) skewY(8deg); }
+}
+
+/* ---------- Le ciel au-dessus de la carte ----------
+   Calque HTML (index.html, #ciel-anime) pose sur la carte : ombres de
+   nuages qui glissent et vols d'oiseaux. Animes en transform sur leur
+   propre couche, ils ne redessinent jamais la carte. */
+.ciel-anime {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.nuage-ombre {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 46vmax;
+  height: 30vmax;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(40, 60, 40, 0.16), rgba(40, 60, 40, 0.08) 60%, transparent);
+  will-change: transform;
+  animation: nuageGlisse 70s linear infinite;
+}
+
+.nuage-ombre.n2 {
+  width: 34vmax;
+  height: 22vmax;
+  animation-duration: 95s;
+  animation-delay: -40s;
+}
+
+.nuage-ombre.n3 {
+  width: 56vmax;
+  height: 34vmax;
+  animation-duration: 120s;
+  animation-delay: -85s;
+}
+
+@keyframes nuageGlisse {
+  0% { transform: translate(-60vmax, 10vh); }
+  100% { transform: translate(110vw, 55vh); }
+}
+
+.vol-oiseaux {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 92px;
+  will-change: transform;
+  animation: volTraverse 26s linear infinite;
+}
+
+.vol-oiseaux.v2 {
+  width: 64px;
+  animation-duration: 34s;
+  animation-delay: -19s;
+}
+
+.oiseau {
+  fill: none;
+  stroke: #3d2c1e;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.55;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: battement 520ms ease-in-out infinite;
+}
+
+.oiseau:nth-child(2) { animation-delay: -0.17s; }
+.oiseau:nth-child(3) { animation-delay: -0.34s; }
+
+/* Les oiseaux passent pendant un tiers du cycle, puis le ciel reste
+   calme : un passage de temps en temps, pas un defile continu. */
+@keyframes volTraverse {
+  0% { transform: translate(-15vw, 60vh); }
+  35% { transform: translate(110vw, 12vh); }
+  100% { transform: translate(110vw, 12vh); }
+}
+
+@keyframes battement {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.35); }
+}
+
+/* Panneau ouvert (exercice, carnet, mini-jeu) : le ciel s'arrete aussi. */
+.ciel-anime.pause * {
+  animation-play-state: paused;
+}
+
+/* ============================================================
+   MODE ECONOME : petites machines
+   On coupe toute l'ambiance (le decor anime n'est meme pas dessine),
+   les respirations et les filtres d'ombre, qui obligent le navigateur
+   a recalculer des calques. On garde ce qui sert a jouer : la marche
+   (on voit qu'on avance), le repere « ici ! », l'ouverture des
+   obstacles et les eclats de reussite.
+   ============================================================ */
+body[data-perf="econome"] .ciel-anime {
+  display: none;
+}
+
+body[data-perf="econome"] #map .player-corps,
+body[data-perf="econome"] #map .player-yeux,
+body[data-perf="econome"] #map .player-tete,
+body[data-perf="econome"] #map .npc-anim,
+body[data-perf="econome"] #map .npc-tete,
+body[data-perf="econome"] #map .npc-outil,
+body[data-perf="econome"] #map .npc-plumet,
+body[data-perf="econome"] #map .npc-main-droite,
+body[data-perf="econome"] #map .pond-glint,
+body[data-perf="econome"] #map .river-wave,
+body[data-perf="econome"] #map .lantern-glass,
+body[data-perf="econome"] #map .castle-banner,
+body[data-perf="econome"] #map .collectible-float,
+body[data-perf="econome"] #map .collectible-glow,
+body[data-perf="econome"] #map .stop-pulse-ring {
+  animation: none;
+}
+
+body[data-perf="econome"] #map .hint-bubble,
+body[data-perf="econome"] #map .reinforcement-stop.stop-current,
+body[data-perf="econome"] #map .obstacle-marker {
+  filter: none;
+}

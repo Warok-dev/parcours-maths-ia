@@ -41,6 +41,7 @@
     <link rel="stylesheet" href="styles/17-tablette.css" />
     <link rel="stylesheet" href="styles/18-mini-jeux-lecon.css" />
     <link rel="stylesheet" href="styles/19-concepts-p4.css" />
+    <link rel="stylesheet" href="styles/20-monde-anime.css" />
   </head>
   <body>
     <!-- ===== Ecran 0 : choix de l'univers (une seule fois) ===== -->
@@ -190,6 +191,15 @@
     <!-- ===== Ecran 3 : le jeu plein ecran ===== -->
     <section id="game-screen" class="screen game-screen hidden">
       <svg id="map" preserveAspectRatio="xMidYMid slice" aria-label="Carte du parcours"></svg>
+      <!-- Ciel anime (mode vivant) : ombres de nuages et vols d'oiseaux au-dessus
+           de la carte, sur leur propre calque (styles/20-monde-anime.css). -->
+      <div id="ciel-anime" class="ciel-anime" aria-hidden="true">
+        <div class="nuage-ombre n1"></div>
+        <div class="nuage-ombre n2"></div>
+        <div class="nuage-ombre n3"></div>
+        <svg class="vol-oiseaux" viewBox="0 0 92 40"><path class="oiseau" d="M 2 14 q 7 -8 14 0 q 7 -8 14 0" /><path class="oiseau" d="M 34 4 q 6 -7 12 0 q 6 -7 12 0" /><path class="oiseau" d="M 58 22 q 6 -7 12 0 q 6 -7 12 0" /></svg>
+        <svg class="vol-oiseaux v2" viewBox="0 0 64 30"><path class="oiseau" d="M 2 12 q 6 -7 12 0 q 6 -7 12 0" /><path class="oiseau" d="M 34 20 q 6 -7 12 0 q 6 -7 12 0" /></svg>
+      </div>
       <!-- Boussole : quand l'objectif (obstacle ou fanion) est hors de l'ecran,
            une fleche au bord indique la direction a suivre. -->
       <div id="guide-boussole" class="guide-boussole hidden" aria-hidden="true">
@@ -246,6 +256,7 @@
           <button id="restart-button" class="menu-item" type="button">&#127891; Changer de niveau</button>
           <button id="new-adventure-button" class="menu-item" type="button">&#128260; Recommencer une nouvelle aventure</button>
           <button id="compte-button" class="menu-item" type="button">&#128273; Changer de joueur</button>
+          <button id="animations-button" class="menu-item" type="button" title="Mode économe : moins d'animations, pour les petites tablettes">&#10024; <span id="animations-label">Animations : auto</span></button>
         </div>
       </div>
 
@@ -372,6 +383,7 @@
     </section>
 
     <script src="config.js"></script>
+    <script src="perf.js"></script>
     <script src="audio.js"></script>
     <script src="mechanics.js"></script>
     <script src="voice.js"></script>

@@ -33,6 +33,32 @@ document.addEventListener("click", (event) => {
   }
 });
 
+/* Animations : auto -> vivant -> econome (perf.js). Le menu reste ouvert
+   pour qu'on voie le nouveau reglage ; la carte est redessinee (le mode
+   econome n'y dessine pas les elements animes). */
+const animationsButton = document.getElementById("animations-button");
+function majBoutonAnimations() {
+  const label = document.getElementById("animations-label");
+  if (label && window.ParcoursPerf) {
+    label.textContent = window.ParcoursPerf.libelle();
+  }
+}
+majBoutonAnimations();
+animationsButton?.addEventListener("click", () => {
+  const perf = window.ParcoursPerf;
+  if (!perf) {
+    return;
+  }
+  perf.definir(perf.choixSuivant(perf.choix()));
+  majBoutonAnimations();
+});
+window.ParcoursPerf?.surChangement(() => {
+  majBoutonAnimations();
+  if (state.session && state.scene) {
+    renderScene();
+  }
+});
+
 /* ============================================================
    BRANCHEMENTS UI
    ============================================================ */

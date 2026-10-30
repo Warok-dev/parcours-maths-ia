@@ -404,17 +404,6 @@
   100% { transform: translate(0, 0) rotate(360deg); }
 }
 
-/* Machines modestes / accessibilite : on fige tout le decor vivant si l'usager
-   demande a reduire les animations. */
-@media (prefers-reduced-motion: reduce) {
-  .critter-wings,
-  .critter-flutter,
-  .cat-tail,
-  .cat-stroll {
-    animation: none;
-  }
-}
-
 /* ---------- Chateau (pierre grise) ---------- */
 .castle-wall {
   fill: var(--stone);
@@ -817,38 +806,9 @@
   animation-play-state: paused;
 }
 
-/* Joueur immobile depuis un court instant (classe posee par map.js) : on fige
-   les seules animations d'AMBIANCE (papillons, chat, ramassables, marqueur).
-   Elles tournent en continu meme sans repeindre le DOM, mais tiennent le
-   compositeur eveille -> ~60 frames/s dessinees en permanence, coteux sur
-   machines modestes. On les reprend des que le joueur rebouge (retrait de la
-   classe). Contrairement a scene-paused, on ne fige que le decoratif : la
-   marche, la camera et les FX de reussite ne sont jamais concernes. */
-#map.scene-idle .critter-wings,
-#map.scene-idle .critter-flutter,
-#map.scene-idle .cat-tail,
-#map.scene-idle .cat-stroll,
-#map.scene-idle .collectible-float,
-#map.scene-idle .collectible-glow,
-#map.scene-idle .obstacle-marker {
-  animation-play-state: paused;
-}
-
-/* Allegement PERMANENT sur appareil tactile (mobile) : contrairement a
-   scene-idle (repos uniquement), on coupe ici les animations d'ambiance les
-   plus couteuses TOUT LE TEMPS, y compris en mouvement. En mouvement la carte
-   se repeint entierement a chaque frame (la camera suit le joueur en reecrivant
-   le viewBox) : chaque sous-arbre anime coute alors a chaque frame, et la marge
-   GPU d'un mobile d'entree de gamme est mince. On fige le battement d'ailes et
-   le chat, et on coupe la lueur des pieces (opacite + scale = recomposition) ;
-   le desktop, lui, garde l'ambiance complete et vivante (body sans .touch-active).
-   Le nombre de papillons est deja reduit a 1 sur tactile (voir livingDecorMarkup). */
-body.touch-active #map .critter-wings,
-body.touch-active #map .cat-tail,
-body.touch-active #map .cat-stroll,
-body.touch-active #map .collectible-glow {
-  animation: none;
-}
+/* Le decor vivant ne se fige plus a l'arret ni sur tablette : c'est le mode
+   econome (perf.js, styles/20-monde-anime.css) qui coupe les animations
+   d'ambiance sur les petites machines. */
 
 /* Pastille "ici !" au-dessus de l'obstacle actif */
 .obstacle-marker {
