@@ -6,6 +6,8 @@ demandes, et la progression dessus est celle d'une session normale.
 
 from __future__ import annotations
 
+from outils_test import bonne_reponse, exercice_complet  # noqa: F401
+
 import unittest
 
 from fastapi.testclient import TestClient
@@ -22,10 +24,7 @@ PATTERNS_CIBLES = [
 
 
 def _answer_for(exercice: dict) -> str:
-    value = exercice["reponse_attendue"]["valeur"]
-    if isinstance(value, list):
-        return ", ".join(map(str, value))
-    return str(value)
+    return bonne_reponse(exercice)
 
 
 class RevisionSessionTests(unittest.TestCase):

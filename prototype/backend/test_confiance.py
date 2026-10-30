@@ -7,6 +7,8 @@ qu'un seul exercice a la fois.
 
 from __future__ import annotations
 
+from outils_test import bonne_reponse, exercice_complet  # noqa: F401
+
 import unittest
 
 from fastapi.testclient import TestClient
@@ -23,10 +25,7 @@ SESSION_LECON_ID = "addition"
 
 
 def _answer_for(exercice: dict) -> str:
-    value = exercice["reponse_attendue"]["valeur"]
-    if isinstance(value, list):
-        return ", ".join(map(str, value))
-    return str(value)
+    return bonne_reponse(exercice)
 
 
 class ConfianceTests(unittest.TestCase):
@@ -247,7 +246,7 @@ class ConfianceTests(unittest.TestCase):
 
     def _remplacer_exercice_normal(self, session: dict, modele: dict, suffixe: str) -> dict:
         """Force un exercice normal distinct (un echec ne change pas l'exercice)."""
-        remplacant = dict(modele, id=f"exercice-normal-{suffixe}")
+        remplacant = dict(exercice_complet(modele), id=f"exercice-normal-{suffixe}")
         EXERCICE_CACHE[remplacant["id"]] = remplacant
         session["exercice_id_courant"] = remplacant["id"]
         return remplacant

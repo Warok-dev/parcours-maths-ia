@@ -1,0 +1,19 @@
+{
+  "commentaire": "Cas partages par test_exercice_client.py (Python) et test_offline.js (JS) : la forme canonique doit etre identique des deux cotes, sinon la correction hors-ligne divergerait de celle du serveur.",
+  "cas": [
+    {"reponse": "70", "tolerance": {}, "forme": "num:70"},
+    {"reponse": "070", "tolerance": {}, "forme": "num:70"},
+    {"reponse": "12,50", "tolerance": {}, "forme": "num:12.5"},
+    {"reponse": "12.5", "tolerance": {}, "forme": "num:12.5"},
+    {"reponse": "1 000", "tolerance": {}, "forme": "num:1000"},
+    {"reponse": "0,0", "tolerance": {}, "forme": "num:0"},
+    {"reponse": 42, "tolerance": {}, "forme": "num:42"},
+    {"reponse": "10 x 7", "tolerance": {"ignorer_espaces": true}, "forme": "mul:7x10"},
+    {"reponse": "7×10", "tolerance": {}, "forme": "mul:7x10"},
+    {"reponse": "70=7*10", "tolerance": {}, "forme": "mul:7x10"},
+    {"reponse": "71=7x10", "tolerance": {}, "forme": "faux:71=7x10"},
+    {"reponse": [10, 20, 30], "tolerance": {}, "forme": "txt:10,20,30"},
+    {"reponse": "10, 20, 30", "tolerance": {"ignorer_espaces": true}, "forme": "txt:10,20,30"},
+    {"reponse": "  Cube ", "tolerance": {}, "forme": "txt:cube"}
+  ]
+}

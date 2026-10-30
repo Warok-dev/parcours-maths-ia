@@ -8,9 +8,6 @@
    ============================================================ */
 (function () {
   const BASKET_MAX_COUNT = 12;
-  const LINE_MAX_VALUE = 40;
-  const LOCK_MAX_DIGITS = 3;
-  const BALANCE_MAX_CIBLE = 100;
 
   /* Consignes adaptees a l'appareil : sur tablette/telephone il n'y a ni
      fleches ni touche Entree. */
@@ -51,14 +48,19 @@
     return array;
   }
 
+  /* La bonne reponse ne part plus au navigateur : le serveur joint a chaque
+     exercice des INDICES de mecanique (exercise.mecanique), calcules a partir
+     de la reponse sans la reveler (nombre de molettes, planches a poser,
+     fenetre de la ligne, objets du panier, sections de la roue, operandes de
+     la balance, suite a trous...). Voir backend/exercice_client.py. */
+  function indices(exercise) {
+    return (exercise && exercise.mecanique) || {};
+  }
+
   function answerInfo(exercise) {
-    const reponse = exercise.reponse_attendue || {};
-    const raw = reponse.valeur;
     return {
-      raw,
-      format: reponse.format || "nombre_entier",
-      numeric: typeof raw === "number" ? raw : Number(raw),
-      isInteger: typeof raw === "number" && Number.isInteger(raw) && raw >= 0,
+      format: exercise?.reponse_attendue?.format || "nombre_entier",
+      digits: Number(indices(exercise).nb_chiffres) || 0,
     };
   }
 
@@ -80,158 +82,16 @@
   }
 
   /* ----- Regle d'assignation -----------------------------------
-     calcul_direct            -> ligne numerique / planches (rotation)
-     exercice_a_trous_serie   -> cadenas / ligne numerique (rotation)
-     probleme_narratif_simple -> panier (cadenas si trop grand)
-     Fallback clavier pour les formats non couverts (expressions).
-     Deterministe par exercice (hash id + concept) mais varie d'un
-     exercice et d'un concept a l'autre. */
-  function baseMechanics(exercise) {
-    const family = exercise.pattern?.pattern_family;
-    const info = answerInfo(exercise);
-
-    if (info.format === "heure") {
-      return ["horloge"];
-    }
-    if (info.format === "expression") {
-      return ["clavier"];
-    }
-    if (info.format === "liste_ordonnee") {
-      /* Deux representations complementaires d'une suite ordonnee :
-         - "ligne" : completer la suite sur une ligne graduee (reperes
-           visibles, on cherche le pas et les valeurs manquantes) ;
-         - "ordre" : remettre toute la suite, donnee melangee en blocs, dans
-           le bon ordre (competence "ranger dans l'ordre").
-         Elles ne se remplacent pas : la rotation par exercice alterne les
-         deux, la ligne garde son role.
-         L'ordre glisser-deposer est manipulatoirement lourd : au CE1 on le
-         reserve aux suites courtes (<= 4 elements), sinon on ne propose que la
-         ligne. Les niveaux superieurs gardent l'ordre quelle que soit la
-         longueur. */
-      if (!(Array.isArray(info.raw) && info.raw.length >= 2)) {
-        return ["clavier"];
-      }
-      const options = ["ligne"];
-      if (info.raw.length <= maxElementsOrdre(exercise.niveau_scolaire)) {
-        options.push("ordre");
-      }
-      return options;
-    }
-    if (info.format === "choix_multiple") {
-      /* Les QCM numeriques (identifier_multiple_de_10, etc.) peuvent aussi se
-         jouer a la roue : sections colorees + repere fixe, on VISE la bonne.
-         Les QCM symboliques (< > =) restent aux planches : on ne fabrique pas
-         de faux symboles pour atteindre les 4 sections de la roue. */
-      const options = exercise.variables?.options;
-      const numerique =
-        Array.isArray(options) &&
-        options.length > 0 &&
-        options.every((o) => o !== "" && o !== null && Number.isFinite(Number(o)));
-      return numerique ? ["planches", "roue"] : ["planches"];
-    }
-    if (!info.isInteger) {
-      return ["clavier"];
-    }
-
-    const digits = String(info.raw).length;
-    if (family === "calcul_direct") {
-      const options = [];
-      if (info.numeric <= LINE_MAX_VALUE) options.push("ligne");
-      options.push("planches");
-      return options;
-    }
-    if (family === "exercice_a_trous_serie") {
-      const options = [];
-      if (digits <= LOCK_MAX_DIGITS) options.push("cadenas");
-      if (info.numeric <= LINE_MAX_VALUE) options.push("ligne");
-      return options.length ? options : ["clavier"];
-    }
-    if (family === "probleme_narratif_simple") {
-      if (info.numeric <= BASKET_MAX_COUNT) return ["panier"];
-      return digits <= LOCK_MAX_DIGITS ? ["cadenas"] : ["clavier"];
-    }
-    return ["clavier"];
-  }
-
-  /* Patterns de DECOMPOSITION ADDITIVE du catalogue : une cible est atteinte
-     par une somme d'elements. Ils se pretent a la balance a equilibrer.
-     - addition_2chiffres_sans_retenue, addition_pas_a_pas_sans_retenue
-       (famille calcul_direct) : la reponse est la somme a construire ;
-     - partie_tout_addition_non_narratif (famille exercice_a_trous_serie) :
-       le "tout" est la reponse, decompose en poids sur le plateau. */
-  const ADDITIF_DECOMPOSITION = new Set([
-    "addition_2chiffres_sans_retenue",
-    "addition_pas_a_pas_sans_retenue",
-    "partie_tout_addition_non_narratif",
-  ]);
-
-  /* Nombre d'elements que l'eleve accepte de RANGER a la main sur la mecanique
-     d'ordre. Au CE1, glisser 6 blocs dans le bon ordre est trop lourd : on
-     plafonne a 4. Les niveaux superieurs (ou un niveau inconnu) ne sont pas
-     bornes. */
-  function maxElementsOrdre(niveau) {
-    return niveauRang(niveau) === 1 ? 4 : Infinity;
-  }
-
-  /* Bornes de la balance selon l'age. Au CE1, on evite les grandes cibles et
-     les empilements de poids (motricite fine encore fragile) : cible <= 20 et
-     au plus 3 poids a poser. Les niveaux superieurs (ou inconnu) gardent la
-     tolerance d'origine. */
-  function bornesBalance(niveau) {
-    if (niveauRang(niveau) === 1) {
-      return { cibleMax: 20, poidsMax: 3 };
-    }
-    return { cibleMax: BALANCE_MAX_CIBLE, poidsMax: Infinity };
-  }
-
-  /* Nombre minimal de poids pour batir `cible` avec `palette` (glouton : la
-     palette 1,2,5,10,20,50 est canonique, le glouton y donne l'optimum).
-     Infinity si `cible` n'est pas atteignable (ne devrait pas arriver, la
-     palette contient toujours 1). Fonction pure, exportee pour les tests. */
-  function poidsMinimum(cible, palette) {
-    let reste = Number(cible);
-    let nb = 0;
-    for (const p of [...palette].sort((a, b) => b - a)) {
-      while (reste >= p) {
-        reste -= p;
-        nb += 1;
-      }
-    }
-    return reste === 0 ? nb : Infinity;
-  }
-
-  /* La balance ne convient que si la cible est un entier positif RAISONNABLE
-     a batir avec des poids (sinon empiler 90 jetons serait fastidieux), et si
-     sa complexite manipulatoire reste dans les bornes de l'age (P3). */
-  function peutEquilibrer(exercise) {
-    const info = answerInfo(exercise);
-    if (!info.isInteger || info.numeric <= 0) {
-      return false;
-    }
-    if (!ADDITIF_DECOMPOSITION.has(exercise.pattern?.pattern_name || "")) {
-      return false;
-    }
-    const bornes = bornesBalance(exercise.niveau_scolaire);
-    if (info.numeric > bornes.cibleMax) {
-      return false;
-    }
-    return poidsMinimum(info.numeric, poidsDisponibles(info.numeric)) <= bornes.poidsMax;
-  }
-
-  /* La balance s'AJOUTE aux mecaniques compatibles (rotation par exercice),
-     sans jamais retirer celles deja proposees par la regle d'assignation. */
-  function compatibleMechanics(exercise) {
-    const options = baseMechanics(exercise);
-    if (peutEquilibrer(exercise) && !options.includes("balance")) {
-      options.push("balance");
-    }
-    return options;
-  }
-
-  function choose(exercise, conceptIndex) {
-    const options = compatibleMechanics(exercise);
-    const rotation = (hashString(exercise.id) + (conceptIndex || 0)) % options.length;
-    return options[rotation];
+     La regle (quel format, quelle famille, quelle taille de reponse va sur
+     quelle mecanique) a besoin de la reponse : elle vit desormais cote
+     serveur (backend/exercice_client.py, mecaniques_possibles), qui joint la
+     mecanique retenue a l'exercice (mecanique.choisie) avec SES seuls indices.
+     Un exercice sans indice (ancien tampon hors-ligne) se joue au clavier. */
+  function choose(exercise) {
+    const choisie = indices(exercise).choisie;
+    return typeof choisie === "string" && (choisie === "clavier" || MOUNTERS_NOMS.includes(choisie))
+      ? choisie
+      : "clavier";
   }
 
   /* Reserve de planches proposees pour un exercice : les chiffres de la reponse
@@ -244,27 +104,9 @@
      "8"). Pour un QCM, la reserve est la liste d'options fournie (unicite a la
      charge de la donnee). Fonction pure, exportee pour les tests. */
   function plankCandidates(exercise) {
-    const info = answerInfo(exercise);
-    const seed = hashString(exercise.id);
-    if (info.format === "choix_multiple") {
-      const options = exercise.variables?.options || [info.raw];
-      return { candidates: seededShuffle(options.map(String), seed), slotCount: 1 };
-    }
-    const digits = String(info.raw).split("");
-    const answerDigits = new Set(digits);
-    const decoys = [];
-    const target = Math.min(6, digits.length + 3);
-    let cursor = seed;
-    let safety = 0;
-    while (digits.length + decoys.length < target && safety < 100) {
-      cursor = (cursor * 1103515245 + 12345) & 0x7fffffff;
-      const decoy = String(cursor % 10);
-      if (!answerDigits.has(decoy) && !decoys.includes(decoy)) {
-        decoys.push(decoy);
-      }
-      safety += 1;
-    }
-    return { candidates: seededShuffle([...digits, ...decoys], seed), slotCount: digits.length };
+    const m = indices(exercise);
+    const candidates = Array.isArray(m.planches) ? m.planches.map(String) : [];
+    return { candidates, slotCount: Number(m.nb_planches) || 1 };
   }
 
   /* ----- Planches du pont : assembler la reponse --------------- */
@@ -334,22 +176,17 @@
      visibles et servent de reperes pour retrouver le pas de la suite.
      Fonction pure, exportee pour les tests (test_mechanics.js). */
   function maskedLinePositions(exercise) {
-    const reponse = exercise?.reponse_attendue || {};
-    if (reponse.format !== "liste_ordonnee") {
+    const suite = indices(exercise).suite;
+    if (exercise?.reponse_attendue?.format !== "liste_ordonnee" || !Array.isArray(suite)) {
       return new Set();
     }
-    const positions = exercise?.variables?.positions_manquantes;
-    if (!Array.isArray(positions)) {
-      /* Pas d'information sur les trous : on masque tout sauf les deux
-         premieres valeurs, qui suffisent a donner le pas de la suite. */
-      const length = Array.isArray(reponse.valeur) ? reponse.valeur.length : 0;
-      const fallback = new Set();
-      for (let index = 2; index < length; index += 1) {
-        fallback.add(index);
-      }
-      return fallback;
-    }
-    return new Set(positions.filter((index) => Number.isInteger(index) && index >= 0));
+    /* Le serveur envoie la suite avec null a la place de chaque nombre a
+       trouver : les trous sont exactement ces positions. */
+    const trous = new Set();
+    suite.forEach((valeur, index) => {
+      if (valeur === null || valeur === undefined) trous.add(index);
+    });
+    return trous;
   }
 
   /* Indices des trous, dans l'ordre de la suite (gauche a droite). */
@@ -359,13 +196,8 @@
 
   /* Valeurs a retrouver, dans l'ordre naturel de la suite. */
   function missingLineValues(exercise) {
-    const valeurs = exercise?.reponse_attendue?.valeur;
-    if (!Array.isArray(valeurs)) {
-      return [];
-    }
-    return holeIndexes(exercise)
-      .filter((index) => index < valeurs.length)
-      .map((index) => Number(valeurs[index]));
+    const reserve = indices(exercise).suite_reserve;
+    return Array.isArray(reserve) ? reserve.map(Number) : [];
   }
 
   /* Melange les nombres proposes a l'eleve. L'ordre croissant naturel est
@@ -416,7 +248,7 @@
      trous, de gauche a droite. Il doit donc reconstituer l'ordre de la
      suite, la ligne ne le lui donne plus. */
   function mountLineSequence(container, exercise, api) {
-    const values = answerInfo(exercise).raw.map(Number);
+    const values = (indices(exercise).suite || []).map((v) => (v === null ? null : Number(v)));
     const masked = maskedLinePositions(exercise);
     const holes = holeIndexes(exercise).filter((index) => index < values.length);
     const pool = shuffleMissingValues(missingLineValues(exercise));
@@ -539,9 +371,7 @@
 
   /* ----- Ligne numerique : sauter jusqu'au bon nombre ---------- */
   function mountLineSimple(container, exercise, api) {
-    const info = answerInfo(exercise);
-    const offset = 3 + (hashString(exercise.id) % 5);
-    const start = Math.max(0, info.numeric - offset);
+    const start = Math.max(0, Number(indices(exercise).ligne_debut) || 0);
     const ticks = [];
     for (let value = start; value <= start + 12; value += 1) {
       ticks.push(value);
@@ -607,8 +437,7 @@
 
   /* ----- Cadenas a combinaison : molettes chiffre par chiffre -- */
   function mountLock(container, exercise, api) {
-    const info = answerInfo(exercise);
-    const digitCount = String(info.raw).length;
+    const digitCount = Math.max(1, answerInfo(exercise).digits);
     const wheels = new Array(digitCount).fill(0);
     let activeWheel = 0;
 
@@ -870,10 +699,11 @@
   }
 
   function mountOrder(container, exercise, api) {
-    const raw = answerInfo(exercise).raw;
-    const ordreAttendu = Array.isArray(raw) ? raw.map(Number) : [];
-    const seed = hashString(exercise.id);
-    const melange = melangerOrdre(ordreAttendu, seed);
+    /* Les etiquettes arrivent deja melangees du serveur (jamais dans l'ordre
+       attendu). L'ordre attendu, lui, reste au serveur : la placement ne sert
+       ici qu'a gerer les emplacements, la correction se fait a la validation. */
+    const melange = (indices(exercise).ordre || []).map(Number);
+    const ordreAttendu = new Array(melange.length).fill(null);
     const elements = melange.map((valeur, i) => ({ id: i, valeur }));
     const placement = creerPlacementOrdre({ elements, ordreAttendu });
 
@@ -1119,13 +949,9 @@
   }
 
   function mountWheel(container, exercise, api) {
-    const info = answerInfo(exercise);
     const seed = hashString(exercise.id);
-    const sections = genererSectionsRoue({
-      options: exercise.variables?.options,
-      bonneReponse: info.raw,
-      seed,
-    });
+    /* Sections fournies par le serveur, sans indiquer laquelle est juste. */
+    const sections = (indices(exercise).roue || []).map((valeur) => ({ valeur: String(valeur) }));
     const roue = creerRoue({ sections, seed });
     const n = sections.length;
     const rayon = 100;
@@ -1352,8 +1178,12 @@
   }
 
   function mountBalance(container, exercise, api) {
-    const info = answerInfo(exercise);
-    const cible = info.numeric;
+    /* Plateau de gauche : les deux nombres de l'addition (le serveur les
+       fournit), jamais leur somme. L'eleve batit la meme masse a droite ; la
+       balance s'equilibre quand il a trouve la reponse. */
+    const gauche = (indices(exercise).balance?.gauche || []).map(Number);
+    const calcul = gauche.join(" + ");
+    const cible = gauche.reduce((total, x) => total + x, 0);
     const poids = poidsDisponibles(cible);
     const balance = creerBalance({ cible, poids });
 
@@ -1362,8 +1192,8 @@
     const DROP = 30; /* longueur des suspentes (fleau -> plateau) */
 
     const hint = estPetitNiveau(exercise.niveau_scolaire)
-      ? `Ajoute des poids pour arriver à ${cible}.`
-      : `Pose des poids sur le plateau vide jusqu'à égaler ${cible}, puis valide.`;
+      ? `Ajoute des poids pour équilibrer ${calcul}.`
+      : `Pose des poids sur le plateau vide jusqu'à équilibrer ${calcul}, puis valide.`;
     container.innerHTML = `
       <p class="mech-hint">${hint}</p>
       <div class="mech-balance">
@@ -1377,8 +1207,16 @@
           <rect x="-40" y="72" width="80" height="10" rx="5" class="balance-socle"></rect>
           <g data-plate="left" class="balance-plate">
             <ellipse cx="0" cy="0" rx="46" ry="9" class="balance-bowl"></ellipse>
-            <text class="balance-plate-val" x="0" y="24" text-anchor="middle">${cible}</text>
-            <text class="balance-plate-cap" x="0" y="40" text-anchor="middle">cible</text>
+            ${gauche
+              .map(
+                (valeur, i) => `
+            <g class="balance-chip-fixe" transform="translate(${i === 0 ? -17 : 17} -12)">
+              <circle class="balance-chip-disc balance-chip-disc-fixe" r="15"></circle>
+              <text class="balance-chip-val" text-anchor="middle" dominant-baseline="central">${valeur}</text>
+            </g>`,
+              )
+              .join("")}
+            <text class="balance-plate-cap" x="0" y="24" text-anchor="middle">${calcul}</text>
           </g>
           <g data-plate="right" class="balance-plate">
             <ellipse cx="0" cy="0" rx="46" ry="9" class="balance-bowl"></ellipse>
@@ -1496,14 +1334,16 @@
     function majStatut() {
       const somme = balance.somme();
       sommeNode.textContent = String(somme);
+      /* Jamais la cible ni l'ecart chiffre : « il manque 4 » donnait la
+         reponse. La balance dit seulement de quel cote elle penche. */
       if (balance.places().length === 0) {
-        statut.textContent = `Plateau vide. Cible : ${cible}.`;
+        statut.textContent = `Plateau vide. Équilibre ${calcul}.`;
       } else if (balance.estEquilibre()) {
-        statut.textContent = `Équilibre ! ${somme} = ${cible}. Tu peux valider.`;
+        statut.textContent = `Équilibre ! Ton plateau fait ${somme}. Tu peux valider.`;
       } else if (somme < cible) {
-        statut.textContent = `Plateau : ${somme}. Trop léger, il manque ${cible - somme}.`;
+        statut.textContent = `Plateau : ${somme}. Trop léger, ajoute des poids.`;
       } else {
-        statut.textContent = `Plateau : ${somme}. Trop lourd de ${somme - cible}.`;
+        statut.textContent = `Plateau : ${somme}. Trop lourd, retire un poids.`;
       }
       statut.classList.toggle("equilibre", balance.estEquilibre());
       removeBtn.disabled = balance.places().length === 0;
@@ -1547,9 +1387,9 @@
      (BASKET_MAX_COUNT) garde deja la cible <= 12 en jeu normal, donc le plateau
      reste petit. Fonction pure, exportee pour les tests. */
   function basketFieldCount(exercise) {
-    const info = answerInfo(exercise);
-    const distractors = 3 + (hashString(exercise.id) % 3); /* 3 a 5 leurres */
-    return info.numeric + distractors;
+    /* Objets du champ : la cible plus 3 a 5 leurres, compte fourni par le
+       serveur (qui seul connait la cible). */
+    return Math.max(1, Number(indices(exercise).panier_objets) || 0);
   }
 
   /* ----- Icones d'objets contextuelles -------------------------
@@ -1673,6 +1513,7 @@
     itemNodes[0]?.focus();
   }
 
+  const MOUNTERS_NOMS = ["planches", "ligne", "cadenas", "panier", "horloge", "ordre", "roue", "balance"];
   const MOUNTERS = {
     planches: mountPlanks,
     ligne: mountLine,
@@ -1697,7 +1538,6 @@
     clockAngles,
     formatHeure,
     /* Exposes pour les tests */
-    compatibleMechanics,
     maskedLinePositions,
     missingLineValues,
     shuffleMissingValues,
@@ -1710,12 +1550,7 @@
     creerBalance,
     angleBascule,
     poidsDisponibles,
-    /* Bornes par age (P3), exposees pour les tests. */
     niveauRang,
-    maxElementsOrdre,
-    bornesBalance,
-    poidsMinimum,
-    peutEquilibrer,
     basketFieldCount,
     BASKET_MAX_COUNT,
     plankCandidates,

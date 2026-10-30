@@ -12,6 +12,15 @@ global.localStorage = {
 };
 
 const offline = require("./offline.js");
+const { versClient } = require("./outils_test_indices.js");
+const fs = require("fs");
+const path = require("path");
+
+/* Correction hors-ligne telle qu'en vrai : l'exercice passe par la vue client
+   du serveur (empreintes salees, plus de reponse en clair). */
+async function evalue(exercice, reponse) {
+  return offline.evaluer(versClient(exercice, { horsLigne: true }), reponse);
+}
 
 let failures = 0;
 let total = 0;
@@ -51,15 +60,16 @@ function exProcedural(pattern_name, variables, valeur, extra = {}) {
 /* ====================================================================
    1. ÉVALUATION LOCALE (miroir de evaluation.py)
    ==================================================================== */
+(async () => {
 {
   const ex = exProcedural("addition", { a: 24, b: 6 }, 30, {
     equivalences: ["30", "30.0"],
   });
-  check(offline.evaluer(ex, "30"), "réponse exacte acceptée");
-  check(offline.evaluer(ex, " 30 "), "espaces autour ignorés");
-  check(offline.evaluer(ex, "30.0"), "équivalence acceptée");
-  check(!offline.evaluer(ex, "31"), "mauvaise réponse rejetée");
-  check(!offline.evaluer(ex, ""), "réponse vide rejetée");
+  check(await evalue(ex, "30"), "réponse exacte acceptée");
+  check(await evalue(ex, " 30 "), "espaces autour ignorés");
+  check(await evalue(ex, "30.0"), "équivalence acceptée");
+  check(!(await evalue(ex, "31")), "mauvaise réponse rejetée");
+  check(!(await evalue(ex, "")), "réponse vide rejetée");
 }
 
 /* Commutativité de la multiplication et signes équivalents. */
@@ -70,12 +80,12 @@ function exProcedural(pattern_name, variables, valeur, extra = {}) {
     "21 = 3 x 7",
     { format: "expression", equivalences: ["3 x 7", "7 x 3", "21 = 7 x 3"] },
   );
-  check(offline.evaluer(ex, "21 = 3 x 7"), "expression exacte");
-  check(offline.evaluer(ex, "3 x 7"), "facteurs seuls acceptés");
-  check(offline.evaluer(ex, "7 x 3"), "ordre inverse (commutativité)");
-  check(offline.evaluer(ex, "3 * 7"), "signe * équivaut à x");
-  check(offline.evaluer(ex, "3 × 7"), "signe × équivaut à x");
-  check(!offline.evaluer(ex, "2 x 7"), "mauvais facteur rejeté");
+  check(await evalue(ex, "21 = 3 x 7"), "expression exacte");
+  check(await evalue(ex, "3 x 7"), "facteurs seuls acceptés");
+  check(await evalue(ex, "7 x 3"), "ordre inverse (commutativité)");
+  check(await evalue(ex, "3 * 7"), "signe * équivaut à x");
+  check(await evalue(ex, "3 × 7"), "signe × équivaut à x");
+  check(!(await evalue(ex, "2 x 7")), "mauvais facteur rejeté");
   check(
     offline.multiplicationsEquivalentes("21=3x7", "21=7x3"),
     "helper commutativité direct",
@@ -90,9 +100,9 @@ function exProcedural(pattern_name, variables, valeur, extra = {}) {
     [10, 20, 30],
     { format: "liste_ordonnee", equivalences: ["10, 20, 30"] },
   );
-  check(offline.evaluer(ex, "10, 20, 30"), "liste avec espaces");
-  check(offline.evaluer(ex, "10,20,30"), "liste sans espaces");
-  check(!offline.evaluer(ex, "10, 20"), "liste incomplète rejetée");
+  check(await evalue(ex, "10, 20, 30"), "liste avec espaces");
+  check(await evalue(ex, "10,20,30"), "liste sans espaces");
+  check(!(await evalue(ex, "10, 20")), "liste incomplète rejetée");
 }
 
 /* ====================================================================
@@ -168,7 +178,6 @@ function exProcedural(pattern_name, variables, valeur, extra = {}) {
 /* ====================================================================
    4. REMPLISSAGE via un fetch injecté
    ==================================================================== */
-(async () => {
   /* 4a. Remplissage nominal jusqu'à une cible. */
   {
     reset();
@@ -273,11 +282,32 @@ function exProcedural(pattern_name, variables, valeur, extra = {}) {
     const ex = (valeur, extra = {}) => ({
       reponse_attendue: { valeur, tolerance: { ignorer_espaces: true, ...extra } },
     });
-    check(offline.evaluer(ex("8"), "08"), "08 vaut 8");
-    check(offline.evaluer(ex("3,5"), "3.50"), "3.50 vaut 3,5");
-    check(offline.evaluer(ex("1000", { ignorer_espaces: false }), "1 000"), "1 000 vaut 1000");
-    check(!offline.evaluer(ex("70"), "7"), "7 ne vaut pas 70");
-    check(!offline.evaluer(ex("12"), "12 cm"), "un nombre suivi d'une unité n'est pas interprété");
+    check(await evalue(ex("8"), "08"), "08 vaut 8");
+    check(await evalue(ex("3,5"), "3.50"), "3.50 vaut 3,5");
+    check(await evalue(ex("1000", { ignorer_espaces: false }), "1 000"), "1 000 vaut 1000");
+    check(!(await evalue(ex("70"), "7")), "7 ne vaut pas 70");
+    check(!(await evalue(ex("12"), "12 cm")), "un nombre suivi d'une unité n'est pas interprété");
+  }
+
+  /* Formes canoniques identiques au backend (memes cas que
+     test_exercice_client.py). */
+  {
+    const { cas } = JSON.parse(fs.readFileSync(path.join(__dirname, "donnees_test", "formes_canoniques.json"), "utf8"));
+    for (const c of cas) {
+      const forme = offline.formeCanonique(c.reponse, c.tolerance);
+      check(forme === c.forme, `forme canonique de ${JSON.stringify(c.reponse)} : ${forme} (attendu ${c.forme})`);
+    }
+  }
+
+  /* L'exercice du tampon ne contient plus la reponse en clair. */
+  {
+    const brut = exProcedural("addition", { a: 24, b: 6 }, 30);
+    const vue = versClient(brut, { horsLigne: true });
+    check(!("valeur" in vue.reponse_attendue), "tampon : pas de reponse en clair");
+    check(!JSON.stringify(vue.verification_hors_ligne).includes('"30"'), "tampon : empreintes seulement");
+    check((await offline.evaluer({ reponse_attendue: { format: "nombre_entier" } }, "30")) === null,
+      "exercice sans empreintes (joue en ligne) : correction locale impossible, null");
+    check(await offline.evaluer(brut, "30"), "ancien tampon (reponse en clair) : toujours corrige");
   }
 
   console.log(`\n${total - failures}/${total} cas passent`);

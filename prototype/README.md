@@ -12,6 +12,7 @@ Ce dossier contient le code du jeu : l'API (`backend/`), le client web (`fronten
 | `generation/substitution.py` | Générateurs procéduraux (calcul, géométrie, mesures, graphiques), CE1 à CE6 |
 | `generation/narrative.py` | Énoncés narratifs par LLM, avec thèmes, contrôle des valeurs et repli procédural |
 | `tutor.py` | Tuteur IA (Gemini → Groq → Mistral), registre adapté à l'âge, filtrage des données personnelles |
+| `exercice_client.py` | Vue « client » d'un exercice : sans la réponse ni les variables de résultat, avec la mécanique choisie et ses seuls indices, et des empreintes salées pour la correction hors-ligne |
 | `evaluation.py` / `diagnostic.py` | Correction tolérante (valeur numérique, commutativité, heures) et diagnostic d'erreur par règles |
 | `notifications.py` | Résumé hebdomadaire, alertes de blocage, rapports IA anonymisés |
 | `rate_limit.py` | Limites de débit (par IP réelle derrière le proxy, et par cible pour l'authentification) |

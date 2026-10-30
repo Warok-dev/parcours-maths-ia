@@ -19,7 +19,10 @@
    côté serveur. Voir [[portee-donnees-compte-vs-invite]].
    ============================================================ */
 (function () {
-  const STORAGE_KEY = "hors_ligne_tampon_v1";
+  /* v2 : les exercices du tampon ne contiennent plus la reponse (empreintes
+     salees a la place). L'ancien tampon v1, qui la contenait, est efface. */
+  const STORAGE_KEY = "hors_ligne_tampon_v2";
+  const ANCIENNE_CLE = "hors_ligne_tampon_v1";
   /* Cible de remplissage et seuil de renouvellement : on vise ~12 exercices
      d'avance et on complète tant qu'on reste au-dessus de zéro. */
   const CIBLE_TAMPON = 12;
@@ -95,10 +98,9 @@
     return valeur !== null && candidats.some((candidat) => nombre(candidat) === valeur);
   }
 
-  /* Vrai si la réponse de l'élève est correcte pour cet exercice mis en cache.
-     reponse_attendue.valeur est déjà présent dans l'exercice : aucun serveur
-     n'est nécessaire pour une comparaison aussi simple. */
-  function evaluer(exercice, reponseEleve) {
+  /* Ancienne correction locale, contre reponse_attendue.valeur en clair.
+     Ne sert plus qu'aux exercices d'un tampon cree avant les empreintes. */
+  function evaluerEnClair(exercice, reponseEleve) {
     const attendue = (exercice && exercice.reponse_attendue) || {};
     const tolerance = attendue.tolerance || {};
     const reponseNorm = normaliser(reponseEleve, tolerance);
@@ -119,6 +121,51 @@
     return correct;
   }
 
+  /* ---------- Correction par empreintes ----------
+     Le serveur n'envoie plus la reponse : il joint a chaque exercice du
+     tampon les empreintes SHA-256 salees des formes canoniques acceptees
+     (verification_hors_ligne). On calcule la forme canonique de la reponse
+     de l'eleve, son empreinte avec le meme sel, et on compare. Miroir exact
+     de forme_canonique (backend/exercice_client.py) : les deux cotes testent
+     les memes cas (donnees_test/formes_canoniques.json). */
+  function formeCanonique(reponse, tolerance) {
+    const t = normaliser(reponse, tolerance || {});
+    const m = MULT_EXPR.exec(t);
+    if (m) {
+      const facteurs = [parseInt(m[2], 10), parseInt(m[3], 10)].sort((a, b) => a - b);
+      if (m[1] !== undefined && parseInt(m[1], 10) !== facteurs[0] * facteurs[1]) {
+        return `faux:${t}`;
+      }
+      return `mul:${facteurs[0]}x${facteurs[1]}`;
+    }
+    const n = nombre(t);
+    if (n !== null) {
+      return `num:${Object.is(n, -0) ? 0 : n}`;
+    }
+    return `txt:${t}`;
+  }
+
+  async function empreinte(sel, forme) {
+    const octets = new TextEncoder().encode(`${sel}|${forme}`);
+    const condense = await globalThis.crypto.subtle.digest("SHA-256", octets);
+    return [...new Uint8Array(condense)].map((o) => o.toString(16).padStart(2, "0")).join("");
+  }
+
+  /* Vrai/faux si l'exercice peut etre corrige hors-ligne, null sinon (un
+     exercice joue en ligne ne porte pas d'empreintes : il faut le serveur). */
+  async function evaluer(exercice, reponseEleve) {
+    const verification = exercice && exercice.verification_hors_ligne;
+    if (verification && Array.isArray(verification.empreintes)) {
+      const tolerance = { ignorer_espaces: Boolean(verification.ignorer_espaces) };
+      const calculee = await empreinte(verification.sel, formeCanonique(reponseEleve, tolerance));
+      return verification.empreintes.includes(calculee);
+    }
+    if (exercice && exercice.reponse_attendue && "valeur" in exercice.reponse_attendue) {
+      return evaluerEnClair(exercice, reponseEleve);
+    }
+    return null;
+  }
+
   /* ---------- Reconnaissance d'un exercice procédural ---------- */
   function estProcedural(exercice) {
     const pattern = exercice && exercice.pattern;
@@ -136,6 +183,12 @@
      id générés sont, eux, toujours uniques et donc inutiles à dédupliquer). */
   function signature(exercice) {
     const pattern = (exercice && exercice.pattern) || {};
+    /* Le serveur fournit une signature calculee sur TOUTES les variables : les
+       variables envoyees au navigateur, filtrees, ne suffisent plus a
+       distinguer deux exercices. */
+    if (exercice && exercice.signature) {
+      return `${pattern.pattern_name}|${exercice.signature}`;
+    }
     return stableStringify({
       pattern_name: pattern.pattern_name,
       variables: exercice ? exercice.variables : null,
@@ -161,6 +214,9 @@
 
   function _lireBrut() {
     try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem(ANCIENNE_CLE);
+      }
       return JSON.parse((typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY)) || "null");
     } catch (_error) {
       return null;
@@ -351,6 +407,8 @@
     /* Évaluation */
     normaliser,
     evaluer,
+    formeCanonique,
+    empreinte,
     multiplicationsEquivalentes,
     estProcedural,
     signature,

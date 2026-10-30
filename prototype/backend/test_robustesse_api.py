@@ -4,6 +4,8 @@ de taille sur les entrees libres."""
 
 from __future__ import annotations
 
+from outils_test import bonne_reponse
+
 import unittest
 from unittest.mock import patch
 
@@ -77,7 +79,7 @@ class SessionApresEvictionTests(unittest.TestCase):
             json={
                 "session_id": demarrage["session_id"],
                 "exercice_id": exercice["id"],
-                "reponse_eleve": exercice["reponse_attendue"]["valeur"],
+                "reponse_eleve": bonne_reponse(exercice, demarrage["session_id"]),
             },
         )
         self.assertEqual(reponse.status_code, 200)

@@ -11,6 +11,8 @@ main.py, qui importe le meme get_db) : rien n'est ecrit dans backend/data/.
 
 from __future__ import annotations
 
+from outils_test import bonne_reponse, exercice_complet  # noqa: F401
+
 import unittest
 
 from fastapi.testclient import TestClient
@@ -23,10 +25,7 @@ from main import app
 
 
 def _answer_for(exercice: dict) -> str:
-    valeur = exercice["reponse_attendue"]["valeur"]
-    if isinstance(valeur, list):
-        return ", ".join(map(str, valeur))
-    return str(valeur)
+    return bonne_reponse(exercice)
 
 
 class JeuComptesTests(unittest.TestCase):
