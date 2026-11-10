@@ -19,10 +19,10 @@ os.chdir(BACKEND)
 if not os.environ.get("DATABASE_URL", "").startswith(("postgresql", "postgres")):
     raise SystemExit("DATABASE_URL doit pointer vers une base PostgreSQL jetable.")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-import comptes  # noqa: E402
-import main  # noqa: E402
+import comptes
+import main
 
 ok = 0
 

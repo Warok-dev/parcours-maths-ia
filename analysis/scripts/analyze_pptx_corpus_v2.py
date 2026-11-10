@@ -3,7 +3,7 @@ import math
 import posixpath
 import re
 import zipfile
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 from xml.etree import ElementTree as ET
 

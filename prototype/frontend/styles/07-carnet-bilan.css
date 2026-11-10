@@ -214,17 +214,6 @@
   color: var(--road-dark);
 }
 
-.bilan-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: 0 0 18px;
-  font-size: 1.35rem;
-  color: var(--ink);
-  text-align: center;
-}
-
 /* --- Ecran de fin de parcours : celebration + recap rapide --- */
 .bilan-celebration {
   margin: 0 0 6px;

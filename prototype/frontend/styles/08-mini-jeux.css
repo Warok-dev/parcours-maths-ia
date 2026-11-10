@@ -285,11 +285,6 @@
   animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.chasse-fin-emoji {
-  font-size: 3rem;
-  line-height: 1;
-}
-
 .chasse-fin-titre {
   margin: 0;
   font-size: 1.6rem;
@@ -460,11 +455,6 @@
   border-radius: 22px;
   box-shadow: var(--shadow-pop);
   animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.memory-fin-emoji {
-  font-size: 3rem;
-  line-height: 1;
 }
 
 .memory-fin-titre {

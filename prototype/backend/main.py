@@ -145,8 +145,8 @@ class CacheBorne(OrderedDict):
             self.popitem(last=False)
 
 
-# Caches memoire de travail ; la verite persistante des sessions est sur
-# disque (un JSON par session dans data/sessions/), rechargee a la demande.
+# Caches memoire de travail ; la verite persistante des sessions est en base
+# (table etat_session_jeu, voir database.py), rechargee a la demande.
 EXERCICE_CACHE_TAILLE_MAX = 5000
 SESSION_STATE_TAILLE_MAX = 2000
 EXERCICE_CACHE: CacheBorne = CacheBorne(EXERCICE_CACHE_TAILLE_MAX)
@@ -286,7 +286,7 @@ def _lire_etat(session_id: str) -> dict | None:
             ligne = db.get(database.EtatSessionJeu, session_id)
             contenu = ligne.contenu if ligne is not None else None
         return json.loads(contenu) if contenu else None
-    except Exception:  # noqa: BLE001 - lecture best-effort, jamais fatale
+    except Exception:
         logging.warning("Etat de session %s illisible.", session_id, exc_info=True)
         return None
 
@@ -316,7 +316,7 @@ def _save_session(session: dict) -> None:
                 )
             )
             db.commit()
-    except Exception:  # noqa: BLE001 - la partie continue sur l'etat memoire
+    except Exception:
         logging.warning("Etat de session %s non persiste.", session_id, exc_info=True)
 
 
@@ -360,7 +360,7 @@ def _cleanup_old_sessions() -> int:
             )
             db.commit()
             return resultat.rowcount or 0
-    except Exception:  # noqa: BLE001 - le nettoyage ne doit jamais bloquer le boot
+    except Exception:
         logging.warning("Purge des vieilles parties ignoree.", exc_info=True)
         return 0
 
@@ -378,7 +378,7 @@ def _cleanup_demos_expirees() -> None:
             logging.getLogger("comptes.suppression").info(
                 "Demarrage : %s ecole(s) de demo expiree(s) purgee(s).", n
             )
-    except Exception:  # noqa: BLE001 - le nettoyage ne doit jamais bloquer le boot
+    except Exception:
         logging.getLogger("comptes.suppression").warning(
             "Purge des demos expirees ignoree au demarrage (erreur non bloquante).",
             exc_info=True,
@@ -403,7 +403,7 @@ def _cleanup_retention() -> None:
                 "%s session(s) ancienne(s) purgee(s)).",
                 n_eleves, n_sessions,
             )
-    except Exception:  # noqa: BLE001 - le nettoyage ne doit jamais bloquer le boot
+    except Exception:
         log.warning(
             "Purge de retention ignoree au demarrage (erreur non bloquante).",
             exc_info=True,
@@ -412,23 +412,18 @@ def _cleanup_retention() -> None:
 
 
 
-def load_exercices(niveau: str) -> list[dict]:
-    file_name = f"exercices_{niveau.lower()}.json"
-    exercices = load_json(file_name)
-    if not isinstance(exercices, list):
-        raise ValueError(f"{file_name} must contain a JSON list.")
-    return exercices
-
-
 def get_exercice_by_id(niveau: str, exercice_id: str) -> dict:
-    exercice = EXERCICE_CACHE.get(exercice_id)
-    if exercice is not None:
-        return exercice
+    """Exercice encore en memoire, ou 404.
 
-    for exercice in load_exercices(niveau):
-        if exercice.get("id") == exercice_id:
-            return exercice
-    raise HTTPException(status_code=404, detail="Exercice introuvable ou expire.")
+    Le cache vit en memoire : apres un redemarrage du serveur (ou une
+    eviction), l'exercice n'existe plus et le front doit en redemander un.
+    `niveau` reste dans la signature pour les appelants ; il ne sert plus
+    depuis la fin des exercices statiques (exercices_ce1/ce2.json).
+    """
+    exercice = EXERCICE_CACHE.get(exercice_id)
+    if exercice is None:
+        raise HTTPException(status_code=404, detail="Exercice introuvable ou expire.")
+    return exercice
 
 
 def _resolution_key(level: int) -> str:
@@ -1495,7 +1490,14 @@ def get_lecons(
             patterns = [p for p in lecon["patterns"] if p in ouverts]
             if not patterns:
                 continue
-            lecon = {**lecon, "patterns": patterns, "pattern_count": len(patterns)}
+            # `etapes` = nombre reel d'etapes de la carte (au moins 3 quand la
+            # lecon est reduite aux concepts ouverts) : le front l'affiche.
+            lecon = {
+                **lecon,
+                "patterns": patterns,
+                "pattern_count": len(patterns),
+                "etapes": len(_plan_aspects(patterns, niveau)[0]),
+            }
         filtrees.append(lecon)
     return {
         "niveau_scolaire": niveau,
@@ -1644,21 +1646,6 @@ def synthese_vocale(
         "voix": tts.VOICE_NAME,
         "depuis_cache": depuis_cache,
     }
-
-
-@app.get("/carte/{niveau}")
-def get_carte(niveau: str) -> dict:
-    if niveau not in ALLOWED_LEVELS:
-        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
-
-    cartes = load_json("cartes.json")
-    if not isinstance(cartes, dict):
-        raise HTTPException(status_code=500, detail="Structure de carte invalide.")
-
-    if niveau not in cartes:
-        raise HTTPException(status_code=404, detail="Carte introuvable pour ce niveau.")
-
-    return cartes[niveau]
 
 
 @app.get("/themes")

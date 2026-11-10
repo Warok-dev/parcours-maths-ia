@@ -203,10 +203,6 @@
   flex-wrap: wrap;
 }
 
-.debug-log {
-  display: none;
-}
-
 code {
   font-family: "Consolas", "Courier New", monospace;
 }

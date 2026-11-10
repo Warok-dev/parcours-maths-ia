@@ -1037,20 +1037,6 @@
   border-color: var(--gold-dark);
 }
 
-.basket-fruit {
-  fill: var(--npc-body);
-  stroke: var(--npc-body-dark);
-  stroke-width: 2;
-}
-
-.basket-shine {
-  fill: rgba(251, 243, 231, 0.55);
-}
-
-.basket-leaf {
-  fill: var(--grass-dark);
-}
-
 .basket-zone {
   display: flex;
   align-items: center;

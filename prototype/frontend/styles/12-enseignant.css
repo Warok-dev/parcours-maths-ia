@@ -274,12 +274,6 @@ select.teacher-input {
   justify-content: center;
 }
 
-.login-enseignant-lien {
-  margin-top: 18px;
-  font-size: 0.9rem;
-  opacity: 0.85;
-}
-
 /* Etats de la ligne de statut (connexion, erreurs, succes) */
 .menu-note.erreur {
   color: var(--danger);
@@ -649,10 +643,6 @@ select.teacher-input {
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 18px;
-}
-
-.login-liens-adultes .login-enseignant-lien {
-  margin-top: 0;
 }
 
 /* "Essayer une démo" : mis en avant parmi les liens adultes (fond plein) pour

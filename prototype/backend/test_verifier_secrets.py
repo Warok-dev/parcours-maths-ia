@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "scripts"))
-import verifier_secrets as vs  # noqa: E402
+import verifier_secrets as vs
 
 
 def _regles(texte: str) -> set[str]:

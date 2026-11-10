@@ -235,6 +235,8 @@ class ProgrammeClasseTests(unittest.TestCase):
         tous = {p for l in corps["lecons"] for p in l["patterns"]}
         self.assertEqual(tous, {premier})
         self.assertEqual([c["pattern"] for c in corps["programme"]["concepts"]], [premier])
+        # Une lecon reduite a un concept annonce ses 3 etapes reelles.
+        self.assertEqual([l["etapes"] for l in corps["lecons"]], [3])
         self.assertTrue(corps["programme"]["concepts"][0]["nouveau"])
         self.assertEqual(corps["programme"]["concepts"][0]["maitrise"], 0)
 
@@ -280,6 +282,31 @@ class ProgrammeClasseTests(unittest.TestCase):
             headers=self._auth(etoken),
         ).json()
         self.assertEqual(start["progression"]["concepts"], lecon_fermee["patterns"])
+        # Assignee = jouee en entier : son nombre d'etapes n'est pas gonfle a 3.
+        corps = self.client.get("/lecons/CE1", headers=self._auth(etoken)).json()
+        assignee = next(l for l in corps["lecons"] if l["lecon_id"] == lecon_fermee["lecon_id"])
+        self.assertNotIn("etapes", assignee)
+        self.assertEqual(assignee["pattern_count"], len(lecon_fermee["patterns"]))
+
+    def test_suppression_ecole_emporte_le_programme(self) -> None:
+        from database import ConceptOuvert, ProgrammeClasse
+        ptoken, cid, _, _ = self._classe("CE1")
+        db = self.SessionFactory()
+        try:
+            from database import Classe, Ecole
+            nom = db.get(Ecole, db.get(Classe, cid).enseignant.ecole_id).nom
+        finally:
+            db.close()
+        r = self.client.post(
+            "/ecole/suppression", json={"confirmation": nom}, headers=self._auth(ptoken)
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        db = self.SessionFactory()
+        try:
+            self.assertEqual(db.query(ConceptOuvert).count(), 0)
+            self.assertEqual(db.query(ProgrammeClasse).count(), 0)
+        finally:
+            db.close()
 
     def test_entrainement_sur_un_concept_trois_aspects(self) -> None:
         ptoken, cid, eid, etoken = self._classe("CE1")

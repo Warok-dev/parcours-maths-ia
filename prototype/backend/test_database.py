@@ -14,7 +14,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-import database
 from database import (
     Classe,
     Ecole,
@@ -197,7 +196,6 @@ class DatabaseModelTests(unittest.TestCase):
 
     # ---------- Generateur de code de classe ----------
     def test_generer_code_classe_format(self) -> None:
-        import re
 
         codes = {generer_code_classe("CE1") for _ in range(50)}
         for code in codes:

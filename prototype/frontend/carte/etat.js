@@ -93,7 +93,6 @@ const feedback = document.getElementById("feedback");
 const offlineBanner = document.getElementById("offline-banner");
 const exerciseOverlay = document.getElementById("exercise-overlay");
 const exerciseModal = document.getElementById("exercise-modal");
-const debugLog = document.getElementById("debug-log");
 /* Joystick analogique (remplace l'ancien pave de 4 fleches). */
 const touchDpad = document.getElementById("touch-joystick");
 const touchActionButton = document.getElementById("touch-action");
@@ -185,8 +184,3 @@ let reconnectTimer = null;
 const PREFETCH_INTERVAL_MS = 9000;
 const RECONNECT_INTERVAL_MS = 5000;
 
-function logDebug(entry) {
-  if (debugLog) {
-    debugLog.textContent += `${entry}\n`;
-  }
-}

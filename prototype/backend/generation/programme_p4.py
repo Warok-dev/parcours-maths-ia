@@ -66,10 +66,6 @@ PIECES = (1, 2, 5, 10)
 BILLETS = (20, 50)
 
 
-def _libelle_monnaie(valeur: int) -> str:
-    return f"{'billet' if valeur in BILLETS else 'pièce'} de {valeur} DH"
-
-
 def generer_monnaie_valeur(niveau: str = "CE1") -> dict:
     """Valeur d'un petit tas de pieces et billets (rendu : monnaieSvg)."""
     while True:

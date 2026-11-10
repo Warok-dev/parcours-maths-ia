@@ -1,0 +1,9 @@
+# Fins de ligne : LF dans le depot et dans les fichiers de travail, quel que
+# soit le poste (Windows compris). Evite les fichiers « modifies » en entier
+# pour une simple difference CRLF / LF.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.mp3 binary
+*.ogg binary
+*.docx binary

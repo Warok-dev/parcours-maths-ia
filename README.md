@@ -20,6 +20,7 @@ Projet personnel, conçu et développé de manière indépendante (juin–septem
 
 **Pour l'enseignant et l'école**
 - Classes, élèves (connexion par code de classe et PIN), tableau de bord, concepts difficiles et assignation de travail.
+- Un **programme de classe** : le calendrier propose le concept suivant, l'enseignant l'ouvre d'un clic, et les élèves le travaillent sous plusieurs aspects (calcul, problème raconté, défi).
 - Des rapports d'apprentissage rédigés par IA à partir de données anonymisées, et un export Excel.
 - Plusieurs écoles isolées les unes des autres, avec invitation d'enseignants et un mode démo qui s'efface au bout de 48 h.
 
@@ -46,7 +47,7 @@ Navigateur (HTML/CSS/JS vanilla)  ──HTTPS──▶  API FastAPI  ──▶  
 prototype/
 ├── backend/          API FastAPI, génération d'exercices, tuteur, comptes, tests
 │   ├── generation/   générateurs procéduraux (substitution) et narratifs (LLM)
-│   ├── data/         leçons, cartes, exercices de référence (JSON)
+│   ├── data/         leçons et calendrier du programme de classe (JSON)
 │   └── scripts/      vérifications d'exploitation (ex. PostgreSQL de bout en bout)
 ├── frontend/         jeu, espaces enseignant et parent (sans build)
 └── schema/           schéma JSON d'un exercice

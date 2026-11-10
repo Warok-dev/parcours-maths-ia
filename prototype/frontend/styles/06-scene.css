@@ -266,8 +266,7 @@
   fill: #74bd66;
 }
 
-.tree-shadow,
-.prop-shadow {
+.tree-shadow {
   fill: rgba(61, 44, 30, 0.16);
 }
 
@@ -410,25 +409,10 @@
   stroke-width: 4;
 }
 
-.castle-wall-inner {
-  fill: var(--stone-dark);
-  opacity: 0.35;
-}
-
 .castle-tower {
   fill: var(--stone);
   stroke: var(--stone-dark);
   stroke-width: 4;
-}
-
-.castle-tower-top {
-  fill: var(--stone-dark);
-}
-
-.castle-courtyard {
-  fill: var(--cream-dark);
-  stroke: var(--stone-dark);
-  stroke-width: 3;
 }
 
 .castle-banner {
@@ -491,12 +475,6 @@
   stroke-width: 4;
 }
 
-.cabin-roof-half {
-  fill: var(--wood-light);
-  stroke: var(--wood-dark);
-  stroke-width: 2;
-}
-
 .cabin-ridge {
   stroke: var(--wood-dark);
   stroke-width: 4;
@@ -545,12 +523,6 @@
   stroke: var(--wood-dark);
   stroke-dasharray: 7 7;
   opacity: 0.55;
-}
-
-.bridge-rail {
-  stroke: var(--wood-dark);
-  stroke-width: 6;
-  stroke-linecap: round;
 }
 
 /* ---------- Carrefour (jaune, chemin cache) ---------- */

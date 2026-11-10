@@ -293,22 +293,6 @@ textarea {
    (meme palette que la scene : herbe, bois, creme, or, eau)
    ============================================================ */
 
-/* Texture discrete du sol : brins et points d'herbe en motif. */
-.ground-texture {
-  pointer-events: none;
-}
-.motif-herbe-trait {
-  fill: none;
-  stroke: var(--grass-dark);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  opacity: 0.45;
-}
-.motif-herbe-point {
-  fill: var(--grass-light);
-  opacity: 0.7;
-}
-
 /* Les grandes taches de terrain faisaient "auréoles" : plus douces. */
 .ground-patch {
   opacity: 0.32;
@@ -379,11 +363,10 @@ textarea {
 .house-roof.tuiles { fill: #c8603a; }
 .house-roof.ardoise { fill: #6f8597; }
 .house-roof.chaume { fill: #d9b25a; }
-.house-roof-light { fill: rgba(255, 255, 255, 0.14); }
+
 .house-roof-lines { fill: none; stroke: rgba(61, 44, 30, 0.22); stroke-width: 2; }
 .house-ridge { stroke: rgba(61, 44, 30, 0.5); stroke-width: 4; stroke-linecap: round; }
 .house-chimney { fill: #b6aaa0; stroke: #7d6f63; stroke-width: 2; }
-.house-step { fill: #cfc2ad; }
 
 /* Meules de foin */
 .hay { fill: #e8c25d; stroke: #c49a32; stroke-width: 2; }

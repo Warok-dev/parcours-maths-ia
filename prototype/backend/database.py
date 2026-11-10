@@ -509,7 +509,7 @@ def _enable_sqlite_foreign_keys(engine: Engine) -> None:
     ignores."""
 
     @event.listens_for(engine, "connect")
-    def _set_sqlite_pragma(dbapi_connection, _connection_record):  # noqa: ANN001
+    def _set_sqlite_pragma(dbapi_connection, _connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()

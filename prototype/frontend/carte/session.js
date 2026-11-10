@@ -277,8 +277,7 @@ function renderLessonChoices() {
 
   /* Avec le programme, une carte a toujours au moins 3 etapes : un concept
      seul y est vu en calcul, en probleme raconte, puis en defi. */
-  const etapes = (lesson) =>
-    state.programme ? Math.max(3, lesson.pattern_count) : lesson.pattern_count;
+  const etapes = (lesson) => lesson.etapes ?? lesson.pattern_count;
   lessonActions.innerHTML = state.availableLessons
     .map(
       (lesson) => `
