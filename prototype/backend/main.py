@@ -1646,24 +1646,3 @@ def synthese_vocale(
         "voix": tts.VOICE_NAME,
         "depuis_cache": depuis_cache,
     }
-
-
-@app.get("/themes")
-def get_themes() -> dict:
-    """Univers narratifs proposes a l'eleve (le frontend en porte l'habillage)."""
-    return {"themes": themes_disponibles(), "defaut": THEME_NEUTRE}
-
-
-@app.get("/generation/demo/{niveau}")
-def generation_demo(
-    niveau: str,
-    theme: str | None = None,
-    _rl: Annotated[None, Depends(limite(LIMITE_IA, "generation_demo"))] = None,
-) -> dict:
-    if niveau not in ALLOWED_LEVELS:
-        raise HTTPException(status_code=400, detail="Niveau invalide. Utiliser CE1 a CE6.")
-
-    return {
-        "substitution": generer_lot(niveau, 1)[0],
-        "narratif": generate_narrative_exercise(niveau, theme=_valider_theme(theme)),
-    }

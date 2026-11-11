@@ -270,42 +270,6 @@
   }
 
   /* ============================================================
-     MINI-JEU DE TEST (placeholder)
-     Valide toute la mecanique bascule/retour sans etre encore un vrai
-     jeu : un ecran "Mini-jeu a venir !" et un bouton "Terminer".
-     Les vrais mini-jeux s'ajouteront au registre sur ce meme modele.
-     ============================================================ */
-  const MINIGAME_A_VENIR = {
-    id: "a-venir",
-    nom: "Mini-jeu surprise",
-    monter(zone, { terminer }) {
-      zone.innerHTML = `
-        <div class="minigame-placeholder">
-          <div class="minigame-placeholder-emoji" aria-hidden="true">&#127918;</div>
-          <h2 class="minigame-placeholder-title">Mini-jeu a venir !</h2>
-          <p class="minigame-placeholder-text">
-            Ici arrivera bientot un vrai petit jeu detente. Pour l'instant,
-            c'est juste une pause : reviens quand tu veux a l'aventure.
-          </p>
-          <button id="minigame-a-venir-fin" class="btn-primary" type="button">Terminer</button>
-        </div>
-      `;
-      const bouton = zone.querySelector("#minigame-a-venir-fin");
-      /* Le placeholder ne rapporte aucun bonus : c'est un pur validateur de
-         mecanique. Un vrai mini-jeu passerait un petit bonus cosmetique a
-         terminer(). */
-      const onFin = () => terminer(0);
-      bouton?.addEventListener("click", onFin);
-      bouton?.focus();
-      /* Fonction de nettoyage : vide la zone et retire l'ecouteur. */
-      return () => {
-        bouton?.removeEventListener("click", onFin);
-        zone.innerHTML = "";
-      };
-    },
-  };
-
-  /* ============================================================
      MINI-JEU : LA CHASSE AUX NOMBRES
      ------------------------------------------------------------
      Plusieurs nombres flottent et rebondissent sur les bords pendant
@@ -2215,9 +2179,7 @@
   }
 
   /* Instance reelle : registre garni des vrais mini-jeux, orchestrateur
-     branche sur l'adapter navigateur. Le placeholder MINIGAME_A_VENIR reste
-     defini (reference et tests) mais n'est plus propose : la chasse aux
-     nombres est le premier vrai mini-jeu. */
+     branche sur l'adapter navigateur. */
   /* Ordre d'enregistrement = ordre de la premiere rotation : d'abord les
      jeux qui parlent de la lecon, puis les recompenses (puzzle, jardin). */
   const registreReel = creerRegistre();
@@ -2269,7 +2231,6 @@
     creerRotation,
     creerRegistre,
     creerOrchestrateur,
-    MINIGAME_A_VENIR,
     MINIGAME_CHASSE,
     genererConfig,
     creerChasseNombres,
