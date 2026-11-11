@@ -131,7 +131,6 @@ _PREFIXES_ENFANT = (
     "/synthese-vocale",
     "/eleve",  # dont /eleve/{id}/connexion (pave PIN)
     "/carte",
-    "/themes",
     "/classe/rejoindre",  # saisie du code de classe par l'enfant
 )
 

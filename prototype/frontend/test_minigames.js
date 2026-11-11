@@ -135,7 +135,10 @@ function fakeAdapter() {
   return a;
 }
 
-function orchestrateurAvec(adapter, jeux = [minigames.MINIGAME_A_VENIR]) {
+/* Petit mini-jeu factice pour tester le registre et l'orchestrateur. */
+const JEU_FACTICE = { id: "factice", nom: "Mini-jeu factice", monter() {} };
+
+function orchestrateurAvec(adapter, jeux = [JEU_FACTICE]) {
   const registre = minigames.creerRegistre();
   for (const jeu of jeux) registre.enregistrer(jeu);
   const memoire = { donnees: [] };
@@ -282,35 +285,6 @@ const FIN = { niveau: "CE2", concepts: ["double_via_2xn", "moitie_via_2xn"], lec
   orch2.reinitialiser();
   check(orch2.getPhase() === "repos", "reinitialiser depuis 'enJeu' : retour au repos");
   check(adapter2.demonte === true, "le mini-jeu en cours est demonte (nettoyage)");
-}
-
-/* --- 6. Le placeholder respecte l'interface commune --- */
-{
-  const jeu = minigames.MINIGAME_A_VENIR;
-  check(Boolean(jeu.id && jeu.nom && typeof jeu.monter === "function"), "placeholder : interface commune complete");
-
-  /* Montage/demontage simules avec une fausse zone DOM minimale. */
-  let terminePar = null;
-  const zone = {
-    innerHTML: "",
-    _handlers: {},
-    querySelector() {
-      return {
-        addEventListener: (_evt, fn) => {
-          zone._click = fn;
-        },
-        removeEventListener: () => {},
-        focus: () => {},
-      };
-    },
-  };
-  const demonter = jeu.monter(zone, { terminer: (b) => (terminePar = b) });
-  check(zone.innerHTML.includes("Terminer"), "placeholder : bouton Terminer affiche");
-  zone._click(); /* clic sur Terminer */
-  check(terminePar === 0, "placeholder : Terminer appelle terminer(0) (aucun bonus)");
-  check(typeof demonter === "function", "placeholder : monter renvoie une fonction de nettoyage");
-  demonter();
-  check(zone.innerHTML === "", "placeholder : le nettoyage vide la zone");
 }
 
 /* ============================================================

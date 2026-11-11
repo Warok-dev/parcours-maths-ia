@@ -49,10 +49,8 @@ prototype/
 │   ├── generation/   générateurs procéduraux (substitution) et narratifs (LLM)
 │   ├── data/         leçons et calendrier du programme de classe (JSON)
 │   └── scripts/      vérifications d'exploitation (ex. PostgreSQL de bout en bout)
-├── frontend/         jeu, espaces enseignant et parent (sans build)
-└── schema/           schéma JSON d'un exercice
+└── frontend/         jeu, espaces enseignant et parent (sans build)
 landing/              page de présentation
-design/               instantané du style, pour le travail de design visuel
 pattern_catalog.json  catalogue des patterns extraits du corpus
 docs/couverture_programme_P4.md  séances du ministère -> concepts du jeu, niveau par niveau
 DEPLOIEMENT.md        mise en production (Neon + Render)

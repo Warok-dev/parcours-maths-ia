@@ -1,6 +1,6 @@
 # Prototype Parcours Maths IA
 
-Ce dossier contient le code du jeu : l'API (`backend/`), le client web (`frontend/`) et le schéma d'un exercice (`schema/`). La vue d'ensemble se trouve dans le [README racine](../README.md), la mise en production dans [DEPLOIEMENT.md](../DEPLOIEMENT.md).
+Ce dossier contient le code du jeu : l'API (`backend/`) et le client web (`frontend/`). La vue d'ensemble se trouve dans le [README racine](../README.md), la mise en production dans [DEPLOIEMENT.md](../DEPLOIEMENT.md).
 
 ## Backend (`backend/`)
 

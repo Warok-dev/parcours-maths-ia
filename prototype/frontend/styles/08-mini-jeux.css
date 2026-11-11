@@ -79,34 +79,6 @@
   animation: modalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* --- Placeholder "Mini-jeu a venir" --- */
-.minigame-placeholder {
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  text-align: center;
-  color: var(--cream);
-}
-
-.minigame-placeholder-emoji {
-  font-size: 4rem;
-  line-height: 1;
-  animation: minigameBob 1.8s ease-in-out infinite;
-}
-
-.minigame-placeholder-title {
-  margin: 0;
-  font-size: 1.6rem;
-}
-
-.minigame-placeholder-text {
-  margin: 0;
-  max-width: 380px;
-  font-size: 1rem;
-  font-weight: 500;
-  color: rgba(251, 243, 231, 0.82);
-}
-
 @keyframes minigameBob {
   0%,
   100% {
