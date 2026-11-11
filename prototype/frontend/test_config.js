@@ -12,7 +12,7 @@ function check(cond, label) {
 
 function stockage() {
   const data = {};
-  return { getItem: (k) => data[k] ?? null, setItem: (k, v) => { data[k] = v; } };
+  return { getItem: (k) => data[k] ?? null, setItem: (k, v) => { data[k] = v; }, removeItem: (k) => { delete data[k]; } };
 }
 const loc = (hostname, search = "", protocol = "https:") => ({ hostname, search, protocol });
 
@@ -31,6 +31,42 @@ check(
   choisirApi(loc("localhost", "?api=javascript:alert(1)"), stockage()) === API_LOCALE,
   "surcharge non http(s) ignoree",
 );
+
+// Protection hameconnage : surcharge limitee aux pages locales / backends locaux
+const PROD = "parcours-maths.onrender.com";
+const sp = stockage();
+check(
+  choisirApi(loc(PROD, "?api=https://serveur-pirate.exemple"), sp) === API_PRODUCTION,
+  "production + ?api= externe -> ignore",
+);
+check(sp.getItem("parcours_api") === null, "production + ?api= externe -> rien memorise");
+check(
+  choisirApi(loc(PROD, "?api=http://localhost:8000"), stockage()) === "http://localhost:8000",
+  "production + ?api=localhost -> accepte",
+);
+check(
+  choisirApi(loc(PROD, "?api=http://127.0.0.1:8000"), stockage()) === "http://127.0.0.1:8000",
+  "production + ?api=127.0.0.1 -> accepte",
+);
+check(
+  choisirApi(loc(PROD, "?api=http://[::1]:8000"), stockage()) === "http://[::1]:8000",
+  "production + ?api=[::1] -> accepte",
+);
+check(
+  choisirApi(loc(PROD, "?api=https://localhost.pirate.exemple"), stockage()) === API_PRODUCTION,
+  "production + ?api=faux localhost -> ignore",
+);
+check(
+  choisirApi(loc(PROD, "?api=https://localhost@pirate.exemple"), stockage()) === API_PRODUCTION,
+  "production + ?api= avec identifiants deguises -> ignore",
+);
+check(
+  choisirApi(loc("localhost", "?api=https://serveur-externe.exemple"), stockage()) === "https://serveur-externe.exemple",
+  "page locale + ?api= externe -> accepte",
+);
+const sm = stockage();
+sm.setItem("parcours_api", "https://serveur-pirate.exemple");
+check(choisirApi(loc(PROD), sm) === API_PRODUCTION, "valeur externe memorisee sur page de production -> ignoree");
 
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) process.exit(1);

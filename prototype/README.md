@@ -39,7 +39,7 @@ Le client est en JavaScript vanilla, sans étape de build. `index.html` charge l
 
 - **local** (`localhost`, `127.0.0.1`, fichier ouvert directement) : `http://127.0.0.1:8000` ;
 - **sinon** : le backend de production ;
-- **surcharge** : `?api=https://…` dans l'adresse de la page.
+- **surcharge** : `?api=http://localhost:8001` dans l'adresse de la page, uniquement depuis une page locale ou vers un backend local (ignorée sinon, anti-hameçonnage).
 
 Chaque module a son fichier `test_*.js`, à lancer avec `node`.
 

@@ -73,7 +73,7 @@ uvicorn main:app --reload                           # http://127.0.0.1:8000
 Ensuite, servez le frontend, par exemple avec `python -m http.server 5500` depuis `prototype/frontend/`, et ouvrez http://localhost:5500.
 
 - En local, le frontend appelle automatiquement le backend local (`config.js`).
-- Pour viser un autre backend, ajoutez `?api=https://…` à l'adresse de la page.
+- Pour viser un autre backend local, ajoutez `?api=http://localhost:8001` à l'adresse de la page (la surcharge ne fonctionne que depuis une page locale ou vers un backend local ; elle est ignorée sur le site en production).
 - Sans clé IA, les exercices procéduraux fonctionnent. Le tuteur et les énoncés narratifs ont besoin d'au moins une des clés `GEMINI_API_KEY`, `GROQ_API_KEY` ou `MISTRAL_API_KEY`.
 
 ## Tests

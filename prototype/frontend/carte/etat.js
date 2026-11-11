@@ -3,7 +3,7 @@
    index.html (portée globale partagée, sans étape de build). Voir carte/LISEZMOI.md. */
 
 /* Adresse du backend : voir config.js (locale en dev, production sinon). */
-const API_BASE_URL = (globalThis.PARCOURS_CONFIG?.API_BASE || "https://parcours-maths-ia.onrender.com");
+const API_BASE_URL = (globalThis.PARCOURS_CONFIG?.API_BASE || "");
 /* Reference de session persistee : permet de reprendre l'aventure apres un
    rafraichissement de page (position et score inclus, le reste de l'etat
    vit cote backend et se recharge via GET /session/{id}). */

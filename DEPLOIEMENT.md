@@ -158,7 +158,7 @@ L'adresse du backend est centralisée dans **`prototype/frontend/config.js`** :
 
 Si votre service Render porte un autre nom, modifiez **uniquement** `API_PRODUCTION`
 dans `config.js`. Pour tester une autre instance sans rien modifier, ajoutez
-`?api=https://<autre-backend>` à l'adresse de la page.
+`?api=http://localhost:8001` à l'adresse de la page. La surcharge n'est acceptée que depuis une page locale ou vers un backend local (`localhost`, `127.0.0.1`, `[::1]`) ; sur le site en production elle est ignorée (protection contre les liens de hameçonnage).
 
 Ensuite, héberger le dossier `prototype/frontend/` comme **site statique** :
 
