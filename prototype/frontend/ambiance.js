@@ -3,7 +3,7 @@
    incidence sur la logique de jeu (progression, evaluation,
    session). Ce module ne porte QUE de la logique pure, testable
    en Node (test_ambiance.js) ; le rendu et le cablage vivent
-   dans map.js.
+   dans le jeu (carte/).
    1. Teinte jour/heure (overlay de couleur calcule une seule fois).
    2. Evenements ramassables aleatoires le long de la route.
    ============================================================ */

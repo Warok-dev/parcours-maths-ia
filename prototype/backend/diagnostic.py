@@ -12,18 +12,33 @@ ERREUR_DISTRACTION = "ERREUR_DISTRACTION"
 ZERO_OUBLIE = "ZERO_OUBLIE"
 OPERATION_INVERSEE = "OPERATION_INVERSEE"
 TABLE_MULTIPLICATION_PROCHE = "TABLE_MULTIPLICATION_PROCHE"
+RETENUE_OUBLIEE = "RETENUE_OUBLIEE"
 
 # Patterns dont la reponse attendue est a - b : (nom variable a, nom variable b).
 SUBTRACTION_OPERANDS = {
     "partie_tout_soustraction_non_narratif": ("tout", "partie_connue"),
     "probleme_reste_partie_tout": ("total", "partie_connue"),
     "probleme_comparaison_difference": ("grand", "petit"),
+    # Periode 4 (programme_p4.py).
+    "soustraction_passage_dizaine": ("a", "b"),
+    "soustraction_posee": ("a", "b"),
+    "ecart_entre_nombres": ("a", "b"),
 }
 
 # Patterns dont la reponse attendue est a + b.
 ADDITION_OPERANDS = {
     "partie_tout_addition_non_narratif": ("partie1", "partie2"),
     "probleme_total_partie_tout": ("partie1", "partie2"),
+    "addition_posee": ("a", "b"),
+    "addition_ligne_decomposee": ("a", "b"),
+}
+
+# Operations posees : oubli de la retenue (addition) ou de l'emprunt
+# (soustraction). Signature : 10 de moins (ou de plus) que la bonne reponse
+# alors que les unites franchissent bien la dizaine.
+POSEE_OPERANDS = {
+    "addition_posee": ("a", "b", "+"),
+    "soustraction_posee": ("a", "b", "-"),
 }
 
 # Multiplications par 10 ou par un multiple de 10 : oubli du zero final.
@@ -85,6 +100,18 @@ def diagnostiquer_erreur(
         a, b = operandes
         if donnee == abs(a - b):
             return OPERATION_INVERSEE
+
+    posee = POSEE_OPERANDS.get(pattern_name)
+    operandes = _operandes(variables, posee[:2]) if posee else None
+    if operandes is not None:
+        a, b = operandes
+        if posee[2] == "+" and a % 10 + b % 10 >= 10 and donnee == attendu - 10:
+            return RETENUE_OUBLIEE
+        # Soustraction avec emprunt : soit la dizaine echangee n'est pas
+        # retiree (+10), soit le petit chiffre est ote du grand aux unites
+        # (52 - 18 -> 46, soit +2 x (8 - 2)).
+        if posee[2] == "-" and a % 10 < b % 10 and donnee in (attendu + 10, attendu + 2 * (b % 10 - a % 10)):
+            return RETENUE_OUBLIEE
 
     if pattern_name in ZERO_FINAL_PATTERNS and attendu % 10 == 0 and donnee == attendu // 10:
         return ZERO_OUBLIE

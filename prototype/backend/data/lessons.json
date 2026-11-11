@@ -7,6 +7,7 @@
         "addition_pas_a_pas_sans_retenue",
         "partie_tout_addition_non_narratif",
         "addition_2chiffres_sans_retenue",
+        "addition_posee",
         "probleme_total_partie_tout"
       ]
     },
@@ -15,15 +16,37 @@
       "nom": "Soustraction",
       "patterns": [
         "partie_tout_soustraction_non_narratif",
+        "soustraction_passage_dizaine",
+        "soustraction_posee",
+        "ecart_entre_nombres",
         "probleme_reste_partie_tout",
         "probleme_comparaison_difference"
+      ]
+    },
+    {
+      "lecon_id": "monnaie",
+      "nom": "La monnaie",
+      "patterns": [
+        "monnaie_valeur",
+        "monnaie_echange"
+      ]
+    },
+    {
+      "lecon_id": "partage_groupement",
+      "nom": "Partager et grouper",
+      "patterns": [
+        "addition_repetee_somme",
+        "partage_equitable",
+        "groupement_egal",
+        "probleme_groupes_egaux_quotient"
       ]
     },
     {
       "lecon_id": "decomposition",
       "nom": "Décomposer les nombres",
       "patterns": [
-        "decomposition_entiers"
+        "decomposition_entiers",
+        "addition_ligne_decomposee"
       ]
     },
     {
@@ -41,9 +64,7 @@
       "patterns": [
         "multiplication_decomposee_chiffre_x_2chiffres",
         "addition_repetee_vers_multiplication",
-        "facteur_manquant_table_de_2",
-        "probleme_groupes_egaux_total",
-        "probleme_groupes_egaux_quotient"
+        "probleme_groupes_egaux_total"
       ]
     },
     {
@@ -51,7 +72,8 @@
       "nom": "Moitié et double",
       "patterns": [
         "moitie_via_2xn",
-        "double_via_2xn"
+        "double_via_2xn",
+        "facteur_manquant_table_de_2"
       ]
     },
     {
@@ -59,7 +81,9 @@
       "nom": "Suites et mesures",
       "patterns": [
         "suite_multiples_de_10_a_completer",
+        "completer_suite_pas",
         "completer_ligne_graduee",
+        "lecture_regle",
         "conversion_cm_mm_vers_mm"
       ]
     },
@@ -77,28 +101,33 @@
       "nom": "Masses et durées",
       "patterns": [
         "conversion_kg_g",
-        "addition_durees_min"
+        "addition_durees_min",
+        "masse_kg_g_mixte"
       ]
     },
     {
       "lecon_id": "lecture_heure",
       "nom": "Lire l'heure",
       "patterns": [
-        "lecture_heure_analogique"
+        "lecture_heure_analogique",
+        "heure_ecrite"
       ]
     },
     {
       "lecon_id": "proportionnalite",
       "nom": "Proportionnalité",
       "patterns": [
-        "completer_tableau_proportionnalite"
+        "proportionnalite_prix",
+        "completer_tableau_proportionnalite",
+        "regle_de_trois"
       ]
     },
     {
       "lecon_id": "geometrie_figures",
       "nom": "Périmètre et aire",
       "patterns": [
-        "figure_cotee_simple"
+        "figure_cotee_simple",
+        "cote_manquant_perimetre"
       ]
     },
     {
@@ -106,6 +135,7 @@
       "nom": "Le cercle",
       "patterns": [
         "cercle_identifier_elements",
+        "rayon_diametre",
         "circonference_cercle",
         "aire_disque"
       ]
@@ -122,14 +152,17 @@
       "lecon_id": "angles",
       "nom": "Les angles",
       "patterns": [
-        "angle_type"
+        "angle_type",
+        "angle_nature_mesure",
+        "rotation_fraction_tour"
       ]
     },
     {
       "lecon_id": "symetrie",
       "nom": "La symétrie",
       "patterns": [
-        "symetrie_axes"
+        "symetrie_axes",
+        "symetrie_lettre"
       ]
     },
     {
@@ -152,21 +185,26 @@
       "lecon_id": "agrandissement",
       "nom": "Agrandir et réduire",
       "patterns": [
-        "agrandissement_facteur"
+        "agrandissement_facteur",
+        "agrandissement_pourcentage"
       ]
     },
     {
       "lecon_id": "echelle",
       "nom": "Échelle et plan",
       "patterns": [
-        "echelle_plan"
+        "echelle_plan",
+        "echelle_distance_plan"
       ]
     },
     {
       "lecon_id": "nombres_decimaux",
       "nom": "Les nombres décimaux",
       "patterns": [
+        "decimal_composer",
         "comparaison_decimaux",
+        "decimal_ranger",
+        "arrondi_decimal",
         "addition_decimaux",
         "soustraction_decimaux"
       ]
@@ -184,20 +222,23 @@
       "lecon_id": "pourcentage",
       "nom": "Le pourcentage",
       "patterns": [
-        "pourcentage_d_une_quantite"
+        "pourcentage_d_une_quantite",
+        "pourcentage_prix_final"
       ]
     },
     {
       "lecon_id": "vitesse",
       "nom": "La vitesse moyenne",
       "patterns": [
-        "vitesse_distance_duree"
+        "vitesse_distance_duree",
+        "vitesse_horaires"
       ]
     },
     {
       "lecon_id": "pictogramme",
       "nom": "Lire un graphique",
       "patterns": [
+        "classer_compter",
         "graphique_pictogramme",
         "graphique_barres"
       ]
@@ -206,35 +247,40 @@
       "lecon_id": "diagramme_circulaire",
       "nom": "Le diagramme circulaire",
       "patterns": [
-        "graphique_circulaire"
+        "graphique_circulaire",
+        "camembert_angle"
       ]
     },
     {
       "lecon_id": "proportionnalite_graphique",
       "nom": "Lire un graphique de proportionnalité",
       "patterns": [
-        "graphique_proportionnalite"
+        "graphique_proportionnalite",
+        "proportionnalite_reconnaitre"
       ]
     },
     {
       "lecon_id": "fraction_figure",
       "nom": "Lire une fraction",
       "patterns": [
-        "fraction_lire_figure"
+        "fraction_lire_figure",
+        "tout_parts_egales"
       ]
     },
     {
       "lecon_id": "fraction_quantite",
       "nom": "Fraction d'une quantité",
       "patterns": [
-        "fraction_quantite"
+        "fraction_quantite",
+        "fraction_quantite_inverse"
       ]
     },
     {
       "lecon_id": "fraction_decimal_pourcentage",
       "nom": "Fractions, décimaux et pourcentages",
       "patterns": [
-        "fraction_decimal_pourcentage"
+        "fraction_decimal_pourcentage",
+        "fraction_addition_meme_denominateur"
       ]
     }
   ]

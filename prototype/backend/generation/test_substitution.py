@@ -16,6 +16,15 @@ def _signature(exercice: dict) -> tuple[str, tuple[tuple[str, object], ...]]:
 
 
 class SubstitutionGenerationTests(unittest.TestCase):
+    def _assert_niveaux(self, pattern: str, niveaux: tuple[str, ...]) -> None:
+        """Le pattern est disponible exactement aux niveaux donnes."""
+        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE5", "CE6"):
+            disponibles = substitution.patterns_disponibles_pour_niveau(niveau)
+            if niveau in niveaux:
+                self.assertIn(pattern, disponibles, niveau)
+            else:
+                self.assertNotIn(pattern, disponibles, niveau)
+
     def _generate_many(self, pattern_name: str, niveau: str, count: int = 100) -> list[dict]:
         return [substitution.generer_exercice(pattern_name, niveau) for _ in range(count)]
 
@@ -168,6 +177,18 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 "triangle_classer_angles",
                 "symetrie_axes",
                 "fraction_lire_figure",
+                # Periode 4 (programme_p4.py) et extensions de niveau.
+                "soustraction_posee",
+                "ecart_entre_nombres",
+                "heure_ecrite",
+                "masse_kg_g_mixte",
+                "rayon_diametre",
+                "symetrie_lettre",
+                "tout_parts_egales",
+                "solide_nommer",
+                "solide_compter",
+                "duree_entre_horaires",
+                "conversion_duree_min",
             },
         )
 
@@ -499,10 +520,8 @@ class SubstitutionGenerationTests(unittest.TestCase):
                 self.assertGreater(mesure, 90)
         self.assertEqual(natures_vues, {"aigu", "droit", "obtus"})
 
-    def test_angle_type_disponible_ce4_seulement(self) -> None:
-        self.assertIn("angle_type", substitution.patterns_disponibles_pour_niveau("CE4"))
-        for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
-            self.assertNotIn("angle_type", substitution.patterns_disponibles_pour_niveau(niveau))
+    def test_angle_type_disponible_ce4_ce5(self) -> None:
+        self._assert_niveaux("angle_type", ('CE4', 'CE5'))
 
     # ---------- Prisme : aire de base & aire totale (CE5) ----------
     def test_prisme_aire_base(self) -> None:
@@ -555,10 +574,8 @@ class SubstitutionGenerationTests(unittest.TestCase):
             self.assertEqual(_exercise_value(ex), attendu[v["forme_sym"]])
         self.assertEqual(formes_vues, set(attendu))
 
-    def test_symetrie_disponible_ce3_seulement(self) -> None:
-        self.assertIn("symetrie_axes", substitution.patterns_disponibles_pour_niveau("CE3"))
-        for niveau in ("CE1", "CE2", "CE4", "CE5", "CE6"):
-            self.assertNotIn("symetrie_axes", substitution.patterns_disponibles_pour_niveau(niveau))
+    def test_symetrie_disponible_ce3_ce4(self) -> None:
+        self._assert_niveaux("symetrie_axes", ('CE3', 'CE4'))
 
     # ---------- Agrandissement / reduction (CE6) ----------
     def test_agrandissement_facteur(self) -> None:
@@ -603,10 +620,8 @@ class SubstitutionGenerationTests(unittest.TestCase):
             self.assertTrue(set(v["options"]).issubset(set(noms.values())))
         self.assertEqual(solides_vus, set(noms))
 
-    def test_solide_nommer_disponible_ce4_seulement(self) -> None:
-        self.assertIn("solide_nommer", substitution.patterns_disponibles_pour_niveau("CE4"))
-        for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
-            self.assertNotIn("solide_nommer", substitution.patterns_disponibles_pour_niveau(niveau))
+    def test_solide_nommer_disponible_ce2_a_ce4(self) -> None:
+        self._assert_niveaux("solide_nommer", ('CE2', 'CE3', 'CE4'))
 
     def test_solide_compter(self) -> None:
         # Comptes de reference (face / arete / sommet) verifies au corpus et a la
@@ -641,12 +656,8 @@ class SubstitutionGenerationTests(unittest.TestCase):
         self.assertEqual(solides_vus, set(comptes))
         self.assertEqual(elements_vus, {"faces", "aretes", "sommets"})
 
-    def test_solide_compter_disponible_ce4_seulement(self) -> None:
-        self.assertIn("solide_compter", substitution.patterns_disponibles_pour_niveau("CE4"))
-        for niveau in ("CE1", "CE2", "CE3", "CE5", "CE6"):
-            self.assertNotIn(
-                "solide_compter", substitution.patterns_disponibles_pour_niveau(niveau)
-            )
+    def test_solide_compter_disponible_ce2_a_ce4(self) -> None:
+        self._assert_niveaux("solide_compter", ('CE2', 'CE3', 'CE4'))
 
     # ---------- Vague graphiques : pictogramme (CE1) ----------
     def test_graphique_pictogramme(self) -> None:
@@ -727,12 +738,8 @@ class SubstitutionGenerationTests(unittest.TestCase):
         self.assertEqual(questions_vues, {"max", "min", "pct"})
         self.assertEqual(tailles_vues, {3, 4})
 
-    def test_graphique_circulaire_disponible_ce5_seulement(self) -> None:
-        self.assertIn("graphique_circulaire", substitution.patterns_disponibles_pour_niveau("CE5"))
-        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE6"):
-            self.assertNotIn(
-                "graphique_circulaire", substitution.patterns_disponibles_pour_niveau(niveau)
-            )
+    def test_graphique_circulaire_disponible_ce5_ce6(self) -> None:
+        self._assert_niveaux("graphique_circulaire", ('CE5', 'CE6'))
 
     # ---------- Vague graphiques : diagramme en batons (CE1) ----------
     def test_graphique_barres(self) -> None:

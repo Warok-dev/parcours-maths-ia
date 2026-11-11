@@ -180,5 +180,27 @@ class BornesEntreesTests(unittest.TestCase):
         self.assertEqual(reponse.status_code, 422)
 
 
+class ExerciceExpireTests(unittest.TestCase):
+    """Un exercice absent du cache (serveur redemarre, eviction) donne un 404
+    propre a TOUS les niveaux, jamais une erreur 500."""
+
+    def test_tuteur_sur_exercice_inconnu_404_a_chaque_niveau(self) -> None:
+        client = TestClient(main.app)
+        for niveau in ("CE1", "CE2", "CE3", "CE4", "CE5", "CE6"):
+            reponse = client.post(
+                "/tuteur/aide",
+                json={"exercice_id": "exercice-disparu", "niveau": niveau, "question": "aide"},
+            )
+            self.assertEqual(reponse.status_code, 404, niveau)
+
+    def test_evaluer_hors_session_sur_exercice_inconnu_404(self) -> None:
+        client = TestClient(main.app)
+        reponse = client.post(
+            "/evaluer",
+            json={"exercice_id": "exercice-disparu", "niveau": "CE5", "reponse_donnee": "1"},
+        )
+        self.assertEqual(reponse.status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

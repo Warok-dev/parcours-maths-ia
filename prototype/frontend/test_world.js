@@ -157,14 +157,18 @@ for (let s = 0; s < SEEDS; s += 1) {
     }
     check(!troisSuite, `graine ${seed} n=${n} : jamais 3 memes types d'affilee`);
 
-    /* --- Les 3 routes de renforcement rattachees au tracé --- */
+    /* --- Le chemin de renforcement rattache au tracé --- */
     for (let i = 0; i + 2 < scene.routePoints.length; i += 1) {
       const g = W.branchGeometry(scene, i);
       check(Boolean(g), `graine ${seed} n=${n} : branche ${i} existe`);
       if (!g) continue;
       const a = scene.routePoints[i + 1];
       const b = scene.routePoints[i + 2];
-      for (const kind of ["short", "medium", "long"]) {
+      check(
+        Object.keys(g).sort().join(",") === "d,end,endOffset,start",
+        `graine ${seed} n=${n} branche ${i} : un seul trace (plus de variantes courte/longue)`,
+      );
+      for (const kind of ["d"]) {
         const { start, end } = pathEndpoints(g[kind]);
         /* start accroché juste sous l'obstacle i ; end juste au-dessus du
            point suivant (offsets exacts de branchGeometry). */

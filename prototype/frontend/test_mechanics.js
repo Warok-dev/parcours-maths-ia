@@ -645,5 +645,65 @@ function occurrences(arr) {
   check(qcmCandidates.length === 4 && new Set(qcmCandidates).size === 4, "planches QCM : les 4 options restent distinctes");
 }
 
+/* --- 40. Nouvelles mecaniques : blocs, calculette, bulles --- */
+{
+  const M = require("./mechanics.js");
+  check(JSON.stringify(M.colonnesBlocs("CE1")) === JSON.stringify(["dizaines", "unites"]), "blocs CE1 : dizaines et unites");
+  check(M.colonnesBlocs("CE3").length === 3, "blocs CE2-CE3 : centaines en plus");
+  const blocs = M.creerBlocs({ colonnes: M.colonnesBlocs("CE2") });
+  blocs.ajouter("centaines");
+  for (let k = 0; k < 4; k += 1) blocs.ajouter("dizaines");
+  blocs.ajouter("unites");
+  blocs.ajouter("unites");
+  check(blocs.valeur() === 142, "blocs : 1 plaque + 4 barres + 2 cubes = 142");
+  check(blocs.retirer("unites") && blocs.valeur() === 141, "blocs : retirer un cube");
+  for (let k = 0; k < 20; k += 1) blocs.ajouter("unites");
+  check(blocs.nombre("unites") === 9, "blocs : jamais plus de 9 par colonne (sinon on change de rang)");
+  check(!blocs.retirer("inconnue"), "blocs : colonne inconnue ignoree");
+  const ce1 = M.creerBlocs({ colonnes: M.colonnesBlocs("CE1") });
+  check(!ce1.ajouter("centaines") && ce1.valeur() === 0, "blocs CE1 : pas de centaines");
+
+  check(M.touchesCalculette("decimal").includes(","), "calculette : virgule pour un decimal");
+  check(!M.touchesCalculette("nombre_entier").includes(","), "calculette : pas de virgule pour un entier");
+  check(M.touchesCalculette("expression").includes("×"), "calculette : touche fois pour une expression");
+  const c = M.creerCalculette();
+  ["4", "×", "×", "3", "0"].forEach((t) => c.taper(t));
+  check(c.affichage() === "4 × 30" && c.valeur() === "4 x 30", "calculette : expression, double operateur refuse");
+  c.taper("effacer");
+  check(c.affichage() === "4 × 3", "calculette : effacer retire le dernier caractere");
+  c.taper("effacer");
+  c.taper("effacer");
+  check(c.affichage() === "4", "calculette : effacer retire aussi un operateur");
+  const d = M.creerCalculette();
+  ["1", ",", ",", "5"].forEach((t) => d.taper(t));
+  check(d.valeur() === "1,5", "calculette : une seule virgule par nombre");
+  check(!M.creerCalculette().taper(","), "calculette : pas de virgule en premier");
+  const e = M.creerCalculette();
+  check(!e.taper("×"), "calculette : pas d'operateur en premier");
+  for (let k = 0; k < 30; k += 1) e.taper("9");
+  check(e.affichage().length <= 14, "calculette : longueur bornee");
+
+  check(M.choose({ mecanique: { choisie: "blocs" } }) === "blocs", "choose : blocs reconnu");
+  check(M.choose({ mecanique: { choisie: "bulles" } }) === "bulles", "choose : bulles reconnu");
+  check(M.choose({ mecanique: { choisie: "calculette" } }) === "calculette", "choose : calculette reconnue");
+}
+
+/* --- 41. Regle d'assignation : nouvelles mecaniques cote serveur --- */
+{
+  const decimal = { id: "d", niveau_scolaire: "CE4", pattern: { pattern_name: "addition_decimaux", pattern_family: "calcul_direct" }, reponse_attendue: { valeur: 3.5, format: "decimal" } };
+  check(JSON.stringify(compatibleMechanics(decimal)) === JSON.stringify(["calculette"]), "un decimal se joue a la calculette");
+  const expr = { id: "e", niveau_scolaire: "CE2", pattern: { pattern_name: "x", pattern_family: "exercice_a_trous_serie" }, reponse_attendue: { valeur: "12 = 3 x 4", format: "expression" } };
+  check(compatibleMechanics(expr).includes("calculette"), "une expression se joue a la calculette");
+  const qcm = { id: "q", pattern: { pattern_name: "angle_type", pattern_family: "exercice_a_trous_serie" }, variables: { options: ["aigu", "droit", "obtus"] }, reponse_attendue: { valeur: "droit", format: "choix_multiple" } };
+  check(compatibleMechanics(qcm).includes("bulles"), "un QCM peut se jouer aux bulles");
+  const add = (valeur, niveau) => ({ id: "a", niveau_scolaire: niveau, pattern: { pattern_name: "multiplication_par_10", pattern_family: "calcul_direct" }, reponse_attendue: { valeur, format: "nombre_entier" } });
+  check(compatibleMechanics(add(47, "CE2")).includes("blocs"), "CE2 : 47 se construit avec des blocs");
+  check(!compatibleMechanics(add(150, "CE1")).includes("blocs"), "CE1 : pas de blocs au-dela de 99");
+  check(!compatibleMechanics(add(7, "CE2")).includes("blocs"), "pas de blocs pour un nombre a un chiffre");
+  check(!compatibleMechanics(add(470, "CE5")).includes("blocs"), "pas de blocs apres le CE3");
+  const roue = versClient({ ...qcm, variables: { options: ["26", "67", "60"] }, reponse_attendue: { valeur: "60", format: "choix_multiple" } });
+  check([...roue.mecanique.roue].sort().join() === "26,60,67", "roue d'un QCM : seulement les choix proposes (pas de voisin qui serait juste)");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 process.exit(failures === 0 ? 0 : 1);

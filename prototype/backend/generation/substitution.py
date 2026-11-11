@@ -58,9 +58,15 @@ def _source_files(pattern_def: dict) -> list[str]:
 
 
 def _exercise_signature(exercice: dict) -> str:
+    """Ce qui distingue deux exercices pour l'eleve. L'ordre des options d'un
+    QCM est tire au hasard : on l'ignore et on garde la BONNE REPONSE, sinon
+    deux QCM identiques (« 10 DH + 10 DH + 10 DH + 10 DH + 10 DH » deux fois
+    de suite) passaient pour differents et le dedoublonnage ne servait a rien."""
+    variables = {k: v for k, v in (exercice.get("variables") or {}).items() if k != "options"}
     signature = {
         "pattern_name": exercice["pattern"]["pattern_name"],
-        "variables": exercice["variables"],
+        "variables": variables,
+        "reponse": (exercice.get("reponse_attendue") or {}).get("valeur"),
     }
     return json.dumps(signature, sort_keys=True, ensure_ascii=False)
 
@@ -1858,7 +1864,7 @@ def generer_fraction_decimal_pourcentage(niveau: str = "CE6") -> dict:
             valeur=str(x),
             format_reponse="choix_multiple",
             equivalences=[str(x)],
-            steps=[f"Une fraction sur 100 se lit directement en pourcentage.", f"{x}/100 = {x} %."],
+            steps=["Une fraction sur 100 se lit directement en pourcentage.", f"{x}/100 = {x} %."],
         )
     # pct_frac : x % -> fraction sur 100. Distracteurs = erreurs de denominateur
     # (/10, /1000) ou le complement, en garantissant 3 options DISTINCTES (le
@@ -2316,5 +2322,8 @@ def generer_lot(niveau: str, n: int) -> list[dict]:
     return lot
 
 
-def generate_substitution_exercise(niveau: str) -> dict:
-    return generer_lot(niveau, 1)[0]
+# Concepts de la periode 4 ajoutes apres relecture du corpus (programme_p4.py).
+# Import en fin de module : programme_p4 utilise les helpers ci-dessus.
+from generation.programme_p4 import GENERATEURS_P4
+
+GENERATOR_REGISTRY.update(GENERATEURS_P4)

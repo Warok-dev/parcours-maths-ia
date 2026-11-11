@@ -1,0 +1,227 @@
+/* styles/10-tactile.css — Contrôles tactiles, cibles agrandies, tablette.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   CONTROLES TACTILES (joystick analogique + bouton d'action)
+   Affiches uniquement sur appareil tactile (body.touch-active) et en jeu
+   (voir touch.js). Le joystick remplace l'ancien pave de 4 fleches : on glisse
+   le doigt dans la direction voulue, l'inclinaison regle la vitesse.
+   ============================================================ */
+
+/* La zone d'appui couvre le bas-gauche de l'ecran : l'enfant n'a pas besoin
+   de viser le joystick, il vient sous son pouce. */
+.joystick {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+  width: min(48vw, 460px);
+  height: min(58vh, 420px);
+  touch-action: none; /* le glissement pilote le personnage, jamais le scroll */
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+
+.joystick-zone {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* Position de repos : bien visible en bas a gauche. Pendant l'appui, son
+   centre suit le premier contact (left/top poses par touch.js). */
+.joystick-base {
+  --rayon-base: 78px;
+  position: absolute;
+  left: calc(28px + var(--rayon-base));
+  top: calc(100% - 28px - var(--rayon-base));
+  width: calc(var(--rayon-base) * 2);
+  height: calc(var(--rayon-base) * 2);
+  margin: calc(var(--rayon-base) * -1) 0 0 calc(var(--rayon-base) * -1);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.25) 0 45%, transparent 46%),
+    radial-gradient(circle, rgba(251, 243, 231, 0.8), rgba(240, 226, 205, 0.62) 70%);
+  border: 4px solid rgba(110, 76, 44, 0.7);
+  box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.12), 0 6px 14px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  opacity: 0.85;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.joystick-base.actif {
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+.joystick-fleches {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: rgba(110, 76, 44, 0.45);
+}
+
+/* Le bouton (le « champignon ») : couleur du joueur, avec un reflet. */
+.joystick-bouton {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0 8%, var(--gold) 9% 55%, var(--gold-dark) 100%);
+  border: 4px solid var(--wood-dark);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.2), 0 10px 18px rgba(0, 0, 0, 0.18);
+  will-change: transform;
+}
+
+.joystick-base.actif .joystick-bouton {
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2), 0 6px 12px rgba(0, 0, 0, 0.18);
+}
+
+/* Petit ecran : un joystick un peu plus compact. */
+@media (max-width: 520px) {
+  .joystick-base {
+    --rayon-base: 64px;
+    left: calc(18px + var(--rayon-base));
+    top: calc(100% - 18px - var(--rayon-base));
+  }
+
+  .joystick-bouton {
+    width: 60px;
+    height: 60px;
+    margin: -30px 0 0 -30px;
+  }
+}
+
+/* Bouton d'action (equivalent tactile de la touche Entree). Au-dessus du hibou
+   tuteur (bottom 16 + 84 de haut) ; n'apparait qu'a proximite d'un obstacle. */
+.touch-action {
+  position: absolute;
+  right: 24px;
+  bottom: 122px;
+  z-index: 56;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: 4px solid var(--grass-dark);
+  border-radius: 50%;
+  background: var(--grass);
+  color: #fff;
+  box-shadow: var(--shadow-pop);
+  cursor: pointer;
+  touch-action: manipulation;
+  animation: touchActionPulse 1.5s ease-in-out infinite;
+}
+.touch-action svg {
+  width: 42px;
+  height: 42px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@keyframes touchActionPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* ============================================================
+   CIBLES TACTILES : agrandissement pour le doigt (public enfant)
+   Sur body.touch-active, on porte les petites cibles au-dela de 44x44 px.
+   ============================================================ */
+body.touch-active .plank-slot,
+body.touch-active .plank-piece,
+body.touch-active .order-slot,
+body.touch-active .order-piece {
+  min-width: 56px;
+  height: 56px;
+}
+body.touch-active .balance-poids {
+  min-width: 56px;
+  height: 56px;
+  font-size: 1.3rem;
+}
+/* Molettes du cadenas : 34x26 est bien trop petit au doigt. */
+body.touch-active .lock-up,
+body.touch-active .lock-down {
+  width: 54px;
+  height: 46px;
+  font-size: 1rem;
+}
+body.touch-active .lock-digit {
+  min-width: 52px;
+  font-size: 1.7rem;
+}
+/* Curseur de force de la roue : gros pouce et piste haute pour viser au doigt. */
+body.touch-active .roue-force {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  max-width: 260px;
+  height: 44px;
+  background: transparent;
+}
+body.touch-active .roue-force::-webkit-slider-runnable-track {
+  height: 14px;
+  border-radius: 7px;
+  background: var(--cream-dark);
+}
+body.touch-active .roue-force::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--road);
+  border: 3px solid var(--road-dark);
+  box-shadow: var(--shadow-chip);
+}
+body.touch-active .roue-force::-moz-range-track {
+  height: 14px;
+  border-radius: 7px;
+  background: var(--cream-dark);
+}
+body.touch-active .roue-force::-moz-range-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--road);
+  border: 3px solid var(--road-dark);
+  box-shadow: var(--shadow-chip);
+}
+/* Boutons principaux d'exercice : hauteur tactile confortable. */
+body.touch-active .btn-primary,
+body.touch-active .btn-help,
+body.touch-active .roue-spin,
+body.touch-active .balance-remove {
+  min-height: 50px;
+}
+
+/* ============================================================
+   RESPONSIVE TABLETTE : paysage et portrait (>= tailles telephone)
+   ============================================================ */
+@media (max-width: 1024px) {
+  .exercise-modal {
+    width: min(620px, 100%);
+    padding: 22px 20px;
+  }
+  /* Cartes de menu : on evite qu'elles depassent la hauteur en portrait. */
+  .menu-card {
+    max-height: none;
+  }
+}
+
+/* Portrait etroit (tablette verticale, gros telephone) */
+@media (max-width: 820px) {
+  .hud-chip {
+    font-size: 0.9rem;
+  }
+}

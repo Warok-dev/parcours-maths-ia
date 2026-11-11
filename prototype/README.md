@@ -1,6 +1,6 @@
 # Prototype Parcours Maths IA
 
-Ce dossier contient le code du jeu : l'API (`backend/`), le client web (`frontend/`) et le schéma d'un exercice (`schema/`). La vue d'ensemble se trouve dans le [README racine](../README.md), la mise en production dans [DEPLOIEMENT.md](../DEPLOIEMENT.md).
+Ce dossier contient le code du jeu : l'API (`backend/`) et le client web (`frontend/`). La vue d'ensemble se trouve dans le [README racine](../README.md), la mise en production dans [DEPLOIEMENT.md](../DEPLOIEMENT.md).
 
 ## Backend (`backend/`)
 
@@ -10,6 +10,9 @@ Ce dossier contient le code du jeu : l'API (`backend/`), le client web (`fronten
 | `comptes.py` | Comptes enseignant, élève et parent, écoles, classes, assignations, tableaux de bord, démo, RGPD (effacement, rétention), jetons |
 | `database.py` | Modèles SQLAlchemy et micro-migrations (SQLite en local, PostgreSQL en production) |
 | `generation/substitution.py` | Générateurs procéduraux (calcul, géométrie, mesures, graphiques), CE1 à CE6 |
+| `generation/programme_p4.py` | Générateurs ajoutés d'après les séances de la période 4 (monnaie, partage, décimaux, proportionnalité…) |
+| `generation/recits.py` | Problèmes racontés sans LLM : le même concept habillé d'une histoire, dans l'univers de l'élève |
+| `programme.py` | Programme de classe : concepts ouverts par l'enseignant, calendrier `data/programme.json` |
 | `generation/narrative.py` | Énoncés narratifs par LLM, avec thèmes, contrôle des valeurs et repli procédural |
 | `tutor.py` | Tuteur IA (Gemini → Groq → Mistral), registre adapté à l'âge, filtrage des données personnelles |
 | `exercice_client.py` | Vue « client » d'un exercice : sans la réponse ni les variables de résultat, avec la mécanique choisie et ses seuls indices, et des empreintes salées pour la correction hors-ligne |
@@ -26,11 +29,17 @@ Tout ce qui persiste est en base : comptes, classes, progressions, **jetons** (s
 
 ## Frontend (`frontend/`)
 
-Le client est en JavaScript vanilla, sans étape de build. `index.html` charge les scripts dans l'ordre ; `config.js` doit passer en premier, car il choisit l'adresse du backend :
+Le client est en JavaScript vanilla, sans étape de build. `index.html` charge les scripts dans l'ordre :
+
+- `carte/` : le jeu lui-même (l'ancien `map.js`), découpé en onze scripts classiques qui partagent la portée globale. L'ordre et la seule règle à respecter sont décrits dans [carte/LISEZMOI.md](frontend/carte/LISEZMOI.md) ;
+- `styles/` : l'ancien `style.css`, en feuilles numérotées (liste dans `styles/ordre.json`). Leur ordre de chargement est celui de la cascade ;
+- `outils/verifier_decoupage.js` vérifie ces deux ordres. La CI le lance.
+
+`config.js` doit passer en premier, car il choisit l'adresse du backend :
 
 - **local** (`localhost`, `127.0.0.1`, fichier ouvert directement) : `http://127.0.0.1:8000` ;
 - **sinon** : le backend de production ;
-- **surcharge** : `?api=https://…` dans l'adresse de la page.
+- **surcharge** : `?api=http://localhost:8001` dans l'adresse de la page, uniquement depuis une page locale ou vers un backend local (ignorée sinon, anti-hameçonnage).
 
 Chaque module a son fichier `test_*.js`, à lancer avec `node`.
 

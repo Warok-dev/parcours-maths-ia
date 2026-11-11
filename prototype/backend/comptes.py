@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 import database
 import export_excel
 import notifications
+import programme
 from rate_limit import (
     LIMITE_AUTH,
     LIMITE_AUTH_IP,
@@ -457,6 +458,14 @@ class AssignationCreation(BaseModel):
     eleve_ids: list[int] = Field(min_length=1)
     lecon_id: str | None = None
     patterns: list[str] | None = None
+
+
+class ProgrammeActivation(BaseModel):
+    actif: bool
+
+
+class ProgrammeConcepts(BaseModel):
+    patterns: list[str] = Field(min_length=1, max_length=40)
 
 
 class PersonnageMaj(BaseModel):
@@ -1203,6 +1212,10 @@ def creer_classe(
             db.rollback()
             continue
         db.refresh(classe)
+        # Une nouvelle classe suit le programme : ses eleves commencent par le
+        # premier concept du calendrier, l'enseignant ouvre la suite.
+        programme.activer(db, classe, True)
+        db.commit()
         return _classe_dict(classe)
     raise HTTPException(status_code=500, detail="Impossible de generer un code de classe unique.")
 
@@ -1751,6 +1764,69 @@ def assigner_travail(
     for a in creees:
         db.refresh(a)
     return {"assignations": [_assignation_dict(a) for a in creees]}
+
+
+# ---------- Programme de la classe (concepts ouverts au fil de l'annee) ----------
+def _etat_programme(db: Session, classe: Classe) -> dict:
+    return programme.etat(db, classe, notifications._libelle_concept)
+
+
+@router.get("/classe/{classe_id}/programme")
+def voir_programme(
+    classe_id: int,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Le calendrier du niveau, concept par concept, avec ce qui est ouvert
+    et le concept que le calendrier propose d'ouvrir ensuite."""
+    return _etat_programme(db, _classe_de_l_enseignant(db, classe_id, enseignant))
+
+
+@router.post("/classe/{classe_id}/programme")
+def activer_programme(
+    classe_id: int,
+    payload: ProgrammeActivation,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Suivre le programme (les eleves ne voient que les concepts ouverts) ou
+    revenir a l'acces libre a toutes les lecons du niveau."""
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    programme.activer(db, classe, payload.actif)
+    db.commit()
+    return _etat_programme(db, classe)
+
+
+@router.post("/classe/{classe_id}/programme/ouvrir")
+def ouvrir_concepts(
+    classe_id: int,
+    payload: ProgrammeConcepts,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    try:
+        programme.ouvrir(db, classe, payload.patterns)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    db.commit()
+    return _etat_programme(db, classe)
+
+
+@router.post("/classe/{classe_id}/programme/fermer")
+def fermer_concepts(
+    classe_id: int,
+    payload: ProgrammeConcepts,
+    enseignant: Annotated[Enseignant, Depends(enseignant_courant)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    classe = _classe_de_l_enseignant(db, classe_id, enseignant)
+    try:
+        programme.fermer(db, classe, payload.patterns)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    db.commit()
+    return _etat_programme(db, classe)
 
 
 @router.get("/classe/{classe_id}/assignations")

@@ -1,0 +1,198 @@
+/* Mini-jeux de fin de lecon : leur contenu vient de la lecon terminee
+   (minijeux_contenu.js), donc des cartes de texte plus longues que les
+   anciens calculs « 6 × 7 ». */
+
+/* --- Memory : textes longs (« 3 côtés égaux », « équilatéral ») ---
+   La taille du texte suit la largeur de la CARTE (unites cqi), pas celle
+   de l'ecran : sur telephone une carte fait ~60 px. minigames.js pose
+   texte-long / texte-tres-long selon la longueur ; ces textes passent a la
+   ligne entre les mots au lieu de deborder. */
+.memory-carte {
+  container-type: inline-size;
+}
+
+.memory-carte-texte,
+.memory-carte.face-resultat .memory-carte-texte {
+  font-size: min(1.9rem, 27cqi);
+}
+
+.memory-carte-texte.texte-long,
+.memory-carte.face-resultat .memory-carte-texte.texte-long {
+  font-size: clamp(0.8rem, 17cqi, 1.2rem);
+  line-height: 1.15;
+  white-space: normal;
+  text-align: center;
+  padding: 0 4px;
+}
+
+.memory-carte-texte.texte-tres-long,
+.memory-carte.face-resultat .memory-carte-texte.texte-tres-long {
+  font-size: clamp(0.72rem, 15cqi, 1rem);
+  line-height: 1.15;
+  white-space: normal;
+  text-align: center;
+  padding: 0 3px;
+}
+
+/* Sur telephone, 4 colonnes donnent des cartes de ~60 px : trop etroites
+   pour « 3 côtés différents ». Un memory de lecon (cartes-texte) passe a
+   3 colonnes, donc 4 rangees pour 12 cartes. */
+@media (max-width: 560px) {
+  .memory-grille.cartes-texte {
+    --memory-rows: 4 !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* --- Mini-jeu : le vrai ou faux eclair (minigames.js, MINIGAME_VRAI_FAUX) ---
+   Une grande carte creme posee sur la scene bleue du mini-jeu, deux gros
+   boutons au pouce. La carte se teinte vert/rouge apres la reponse : c'est
+   le seul retour, aucun chronometre ne presse l'eleve. */
+.vf {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.vf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--cream);
+}
+
+.vf-consigne {
+  margin: 0;
+  font-family: var(--font-round);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.vf-compteur {
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vf-progres {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.vf-progres span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gold);
+  transition: width 0.3s ease;
+}
+
+.vf-carte {
+  min-height: 168px;
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 26px 22px;
+  border: 4px solid var(--wood);
+  border-radius: 20px;
+  background: var(--cream);
+  color: var(--ink);
+  text-align: center;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.22);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.vf-enonce {
+  margin: 0;
+  font-family: var(--font-round);
+  font-size: clamp(1.5rem, 5vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.vf-retour {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.vf-carte.juste {
+  border-color: var(--success);
+  background: #e3f5e0;
+}
+
+.vf-carte.juste .vf-retour {
+  color: #237a36;
+}
+
+.vf-carte.faux {
+  border-color: var(--danger);
+  background: #fbe4dd;
+}
+
+.vf-carte.faux .vf-retour {
+  color: #a8341f;
+}
+
+.vf-boutons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.vf-btn {
+  min-height: 72px;
+  border: 0;
+  border-radius: 18px;
+  font-family: var(--font-round);
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.1s ease, filter 0.15s ease;
+}
+
+.vf-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+
+.vf-btn:disabled {
+  filter: saturate(0.4) brightness(0.9);
+  cursor: default;
+}
+
+.vf-btn:focus-visible {
+  outline: 4px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.vf-vrai {
+  background: var(--success);
+}
+
+.vf-faux {
+  background: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vf-progres span,
+  .vf-carte,
+  .vf-btn {
+    transition: none;
+  }
+}

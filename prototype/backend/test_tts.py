@@ -32,7 +32,7 @@ class _CountingClient:
         self.audio = audio
         self.calls = 0
 
-    def synthesize_speech(self, *, input, voice, audio_config):  # noqa: A002
+    def synthesize_speech(self, *, input, voice, audio_config):
         self.calls += 1
         return _FakeAudioResponse(self.audio)
 
@@ -98,7 +98,7 @@ class SyntheseVocaleTests(unittest.TestCase):
         # synthetiser : l'endpoint doit repondre 503, pas planter.
         boom = _CountingClient()
 
-        def _explose(*, input, voice, audio_config):  # noqa: A002
+        def _explose(*, input, voice, audio_config):
             raise RuntimeError("429 quota epuise")
 
         boom.synthesize_speech = _explose  # type: ignore[assignment]

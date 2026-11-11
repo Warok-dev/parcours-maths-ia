@@ -1,0 +1,229 @@
+/* styles/11-connexion.css — Connexion : rejoindre sa classe, PIN, essai libre.
+   Partie de l'ancien style.css, chargée dans l'ordre par index.html (même cascade). */
+
+/* ============================================================
+   ECRAN DE CONNEXION (rejoindre sa classe / essai libre)
+   Reutilise les cartes de menu ; ajoute juste le formulaire de code.
+   ============================================================ */
+.login-choices {
+  margin-top: 8px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  margin: 8px auto 0;
+  text-align: left;
+}
+
+.login-label {
+  font-weight: 600;
+  color: var(--ink, #3a2a1c);
+}
+
+.login-input {
+  padding: 13px 16px;
+  border: 2px solid var(--cream-dark);
+  border-radius: 14px;
+  background: #fff;
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.login-input:focus {
+  outline: 3px solid var(--water);
+  outline-offset: 1px;
+}
+
+.login-form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.login-eleves {
+  margin-top: 8px;
+}
+
+/* ---------- Pave numerique de saisie du PIN eleve ----------
+   Cote enfant : grandes touches rondes, dans l'univers colore du jeu. */
+.pin-dots {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 6px 0 18px;
+}
+
+.pin-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid var(--wood);
+  background: #fff;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.pin-dot-rempli {
+  background: var(--gold);
+  transform: scale(1.12);
+}
+
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  max-width: 300px;
+  margin: 0 auto 18px;
+}
+
+.pin-key {
+  font-family: var(--font-round);
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 18px 0;
+  border: 3px solid var(--cream-dark);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow-chip);
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.1s ease;
+}
+
+.pin-key:hover {
+  background: var(--cream);
+}
+
+.pin-key:active {
+  transform: translateY(2px) scale(0.97);
+}
+
+.pin-key-valider {
+  background: var(--grass);
+  border-color: var(--grass-dark);
+  color: #fff;
+}
+
+.pin-key-valider:hover {
+  background: var(--grass-light);
+}
+
+.pin-key-action {
+  background: var(--cream-dark);
+}
+
+/* ---------- Popup PIN cote enseignant (sobre) ---------- */
+.pin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(61, 44, 30, 0.45);
+}
+
+.pin-modal {
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px 26px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow-pop);
+}
+
+.pin-modal-titre {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+
+.pin-modal-lead {
+  margin: 0 0 18px;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.pin-modal-code {
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: var(--road-dark);
+  padding: 14px 10px 14px 22px;
+  margin: 0 auto 20px;
+  background: #f4f1ec;
+  border-radius: 14px;
+  border: 2px dashed var(--cream-dark);
+  display: inline-block;
+}
+
+.pin-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Modale de rapport IA (enseignant) : texte lisible, aligne a gauche. */
+.rapport-modal {
+  max-width: 520px;
+  text-align: left;
+}
+
+.rapport-contenu {
+  min-height: 60px;
+  margin: 4px 0 18px;
+}
+
+.rapport-texte {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
+  font-size: 1rem;
+}
+
+.rapport-note {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.rapport-erreur {
+  margin: 0;
+  color: #b23a22;
+}
+
+.rapport-chargement,
+.parent-rapport-chargement {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* Spinner partage (rapport enseignant + parent). */
+.rapport-spinner,
+.parent-rapport-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--cream-dark, #d9cfc0);
+  border-top-color: var(--road-dark, #7a5a34);
+  border-radius: 50%;
+  display: inline-block;
+  animation: rapportSpin 0.8s linear infinite;
+}
+
+@keyframes rapportSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

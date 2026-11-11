@@ -64,7 +64,7 @@
      les FANIONS de renforcement (2, 3 ou 4 selon la maitrise detectee EN JEU,
      donc inconnue a la generation). map.js les etale sur la fraction
      STOP_SPREAD (0.18..0.85) du troncon ; pour que meme le palier a 4 fanions
-     (maitrise 1) reste bien espace, le troncon doit etre assez long pour
+     (maitrise 1, 3 fanions) reste bien espace, le troncon doit etre assez long pour
      accueillir le MAXIMUM de fanions. On dimensionne donc GAP_MIN a partir de
      ce maximum : longueur mini = (maxFanions-1) * espacement_vise / STOP_SPREAD,
      + les retraits haut/bas appliques a la branche par branchGeometry (56 + 72).
@@ -73,13 +73,13 @@
      elles s'elargissent automatiquement ; les autres garde-fous (auto-
      intersection, MIN_OBSTACLE_DIST, MAX_STEP_X) ne portent que sur x/la forme
      et restent respectes puisque seul l'ecart vertical augmente. */
-  const MAX_REINFORCEMENT_STOPS = 4; /* miroir de max(REINFORCEMENT_TOTALS) cote map.js */
+  const MAX_REINFORCEMENT_STOPS = 3; /* miroir de max(REINFORCEMENT_TOTALS), carte/etat.js */
   const STOP_SPREAD = 0.67; /* fraction du troncon utilisee (0.85 - 0.18), miroir map.js */
   const STOP_TARGET_SPACING = 150; /* espacement vise entre 2 fanions au palier max */
   const BRANCH_TRIM = 128; /* retraits verticaux de branchGeometry : 56 (haut) + 72 (bas) */
   const GAP_MIN = Math.round(
     ((MAX_REINFORCEMENT_STOPS - 1) * STOP_TARGET_SPACING) / STOP_SPREAD + BRANCH_TRIM,
-  ); /* ~800 : troncon assez long pour 4 fanions bien espaces */
+  ); /* ~576 : troncon assez long pour 3 fanions bien espaces */
   const GAP_MAX = GAP_MIN + 180; /* variation de proportion, comme avant */
   const AMP_MIN = 150; /* amplitude mini (tracé resserré) */
   const AMP_MAX = 540; /* amplitude maxi (tracé tres ample) */
@@ -508,10 +508,11 @@
   }
 
   /* ============================================================
-     BRANCHES DE RENFORCEMENT (courte / moyenne / longue)
-     S'accrochent au tracé principal généré : start = sortie de
+     CHEMIN DE RENFORCEMENT
+     Un seul trace, accroche au chemin principal : start = sortie de
      l'obstacle i (routePoints[i+1]), end = point suivant
-     (routePoints[i+2]). Aucune dépendance a des positions fixes.
+     (routePoints[i+2]). Seul le NOMBRE de fanions varie selon la
+     maitrise, jamais le trace.
      ============================================================ */
   function branchGeometry(scene, obstacleIndex) {
     const a = scene.routePoints[obstacleIndex + 1];
@@ -524,17 +525,9 @@
     const endOffset = next && next.type === "broken_bridge" ? 116 : 72;
     const start = { x: a.x, y: a.y + 56 };
     const end = { x: b.x, y: b.y - endOffset };
-    const dx = end.x - start.x;
-    const side = dx >= 0 ? 1 : -1;
     const midY = (start.y + end.y) / 2;
-
-    const short = `M ${start.x} ${start.y} Q ${(start.x + end.x) / 2 + side * 30} ${midY - 40} ${end.x} ${end.y}`;
-    const medium = `M ${start.x} ${start.y} C ${start.x} ${midY} ${end.x} ${midY} ${end.x} ${end.y}`;
-    const long = `M ${start.x} ${start.y}
-    C ${start.x - side * 190} ${start.y + 60} ${start.x - side * 210} ${midY - 30} ${(start.x + end.x) / 2 - side * 60} ${midY}
-    C ${end.x + side * 230} ${midY + 40} ${end.x + side * 190} ${end.y - 70} ${end.x} ${end.y}`;
-
-    return { short, medium, long, start, end, endOffset };
+    const d = `M ${start.x} ${start.y} C ${start.x} ${midY} ${end.x} ${midY} ${end.x} ${end.y}`;
+    return { d, start, end, endOffset };
   }
 
   /* ============================================================

@@ -115,6 +115,20 @@ function check(cond, label) {
   check(enseignant.conceptsLesPlusDifficiles([], 3).length === 0, "aucun concept -> liste vide");
 }
 
+/* --- Programme de classe : concepts groupes par semaine --- */
+{
+  const groupes = enseignant.grouperParSemaine([
+    { pattern: "a", semaine: 1 },
+    { pattern: "b", semaine: 1 },
+    { pattern: "c", semaine: 2 },
+    { pattern: "d", semaine: null },
+  ]);
+  check(groupes.map((g) => g.cle).join(",") === "1,2,hors", "groupes dans l'ordre du calendrier, hors calendrier a la fin");
+  check(groupes[0].concepts.length === 2 && groupes[0].titre === "Semaine 1", "semaine 1 : deux concepts");
+  check(/hors calendrier/.test(groupes[2].titre), "concepts hors calendrier : titre explicite");
+  check(enseignant.grouperParSemaine(undefined).length === 0, "programme absent -> aucun groupe");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);

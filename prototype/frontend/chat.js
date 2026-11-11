@@ -233,7 +233,7 @@ async function askTutor(question) {
   const token = window.ParcoursCompte?.getToken?.();
   let response;
   try {
-    response = await fetch(`${(globalThis.PARCOURS_CONFIG?.API_BASE || "https://parcours-maths-ia.onrender.com")}/tuteur/aide`, {
+    response = await fetch(`${(globalThis.PARCOURS_CONFIG?.API_BASE || "")}/tuteur/aide`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -283,6 +283,18 @@ if (hasDom) {
     } else {
       closeWidget();
     }
+  });
+
+  /* Questions rapides : un enfant de CE1 ecrit encore difficilement, et ces
+     questions identiques d'un eleve a l'autre sont servies par le cache du
+     tuteur (backend/tutor.py) plutot que par un nouvel appel au LLM. */
+  document.getElementById("chat-suggestions")?.addEventListener("click", (event) => {
+    const bouton = event.target.closest("button[data-question]");
+    if (!bouton) {
+      return;
+    }
+    chatInput.value = bouton.dataset.question;
+    chatForm.requestSubmit();
   });
 
   chatForm.addEventListener("submit", async (event) => {

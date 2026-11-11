@@ -121,6 +121,20 @@ class VueClientTests(unittest.TestCase):
             self.assertTrue(set(m) - {"choisie"} <= set(ec.INDICES_PAR_MECANIQUE[m["choisie"]]), m)
         self.assertGreaterEqual(len(vues), 6, f"variete des mecaniques conservee : {dict(vues)}")
 
+    def test_nouvelles_mecaniques_sans_fuite(self) -> None:
+        # Blocs : le nombre de colonnes depend du niveau, aucun indice envoye.
+        ex = substitution.generer_addition_2chiffres_sans_retenue("CE2")
+        self.assertEqual(ec.indices_mecanique(ex, "blocs"), {"choisie": "blocs"})
+        # Calculette : les touches dependent du format seulement.
+        ex = substitution.generer_addition_decimaux("CE4")
+        self.assertEqual(ec.mecaniques_possibles(ex), ["calculette"])
+        self.assertEqual(ec.indices_mecanique(ex, "calculette"), {"choisie": "calculette"})
+        # Bulles et roue d'un QCM : exactement les choix proposes.
+        ex = substitution.generer_identifier_multiple_de_10("CE2")
+        options = sorted(map(str, ex["variables"]["options"]))
+        self.assertEqual(sorted(ec.indices_mecanique(ex, "bulles")["bulles"]), options)
+        self.assertEqual(sorted(ec.indices_mecanique(ex, "roue")["roue"]), options)
+
     def test_poids_et_bornes_de_la_balance(self) -> None:
         self.assertEqual(ec._poids_minimum(20, ec._poids_disponibles(20)), 1)
         self.assertEqual(ec._poids_minimum(8, ec._poids_disponibles(8)), 3)

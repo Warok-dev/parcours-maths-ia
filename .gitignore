@@ -253,3 +253,6 @@ prototype/frontend/_e2e_*
 # Assets externes Kenney telecharges puis ecartes : non references dans le code
 # (verifie), on ne les versionne pas pour ne pas alourdir le depot.
 prototype/frontend/assets/
+
+# Dépendances Node des outils de vérification (installées à la demande)
+node_modules/

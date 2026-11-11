@@ -19,6 +19,11 @@ EXERCICE = {
 
 
 class TutorTimeoutTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Le cache des reponses est partage : sans le vider, un test servirait
+        # la reponse mise en cache par le precedent au lieu d'appeler le LLM.
+        tutor.CACHE_REPONSES.vider()
+
     def test_appel_gemini_borne_par_un_timeout_explicite(self) -> None:
         """Sans timeout explicite, un Gemini qui traine bloque toute la chaine
         de fallback. On verifie la requete HTTP REELLEMENT construite par le
@@ -63,6 +68,11 @@ class TutorTimeoutTests(unittest.TestCase):
 
 
 class TutorFallbackTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Le cache des reponses est partage : sans le vider, un test servirait
+        # la reponse mise en cache par le precedent au lieu d'appeler le LLM.
+        tutor.CACHE_REPONSES.vider()
+
     def test_quota_gemini_bascule_sur_groq(self) -> None:
         with patch.object(tutor, "_call_gemini", side_effect=gexc.ResourceExhausted("429 quota")):
             with patch.object(tutor, "_call_groq", return_value="Pars de 24, puis ajoute 6."):

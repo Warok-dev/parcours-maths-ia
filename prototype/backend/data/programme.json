@@ -1,0 +1,501 @@
+{
+ "_description": "Ordre d'ouverture des concepts par niveau, d'apres les seances de la periode 4 du ministere (docs/couverture_programme_P4.md). semaine = semaine de P4 (1 a 5) ; null = revision hors calendrier.",
+ "niveaux": {
+  "CE1": [
+   {
+    "pattern": "lecture_heure_analogique",
+    "semaine": 1
+   },
+   {
+    "pattern": "heure_ecrite",
+    "semaine": 1
+   },
+   {
+    "pattern": "suite_multiples_de_10_a_completer",
+    "semaine": 1
+   },
+   {
+    "pattern": "partie_tout_soustraction_non_narratif",
+    "semaine": 1
+   },
+   {
+    "pattern": "probleme_reste_partie_tout",
+    "semaine": 1
+   },
+   {
+    "pattern": "addition_repetee_somme",
+    "semaine": 2
+   },
+   {
+    "pattern": "partage_equitable",
+    "semaine": 2
+   },
+   {
+    "pattern": "groupement_egal",
+    "semaine": 2
+   },
+   {
+    "pattern": "completer_suite_pas",
+    "semaine": 2
+   },
+   {
+    "pattern": "completer_ligne_graduee",
+    "semaine": 2
+   },
+   {
+    "pattern": "classer_compter",
+    "semaine": 3
+   },
+   {
+    "pattern": "graphique_pictogramme",
+    "semaine": 3
+   },
+   {
+    "pattern": "graphique_barres",
+    "semaine": 3
+   },
+   {
+    "pattern": "soustraction_passage_dizaine",
+    "semaine": 3
+   },
+   {
+    "pattern": "monnaie_valeur",
+    "semaine": 4
+   },
+   {
+    "pattern": "monnaie_echange",
+    "semaine": 4
+   },
+   {
+    "pattern": "addition_pas_a_pas_sans_retenue",
+    "semaine": 4
+   },
+   {
+    "pattern": "probleme_total_partie_tout",
+    "semaine": 4
+   },
+   {
+    "pattern": "addition_posee",
+    "semaine": 5
+   },
+   {
+    "pattern": "partie_tout_addition_non_narratif",
+    "semaine": 5
+   }
+  ],
+  "CE2": [
+   {
+    "pattern": "multiplication_par_10",
+    "semaine": 1
+   },
+   {
+    "pattern": "multiplication_chiffre_x_multiple_de_10",
+    "semaine": 1
+   },
+   {
+    "pattern": "identifier_multiple_de_10",
+    "semaine": 1
+   },
+   {
+    "pattern": "multiplication_decomposee_chiffre_x_2chiffres",
+    "semaine": 1
+   },
+   {
+    "pattern": "ecart_entre_nombres",
+    "semaine": 1
+   },
+   {
+    "pattern": "probleme_comparaison_difference",
+    "semaine": 1
+   },
+   {
+    "pattern": "partage_equitable",
+    "semaine": 2
+   },
+   {
+    "pattern": "groupement_egal",
+    "semaine": 2
+   },
+   {
+    "pattern": "probleme_groupes_egaux_quotient",
+    "semaine": 2
+   },
+   {
+    "pattern": "lecture_regle",
+    "semaine": 3
+   },
+   {
+    "pattern": "conversion_cm_mm_vers_mm",
+    "semaine": 3
+   },
+   {
+    "pattern": "addition_ligne_decomposee",
+    "semaine": 3
+   },
+   {
+    "pattern": "addition_2chiffres_sans_retenue",
+    "semaine": 3
+   },
+   {
+    "pattern": "solide_nommer",
+    "semaine": 4
+   },
+   {
+    "pattern": "solide_compter",
+    "semaine": 4
+   },
+   {
+    "pattern": "addition_repetee_vers_multiplication",
+    "semaine": 4
+   },
+   {
+    "pattern": "probleme_groupes_egaux_total",
+    "semaine": 4
+   },
+   {
+    "pattern": "decomposition_entiers",
+    "semaine": 5
+   },
+   {
+    "pattern": "moitie_via_2xn",
+    "semaine": 5
+   },
+   {
+    "pattern": "double_via_2xn",
+    "semaine": 5
+   },
+   {
+    "pattern": "facteur_manquant_table_de_2",
+    "semaine": 5
+   },
+   {
+    "pattern": "addition_posee",
+    "semaine": null
+   },
+   {
+    "pattern": "soustraction_posee",
+    "semaine": null
+   },
+   {
+    "pattern": "suite_multiples_de_10_a_completer",
+    "semaine": null
+   },
+   {
+    "pattern": "completer_suite_pas",
+    "semaine": null
+   }
+  ],
+  "CE3": [
+   {
+    "pattern": "triangle_classer_cotes",
+    "semaine": 1
+   },
+   {
+    "pattern": "triangle_classer_angles",
+    "semaine": 1
+   },
+   {
+    "pattern": "tout_parts_egales",
+    "semaine": 1
+   },
+   {
+    "pattern": "fraction_lire_figure",
+    "semaine": 1
+   },
+   {
+    "pattern": "cercle_identifier_elements",
+    "semaine": 2
+   },
+   {
+    "pattern": "rayon_diametre",
+    "semaine": 2
+   },
+   {
+    "pattern": "solide_nommer",
+    "semaine": 2
+   },
+   {
+    "pattern": "solide_compter",
+    "semaine": 2
+   },
+   {
+    "pattern": "multiplication_posee_2chiffres",
+    "semaine": 3
+   },
+   {
+    "pattern": "multiplication_groupes_egaux_modele",
+    "semaine": 3
+   },
+   {
+    "pattern": "division_exacte_partage",
+    "semaine": 3
+   },
+   {
+    "pattern": "symetrie_axes",
+    "semaine": 4
+   },
+   {
+    "pattern": "symetrie_lettre",
+    "semaine": 4
+   },
+   {
+    "pattern": "conversion_kg_g",
+    "semaine": 4
+   },
+   {
+    "pattern": "masse_kg_g_mixte",
+    "semaine": 4
+   },
+   {
+    "pattern": "lecture_heure_analogique",
+    "semaine": 5
+   },
+   {
+    "pattern": "heure_ecrite",
+    "semaine": 5
+   },
+   {
+    "pattern": "addition_durees_min",
+    "semaine": 5
+   },
+   {
+    "pattern": "conversion_duree_min",
+    "semaine": 5
+   },
+   {
+    "pattern": "duree_entre_horaires",
+    "semaine": 5
+   },
+   {
+    "pattern": "soustraction_posee",
+    "semaine": null
+   },
+   {
+    "pattern": "ecart_entre_nombres",
+    "semaine": null
+   }
+  ],
+  "CE4": [
+   {
+    "pattern": "angle_type",
+    "semaine": 1
+   },
+   {
+    "pattern": "angle_nature_mesure",
+    "semaine": 1
+   },
+   {
+    "pattern": "figure_cotee_simple",
+    "semaine": 1
+   },
+   {
+    "pattern": "cote_manquant_perimetre",
+    "semaine": 1
+   },
+   {
+    "pattern": "symetrie_axes",
+    "semaine": 2
+   },
+   {
+    "pattern": "symetrie_lettre",
+    "semaine": 2
+   },
+   {
+    "pattern": "rotation_fraction_tour",
+    "semaine": 2
+   },
+   {
+    "pattern": "decimal_composer",
+    "semaine": 3
+   },
+   {
+    "pattern": "comparaison_decimaux",
+    "semaine": 3
+   },
+   {
+    "pattern": "decimal_ranger",
+    "semaine": 3
+   },
+   {
+    "pattern": "arrondi_decimal",
+    "semaine": 3
+   },
+   {
+    "pattern": "proportionnalite_prix",
+    "semaine": 3
+   },
+   {
+    "pattern": "completer_tableau_proportionnalite",
+    "semaine": 3
+   },
+   {
+    "pattern": "solide_nommer",
+    "semaine": 4
+   },
+   {
+    "pattern": "solide_compter",
+    "semaine": 4
+   },
+   {
+    "pattern": "fraction_quantite",
+    "semaine": 4
+   },
+   {
+    "pattern": "fraction_quantite_inverse",
+    "semaine": 4
+   },
+   {
+    "pattern": "addition_decimaux",
+    "semaine": 5
+   },
+   {
+    "pattern": "soustraction_decimaux",
+    "semaine": 5
+   }
+  ],
+  "CE5": [
+   {
+    "pattern": "graphique_circulaire",
+    "semaine": 1
+   },
+   {
+    "pattern": "camembert_angle",
+    "semaine": 1
+   },
+   {
+    "pattern": "pourcentage_d_une_quantite",
+    "semaine": 1
+   },
+   {
+    "pattern": "pourcentage_prix_final",
+    "semaine": 1
+   },
+   {
+    "pattern": "prisme_aire_base",
+    "semaine": 2
+   },
+   {
+    "pattern": "prisme_aire_totale",
+    "semaine": 2
+   },
+   {
+    "pattern": "figure_cotee_simple",
+    "semaine": 3
+   },
+   {
+    "pattern": "cote_manquant_perimetre",
+    "semaine": 3
+   },
+   {
+    "pattern": "rayon_diametre",
+    "semaine": 3
+   },
+   {
+    "pattern": "circonference_cercle",
+    "semaine": 3
+   },
+   {
+    "pattern": "aire_disque",
+    "semaine": 3
+   },
+   {
+    "pattern": "proportionnalite_prix",
+    "semaine": 3
+   },
+   {
+    "pattern": "completer_tableau_proportionnalite",
+    "semaine": 3
+   },
+   {
+    "pattern": "conversion_duree_min",
+    "semaine": 4
+   },
+   {
+    "pattern": "conversion_temps_secondes",
+    "semaine": 4
+   },
+   {
+    "pattern": "duree_entre_horaires",
+    "semaine": 4
+   },
+   {
+    "pattern": "angle_type",
+    "semaine": 5
+   },
+   {
+    "pattern": "angle_nature_mesure",
+    "semaine": 5
+   }
+  ],
+  "CE6": [
+   {
+    "pattern": "completer_tableau_proportionnalite",
+    "semaine": 1
+   },
+   {
+    "pattern": "graphique_proportionnalite",
+    "semaine": 1
+   },
+   {
+    "pattern": "proportionnalite_reconnaitre",
+    "semaine": 1
+   },
+   {
+    "pattern": "regle_de_trois",
+    "semaine": 2
+   },
+   {
+    "pattern": "proportionnalite_prix",
+    "semaine": 2
+   },
+   {
+    "pattern": "pourcentage_d_une_quantite",
+    "semaine": 2
+   },
+   {
+    "pattern": "pourcentage_prix_final",
+    "semaine": 2
+   },
+   {
+    "pattern": "fraction_decimal_pourcentage",
+    "semaine": 2
+   },
+   {
+    "pattern": "vitesse_distance_duree",
+    "semaine": 3
+   },
+   {
+    "pattern": "vitesse_horaires",
+    "semaine": 3
+   },
+   {
+    "pattern": "echelle_plan",
+    "semaine": 3
+   },
+   {
+    "pattern": "echelle_distance_plan",
+    "semaine": 3
+   },
+   {
+    "pattern": "agrandissement_facteur",
+    "semaine": 4
+   },
+   {
+    "pattern": "agrandissement_pourcentage",
+    "semaine": 4
+   },
+   {
+    "pattern": "graphique_circulaire",
+    "semaine": 5
+   },
+   {
+    "pattern": "camembert_angle",
+    "semaine": 5
+   },
+   {
+    "pattern": "fraction_addition_meme_denominateur",
+    "semaine": 5
+   }
+  ]
+ }
+}

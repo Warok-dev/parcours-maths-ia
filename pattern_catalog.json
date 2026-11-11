@@ -299,7 +299,7 @@
     },
     {
       "pattern_name": "angle_type",
-      "levels": ["N4"],
+      "levels": ["N4", "N5"],
       "pattern_family": "exercice_a_trous_serie",
       "template": "Reconnaitre le type d'un angle DESSINE a la bonne ouverture : aigu / droit / obtus (QCM)",
       "constraints": {
@@ -350,7 +350,7 @@
     },
     {
       "pattern_name": "symetrie_axes",
-      "levels": ["N3"],
+      "levels": ["N3", "N4"],
       "pattern_family": "calcul_direct",
       "template": "Nombre d'axes de symetrie d'une figure connue (polygone regulier -> n ; rectangle -> 2)",
       "constraints": {
@@ -383,7 +383,7 @@
     },
     {
       "pattern_name": "solide_nommer",
-      "levels": ["N4"],
+      "levels": ["N2", "N3", "N4"],
       "pattern_family": "exercice_a_trous_serie",
       "template": "Nommer un solide deja dessine (perspective cavaliere) : cube / pave droit / cylindre / pyramide (QCM)",
       "constraints": {
@@ -400,7 +400,7 @@
     },
     {
       "pattern_name": "solide_compter",
-      "levels": ["N4"],
+      "levels": ["N2", "N3", "N4"],
       "pattern_family": "exercice_a_trous_serie",
       "template": "Compter les faces / aretes / sommets d'un solide deja dessine (perspective cavaliere) : cube / pave droit / pyramide (QCM)",
       "constraints": {
@@ -441,7 +441,7 @@
     },
     {
       "pattern_name": "graphique_circulaire",
-      "levels": ["N5"],
+      "levels": ["N5", "N6"],
       "pattern_family": "exercice_a_trous_serie",
       "template": "Lire un diagramme circulaire (المبيان الدائري) : chaque secteur porte son pourcentage ecrit + legende ; lire la plus grande/petite part ou le pourcentage d'une categorie (QCM)",
       "constraints": {
@@ -600,7 +600,7 @@
     },
     {
       "pattern_name": "conversion_duree_min",
-      "levels": ["N5"],
+      "levels": ["N3", "N5"],
       "pattern_family": "exercice_a_trous_serie",
       "template": "{heures} h {minutes} min = {total} min",
       "constraints": {
@@ -633,7 +633,7 @@
     },
     {
       "pattern_name": "duree_entre_horaires",
-      "levels": ["N5"],
+      "levels": ["N3", "N5"],
       "pattern_family": "calcul_direct",
       "template": "duree (min) entre {depart} et {arrivee}",
       "constraints": {
@@ -1130,6 +1130,512 @@
       "examples": [
         {"file": "MATH_N2_P4_SEM1_S3.pptx", "question": "من يفكك العدد 46 إلى وحدات وعشرات؟", "correction": "46 = 40 + 6"},
         {"file": "MATH_N2_P4_SEM5_S1.pptx", "question": "فككوا ذهنيا العدد 42 إلى وحدات وعشرات", "correction": "42 = 40 + 2"}
+      ]
+    },
+    {
+      "pattern_name": "monnaie_valeur",
+      "levels": ["N1"],
+      "pattern_family": "calcul_direct",
+      "template": "valeur de pieces et billets : {p1} + {p2} + ... = {total} DH",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["pieces 1/2/5/10 DH, billet 20 DH ; 2 a 5 elements ; total < 100 ; rendu monnaieSvg"]
+      },
+      "occurrence_count": 9,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM4_S1.pptx", "question": "اكتبوا على الألواح قيمة هذه النقود", "correction": "قيمة هذه النقود هي 27 dh"},
+        {"file": "MATH_N1_P4_SEM4_S1.pptx", "question": "احسبوا المجموع بدءا من أكبر قيمة", "correction": "53 dh"},
+        {"file": "MATH_N1_P4_SEM4_S2.pptx", "question": "احسبوا قيمة هذه النقود", "correction": "5 دراهم زائد 5 دراهم أي 10 دراهم"}
+      ]
+    },
+    {
+      "pattern_name": "monnaie_echange",
+      "levels": ["N1"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "QCM : quel groupe de pieces vaut un billet de {billet} DH ?",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["billet 20 ou 50 DH ; bonne reponse = decomposition en 2-5 pieces ; leurres = sommes voisines (±1, ±2, ±5)"]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM4_S2.pptx", "question": "اكتبوا على الألواح رقم النقود التي لها نفس قيمة ورقة نقدية من فئة 20 درهما", "correction": "رقم2 : قيمة هذه النقود هي 20 dh"},
+        {"file": "MATH_N1_P4_SEM4_S2.pptx", "question": "اكتبوا على الألواح رقم النقود التي لها نفس قيمة 50 درهما", "correction": "رقم 1 : 50 dh"}
+      ]
+    },
+    {
+      "pattern_name": "addition_repetee_somme",
+      "levels": ["N1"],
+      "pattern_family": "calcul_direct",
+      "template": "{n} + {n} + ... + {n} = {total}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["terme 2 a 5, repete 3 a 5 fois"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM2_S1.pptx", "question": "قوموا بإضافة 3 ل9 و اكتبوا النتيجة على الألواح", "correction": "12 = 3 + 9 ; إذن 12 = 3 + 3 + 3 + 3"}
+      ]
+    },
+    {
+      "pattern_name": "partage_equitable",
+      "levels": ["N1", "N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{total} partage entre {parts} : {total} ÷ {parts} = {chacun}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["CE1 : 2-4 parts de 2-5 ; CE2 : 2-6 parts de 3-9 ; partage exact"]
+      },
+      "occurrence_count": 9,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM2_S2.pptx", "question": "اكتبوا على الألواح عدد الكرات التي سيحصل عليها كل طفل", "correction": "سيحصل كل طفل على 4 كرات"},
+        {"file": "MATH_N2_P4_SEM2_S1.pptx", "question": "وزعوا بالتساوي واكتبوا نصيب كل طفل من قطع الحلوى", "correction": "4"}
+      ]
+    },
+    {
+      "pattern_name": "groupement_egal",
+      "levels": ["N1", "N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{total} par paquets de {k} : {total} ÷ {k} = {paquets}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["CE1 : paquets de 2-5 ; CE2 : de 3-9 ; 2 a 6 paquets"]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM2_S3.pptx", "question": "يريد أنس وضع 18 كرة في أكياس بحيث يضع في كل كيس 3 كرات", "correction": "عدد الأكياس التي سيحتاجها أنس هو 6"},
+        {"file": "MATH_N1_P4_SEM2_S3.pptx", "question": "عدوا المجموعات المتساوية المكونة", "correction": "عدد الأقفاص هو 4"}
+      ]
+    },
+    {
+      "pattern_name": "addition_posee",
+      "levels": ["N1", "N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} + {b} pose en colonnes",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["60 % avec retenue ; CE1 : somme < 100 ; CE2 : 3 chiffres, somme < 1000"]
+      },
+      "occurrence_count": 10,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM5_S3.pptx", "question": "ضعوا و أنجزوا العملية التالية : 37 + 24", "correction": "37 زائد 24 تساوي 61"},
+        {"file": "MATH_N1_P4_SEM5_S1.pptx", "question": "ضعوا و أنجزوا العملية التالية", "correction": "65 زائد 3 تساوي 68"}
+      ]
+    },
+    {
+      "pattern_name": "soustraction_passage_dizaine",
+      "levels": ["N1"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} - {b} avec passage de la dizaine (11-18 moins 2-9)",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["b > unites de a : on decompose a = 10 + u, 10 - b, puis + u"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM3_S1.pptx", "question": "لا يمكن طرح 8 من 3 ، إذن سأفكك 13 و أطرح 8 من العشرة", "correction": "10 ناقص 8 تساوي 2 ثم أضيف 2 ل3 و أحصل على 5"}
+      ]
+    },
+    {
+      "pattern_name": "soustraction_posee",
+      "levels": ["N2", "N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} - {b} pose en colonnes",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["60 % avec emprunt ; CE2 : a <= 999 ; CE3 : a <= 9999"]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM1_S1.pptx", "question": "أنجزوا العملية على الألواح : 187 - 18", "correction": "169"},
+        {"file": "MATH_N2_P4_SEM1_S4.pptx", "question": "اكتبوا المتساوية المناسبة", "correction": "86 – 47 = 39"}
+      ]
+    },
+    {
+      "pattern_name": "ecart_entre_nombres",
+      "levels": ["N2", "N3"],
+      "pattern_family": "calcul_direct",
+      "template": "de combien {a} depasse-t-il {b} ? -> {a} - {b}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["comparaison sans recit ; CE2 : b <= 150 ; CE3 : b <= 800"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N2_P4_SEM1_S4.pptx", "question": "احسبوا بكم تفوق الورود الحمراء الورود البيضاء؟ 116 | 142", "correction": "142 – 116 = 26"},
+        {"file": "MATH_N2_P4_SEM2_S4.pptx", "question": "حل المسائل (المقارنة)", "correction": "86 – 47 = 39"}
+      ]
+    },
+    {
+      "pattern_name": "addition_ligne_decomposee",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} + {b} = {a} + {dizaines} + {unites}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["sans retenue, somme < 100 ; on decompose le 2e nombre"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N2_P4_SEM3_S1.pptx", "question": "احسبوا مجموع العددين على الألواح بنفس الطريقة : 71 + 26", "correction": "71 + 26 = 91 + 6 = 97"},
+        {"file": "MATH_N2_P4_SEM3_S1.pptx", "question": "45 + 32", "correction": "45 + 32 = 75 + 2 = 77"}
+      ]
+    },
+    {
+      "pattern_name": "completer_suite_pas",
+      "levels": ["N1", "N2"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "{u0}, {u1}, {u2}, {u3}, ... -> u3 + pas",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["CE1 : pas 2, 5, 10 ; CE2 : pas 5, 10, 50, 100"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM2_S2.pptx", "question": "أكملوا ملء خانات الشريطين العدديين", "correction": "نضيف 5 كل مرة لملء الشريط الأول - نضيف 2 كل مرة لملء الشريط الثاني"},
+        {"file": "MATH_N1_P4_SEM2_S1.pptx", "question": "أكملوا ملء خانات الشريط العددي", "correction": "نضيف 10 كل مرة"}
+      ]
+    },
+    {
+      "pattern_name": "classer_compter",
+      "levels": ["N1"],
+      "pattern_family": "calcul_direct",
+      "template": "collection melangee de 3 sortes : compter une sorte, deux sortes, ou l'ecart",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["2 a 7 objets par sorte, comptes distincts ; rendu grille d'icones"]
+      },
+      "occurrence_count": 8,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM3_S1.pptx", "question": "اكتبوا على الألواح عدد التفاحات", "correction": "عدد التفاحات هو 5"},
+        {"file": "MATH_N1_P4_SEM3_S1.pptx", "question": "نريد تصنيف هذه الأدوات في جدول : اكتبوا عدد الأقلام", "correction": "عدد الأقلام هو 3"}
+      ]
+    },
+    {
+      "pattern_name": "heure_ecrite",
+      "levels": ["N1", "N3"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "QCM : heure dite en mots -> ecriture h:mm",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["CE1 : heures pleines et demies ; CE3 : minutes de 5 en 5 (et quart, moins le quart...)"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N1_P4_SEM1_S1.pptx", "question": "قراءة الساعة (1)", "correction": "الساعة الثالثة"},
+        {"file": "MATH_N1_P4_SEM1_S2.pptx", "question": "قراءة الساعة (2)", "correction": "الساعة الثالثة والنصف"},
+        {"file": "MATH_N3_P4_SEM5_S1.pptx", "question": "قراءة الساعات : الساعات والدقائق", "correction": "الساعة والدقائق"}
+      ]
+    },
+    {
+      "pattern_name": "lecture_regle",
+      "levels": ["N2"],
+      "pattern_family": "calcul_direct",
+      "template": "segment sur une regle : {cm} cm {mm} mm -> en cm ou en mm",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["2 a 11 cm, 0 a 9 mm ; rendu regleSvg"]
+      },
+      "occurrence_count": 8,
+      "examples": [
+        {"file": "MATH_N2_P4_SEM3_S2.pptx", "question": "اكتبوا على الألواح قياس القطعة بالسنتمتر والمليمتر", "correction": "أقرأ السنتيمترات الكاملة ثم المليمترات"},
+        {"file": "MATH_N2_P4_SEM3_S3.pptx", "question": "اكتبوا قياس طول القطعة بوحدة المليمتر", "correction": "90 mm"}
+      ]
+    },
+    {
+      "pattern_name": "masse_kg_g_mixte",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{kg} kg {g} g = ... g",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["1 a 9 kg, 10 a 999 g"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM4_S3.pptx", "question": "وحدات قياس الكتل : تحويلات", "correction": "2 kg 300 g = 2300 g"}
+      ]
+    },
+    {
+      "pattern_name": "rayon_diametre",
+      "levels": ["N3", "N5"],
+      "pattern_family": "calcul_direct",
+      "template": "d = 2 × r ou r = d ÷ 2",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["CE3 : r 2-15 cm ; CE5 : r 3-40 cm"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM2_S1.pptx", "question": "الدائرة وعناصرها (الدائرة، المركز، الشعاع، القطر)", "correction": "القطر = 2 × الشعاع"},
+        {"file": "MATH_N5_P4_SEM3_S2.pptx", "question": "حساب محيط الدائرة", "correction": "d = 2 × 10 = 20"}
+      ]
+    },
+    {
+      "pattern_name": "symetrie_lettre",
+      "levels": ["N3", "N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "QCM : quelle lettre a (n'a pas) d'axe de symetrie ?",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["lettres a axe : AHMOTUVWXY BCDEK ; sans axe : FGJLNPQRSZ"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM4_S1.pptx", "question": "التماثل : الأشكال المتماثلة", "correction": "الشكل المتماثل"},
+        {"file": "MATH_N4_P4_SEM2_S1.pptx", "question": "التماثل المحوري (1)", "correction": "محور التماثل"}
+      ]
+    },
+    {
+      "pattern_name": "tout_parts_egales",
+      "levels": ["N3"],
+      "pattern_family": "calcul_direct",
+      "template": "{parts} parts egales de {part} -> tout = {parts} × {part}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["3 a 8 parts de 4 a 25"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N3_P4_SEM1_S4.pptx", "question": "حل مسائل البحث عن الكل (أجزاء متساوية) 1", "correction": "الكل = عدد الأجزاء × قيمة الجزء"},
+        {"file": "MATH_N3_P4_SEM2_S4.pptx", "question": "حل مسائل البحث عن الكل (أجزاء متساوية) 2", "correction": "الكل = عدد الأجزاء × قيمة الجزء"}
+      ]
+    },
+    {
+      "pattern_name": "angle_nature_mesure",
+      "levels": ["N4", "N5"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "QCM : un angle de {mesure}° est aigu / droit / obtus",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["aigu 10-85°, droit 90°, obtus 95-175°"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM1_S1.pptx", "question": "اكتبوا رقم الإجابة الصحيحة : وحدة قياس انفتاح الزوايا هي الدرجة", "correction": "144° ; 35°"},
+        {"file": "MATH_N5_P4_SEM5_S1.pptx", "question": "قياس الزوايا", "correction": "قياس الزاوية بالدرجات"}
+      ]
+    },
+    {
+      "pattern_name": "rotation_fraction_tour",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "quart de tour = 90°, demi-tour = 180°, trois quarts = 270°, tour = 360°",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["dans les deux sens : fraction de tour -> degres (nombre) ou degres -> fraction (QCM)"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM2_S3.pptx", "question": "دوران شكل بزاوية 90° يعني دورانه بـ : ربع دورة", "correction": "ربع دورة"},
+        {"file": "MATH_N4_P4_SEM2_S3.pptx", "question": "المطلوب دوران المثلث بمقدار ربع دورة", "correction": "ربع دورة"}
+      ]
+    },
+    {
+      "pattern_name": "decimal_composer",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "10 + 9 + 0,6 + 0,07 = 19,67 ; {u} unites et {d} dixiemes = {u},{d}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["format decimal ; centiemes non nuls dans la forme sommee"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM3_S1.pptx", "question": "ركبوا العدد العشري : 10 + 9 + 0,6 + 0,07", "correction": "19,67"},
+        {"file": "MATH_N4_P4_SEM3_S1.pptx", "question": "7 وحدات و3 أعشار هي", "correction": "7,3"}
+      ]
+    },
+    {
+      "pattern_name": "decimal_ranger",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "QCM : le plus petit / plus grand de 3 decimaux de meme partie entiere",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["partie entiere 1-30 ; dixiemes et centiemes melanges (9,2 ; 9,02 ; 9,13)"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM3_S2.pptx", "question": "رتبوا الأعداد وتحققوا من ذلك", "correction": "العدد الأصغر هو 9,02"},
+        {"file": "MATH_N4_P4_SEM3_S2.pptx", "question": "أنجزوا التمرين 4", "correction": "20,15 20,6 20,7 | 14,02 14,2 14,4"}
+      ]
+    },
+    {
+      "pattern_name": "arrondi_decimal",
+      "levels": ["N4"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "arrondi a l'unite, au dixieme, ou a la dizaine la plus proche",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["jamais de cas a egale distance (…,5)"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM3_S3.pptx", "question": "الآن، حددوا العدد الأقرب إلى 8,43", "correction": "8,4"},
+        {"file": "MATH_N4_P4_SEM3_S3.pptx", "question": "العشرة الأقرب للعدد 52 هي", "correction": "50"}
+      ]
+    },
+    {
+      "pattern_name": "proportionnalite_prix",
+      "levels": ["N4", "N5", "N6"],
+      "pattern_family": "calcul_direct",
+      "template": "{n} articles = {n*p} DH -> {m} articles = {m*p} DH",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["prix unitaire 2-15 DH ; passage par l'unite"]
+      },
+      "occurrence_count": 7,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM3_S4.pptx", "question": "حل المسائل (التناسبية)", "correction": "ثمن الوحدة ثم ثمن الكمية"},
+        {"file": "MATH_N6_P4_SEM2_S1.pptx", "question": "على الألواح احسبوا ثمن 12 علبة من الحلوى", "correction": "ثمن علبة واحدة × 12"}
+      ]
+    },
+    {
+      "pattern_name": "regle_de_trois",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "{a} en {x} -> ? en {y} : (a ÷ x) × y",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["valeur unitaire entiere 3-25 ; x 2-9, y 2-14"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM2_S1.pptx", "question": "احسبوا عدد النسخ التي يمكن للطابعة نسخها خلال 11 ثانية", "correction": "عدد النسخ في ثانية × 11"},
+        {"file": "MATH_N6_P4_SEM2_S1.pptx", "question": "نظموا المعطيات المتناسبة", "correction": "عدد القطع | المدة بالساعات"}
+      ]
+    },
+    {
+      "pattern_name": "proportionnalite_reconnaitre",
+      "levels": ["N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "QCM oui/non : x -> y (3 couples) est-il proportionnel ?",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["coefficient entier 2-9 ; cas non proportionnel = un y decale de 1 a 3"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM1_S1.pptx", "question": "التناسبية : تنظيم المعطيات في جدول", "correction": "جدول تناسبي"},
+        {"file": "MATH_N6_P4_SEM1_S3.pptx", "question": "التناسبية : تمثيل وضعية تناسبية", "correction": "وضعية تناسبية"}
+      ]
+    },
+    {
+      "pattern_name": "cote_manquant_perimetre",
+      "levels": ["N4", "N5"],
+      "pattern_family": "calcul_direct",
+      "template": "perimetre d'un polygone regulier de n cotes = P -> cote = P ÷ n",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["CE4 : surtout le carre ; CE5 : triangle equilateral a octogone regulier"]
+      },
+      "occurrence_count": 5,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM3_S1.pptx", "question": "على الألواح. اكتبوا محيط الشكل : عدد الأضلاع 6 ، 8 cm", "correction": "6 × 8 = 48 cm"},
+        {"file": "MATH_N5_P4_SEM3_S1.pptx", "question": "احسبوا محيط المضلع المنتظم التالي", "correction": "عدد الأضلاع × طول الضلع"}
+      ]
+    },
+    {
+      "pattern_name": "fraction_quantite_inverse",
+      "levels": ["N4"],
+      "pattern_family": "calcul_direct",
+      "template": "1/{d} d'une somme vaut {part} -> la somme = {d} × {part}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["fractions unitaires 1/2, 1/3, 1/4, 1/5, 1/10"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N4_P4_SEM4_S4.pptx", "question": "حل المسائل (كسر كمية)", "correction": "الكمية = المقام × قيمة الجزء"}
+      ]
+    },
+    {
+      "pattern_name": "fraction_addition_meme_denominateur",
+      "levels": ["N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "QCM : {a}/{d} ± {b}/{d} = ({a} ± {b})/{d}",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["denominateur 3-12 ; resultat < 1"]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM5_S3.pptx", "question": "احسبوا مجموع العددين الكسريين التاليين", "correction": "نجمع البسطين ونحتفظ بالمقام"},
+        {"file": "MATH_N6_P4_SEM5_S3.pptx", "question": "احسبوا الفرق بين العددين الكسريين التاليين", "correction": "نطرح البسطين ونحتفظ بالمقام"}
+      ]
+    },
+    {
+      "pattern_name": "pourcentage_prix_final",
+      "levels": ["N5", "N6"],
+      "pattern_family": "calcul_direct",
+      "template": "prix - {r} % de prix",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["remise 10/20/25/50 % ; prix 40-800 DH, remise entiere"]
+      },
+      "occurrence_count": 8,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM1_S4.pptx", "question": "حل مسائل بتوظيف النسبة المئوية", "correction": "التخفيض ثم الثمن الجديد"},
+        {"file": "MATH_N6_P4_SEM2_S4.pptx", "question": "حل مسائل النسبة المئوية (1)", "correction": "الثمن بعد التخفيض"}
+      ]
+    },
+    {
+      "pattern_name": "camembert_angle",
+      "levels": ["N5", "N6"],
+      "pattern_family": "calcul_direct",
+      "template": "{p} % <-> {p} × 360 ÷ 100 degres",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["pourcentages 5-75 a angle entier"]
+      },
+      "occurrence_count": 6,
+      "examples": [
+        {"file": "MATH_N5_P4_SEM1_S2.pptx", "question": "المبيان الدائري (2)", "correction": "100 % = 360°"},
+        {"file": "MATH_N6_P4_SEM5_S1.pptx", "question": "تنظيم ومعالجة البيانات : المبيان الدائري (1)", "correction": "زاوية القطاع"}
+      ]
+    },
+    {
+      "pattern_name": "agrandissement_pourcentage",
+      "levels": ["N6"],
+      "pattern_family": "exercice_a_trous_serie",
+      "template": "agrandir/reduire a {p} % = multiplier par {p} ÷ 100",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["200, 300, 400, 150, 50, 25 % ; format decimal"]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM4_S3.pptx", "question": "حولوا النسب المئوية إلى مقدار للتكبير والتصغير", "correction": "نسبة التكبير 200 % : المقدار 2"}
+      ]
+    },
+    {
+      "pattern_name": "vitesse_horaires",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "depart {h1} h, arrivee {h2} h, distance D -> D ÷ (h2 - h1)",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["duree entiere 2-5 h ; vitesse 40-120 km/h"]
+      },
+      "occurrence_count": 4,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM3_S1.pptx", "question": "على الألواح حددوا المدة بالساعات", "correction": "المدة ثم المسافة ثم السرعة المتوسطة"},
+        {"file": "MATH_N6_P4_SEM3_S2.pptx", "question": "احسبوا المدة التي ستستغرقها السيارة لقطع مسافة 340 كيلومترا", "correction": "85 km في الساعة"}
+      ]
+    },
+    {
+      "pattern_name": "echelle_distance_plan",
+      "levels": ["N6"],
+      "pattern_family": "calcul_direct",
+      "template": "1 cm = {k} m ; distance reelle R -> R ÷ k cm",
+      "constraints": {
+        "source": "relecture P4 du corpus (programme_p4.py) ; exemples : seance et consigne citees, correction reformulee quand la diapositive n'en donne pas",
+        "generation_rules": ["k 10-500 m ; 2 a 12 cm"]
+      },
+      "occurrence_count": 3,
+      "examples": [
+        {"file": "MATH_N6_P4_SEM3_S3.pptx", "question": "سلم التصاميم والخرائط", "correction": "1 cm على التصميم = 10 000 cm في الحقيقة"}
       ]
     }
   ],

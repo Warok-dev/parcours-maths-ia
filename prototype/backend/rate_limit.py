@@ -131,7 +131,6 @@ _PREFIXES_ENFANT = (
     "/synthese-vocale",
     "/eleve",  # dont /eleve/{id}/connexion (pave PIN)
     "/carte",
-    "/themes",
     "/classe/rejoindre",  # saisie du code de classe par l'enfant
 )
 
@@ -153,7 +152,7 @@ def gestion_depassement(request: Request, exc: RateLimitExceeded) -> JSONRespons
     reponse = JSONResponse(status_code=429, content={"detail": _message_429(request.url.path)})
     try:
         reponse.headers["Retry-After"] = str(exc.limit.limit.get_expiry())
-    except Exception:  # noqa: BLE001 - Retry-After est un bonus, jamais bloquant
+    except Exception:  # Retry-After est un bonus, jamais bloquant
         pass
     return reponse
 

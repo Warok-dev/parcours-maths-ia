@@ -7,7 +7,7 @@ qu'un seul exercice a la fois.
 
 from __future__ import annotations
 
-from outils_test import bonne_reponse, exercice_complet  # noqa: F401
+from outils_test import bonne_reponse, exercice_complet
 
 import unittest
 

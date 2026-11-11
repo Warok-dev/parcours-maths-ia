@@ -20,6 +20,7 @@ Projet personnel, conçu et développé de manière indépendante (juin–septem
 
 **Pour l'enseignant et l'école**
 - Classes, élèves (connexion par code de classe et PIN), tableau de bord, concepts difficiles et assignation de travail.
+- Un **programme de classe** : le calendrier propose le concept suivant, l'enseignant l'ouvre d'un clic, et les élèves le travaillent sous plusieurs aspects (calcul, problème raconté, défi).
 - Des rapports d'apprentissage rédigés par IA à partir de données anonymisées, et un export Excel.
 - Plusieurs écoles isolées les unes des autres, avec invitation d'enseignants et un mode démo qui s'efface au bout de 48 h.
 
@@ -46,13 +47,12 @@ Navigateur (HTML/CSS/JS vanilla)  ──HTTPS──▶  API FastAPI  ──▶  
 prototype/
 ├── backend/          API FastAPI, génération d'exercices, tuteur, comptes, tests
 │   ├── generation/   générateurs procéduraux (substitution) et narratifs (LLM)
-│   ├── data/         leçons, cartes, exercices de référence (JSON)
+│   ├── data/         leçons et calendrier du programme de classe (JSON)
 │   └── scripts/      vérifications d'exploitation (ex. PostgreSQL de bout en bout)
-├── frontend/         jeu, espaces enseignant et parent (sans build)
-└── schema/           schéma JSON d'un exercice
+└── frontend/         jeu, espaces enseignant et parent (sans build)
 landing/              page de présentation
-design/               instantané du style, pour le travail de design visuel
 pattern_catalog.json  catalogue des patterns extraits du corpus
+docs/couverture_programme_P4.md  séances du ministère -> concepts du jeu, niveau par niveau
 DEPLOIEMENT.md        mise en production (Neon + Render)
 ```
 
@@ -71,7 +71,7 @@ uvicorn main:app --reload                           # http://127.0.0.1:8000
 Ensuite, servez le frontend, par exemple avec `python -m http.server 5500` depuis `prototype/frontend/`, et ouvrez http://localhost:5500.
 
 - En local, le frontend appelle automatiquement le backend local (`config.js`).
-- Pour viser un autre backend, ajoutez `?api=https://…` à l'adresse de la page.
+- Pour viser un autre backend local, ajoutez `?api=http://localhost:8001` à l'adresse de la page (la surcharge ne fonctionne que depuis une page locale ou vers un backend local ; elle est ignorée sur le site en production).
 - Sans clé IA, les exercices procéduraux fonctionnent. Le tuteur et les énoncés narratifs ont besoin d'au moins une des clés `GEMINI_API_KEY`, `GROQ_API_KEY` ou `MISTRAL_API_KEY`.
 
 ## Tests

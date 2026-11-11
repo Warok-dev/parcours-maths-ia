@@ -161,6 +161,15 @@ function patterns(entries) {
   );
 }
 
+/* --- Concept repete sur plusieurs etapes (programme de classe) --- */
+{
+  const lignes = faiblesses.conceptsTermines({
+    concepts: ["x", "x", "x"],
+    maitrises_concepts_terminees: [2, 3, 1],
+  });
+  check(lignes.length === 1 && lignes[0].maitrise === 3, "concept repete : une ligne, meilleure maitrise");
+}
+
 console.log(`\n${total - failures}/${total} cas passent`);
 if (failures > 0) {
   process.exit(1);
