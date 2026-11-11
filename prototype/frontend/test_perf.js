@@ -18,6 +18,17 @@ check(perf.profilAppareil({ memoireGo: 4, coeurs: 4 }) === "vivant", "4 Go et 4 
 check(perf.profilAppareil({ reduireAnimations: true, memoireGo: 16 }) === "econome", "« reduire les animations » du systeme : econome");
 check(perf.profilAppareil({ economieDonnees: true }) === "econome", "economie de donnees : econome");
 check(perf.profilAppareil({ memoireGo: NaN, coeurs: NaN }) === "vivant", "infos absentes (Safari) : ignorees");
+/* Rendu logiciel : econome meme sur un gros PC (cas reel : 16 coeurs, Chrome
+   sans acceleration materielle). */
+check(
+  perf.profilAppareil({ memoireGo: 16, coeurs: 16, moteurGraphique: "ANGLE (Microsoft, Microsoft Basic Render Driver (0x0000008C) Direct3D11 vs_5_0 ps_5_0, D3D11)" }) === "econome",
+  "Microsoft Basic Render Driver : econome",
+);
+check(perf.profilAppareil({ coeurs: 8, moteurGraphique: "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)" }) === "econome", "SwiftShader : econome");
+check(perf.profilAppareil({ coeurs: 8, moteurGraphique: "llvmpipe (LLVM 15.0.7, 256 bits)" }) === "econome", "llvmpipe : econome");
+check(perf.profilAppareil({ coeurs: 8, moteurGraphique: "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)" }) === "vivant", "vraie carte graphique : vivant");
+check(perf.profilAppareil({ coeurs: 8, moteurGraphique: "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)" }) === "vivant", "puce graphique integree : vivant");
+check(perf.profilAppareil({ coeurs: 8, moteurGraphique: "" }) === "vivant", "moteur inconnu : ignore");
 
 /* --- 2. Mode effectif --- */
 check(perf.modeEffectif("vivant", "econome", true) === "vivant", "choix vivant : toujours vivant, meme sur machine modeste");

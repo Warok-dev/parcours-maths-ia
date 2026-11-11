@@ -8,9 +8,9 @@
    MODE ECONOME les coupe et allege la carte.
 
    Trois choix, gardes sur l'appareil (localStorage) :
-   - « auto »    : vivant, sauf appareil modeste (peu de memoire, peu de
-                   coeurs, economie de donnees, « reduire les animations »
-                   du systeme) ; et si le jeu rame vraiment pendant qu'on
+   - « auto »    : vivant, sauf appareil modeste (rendu graphique logiciel,
+                   peu de memoire, peu de coeurs, economie de donnees,
+                   « reduire les animations » du systeme) ; et si le jeu rame vraiment pendant qu'on
                    joue, on passe tout seul en econome ;
    - « vivant »  : toujours anime ;
    - « econome » : toujours allege.
@@ -28,7 +28,16 @@
   /* ---------- Profil d'appareil (pur) ----------
      `infos` = ce que le navigateur dit de la machine. Toute donnee absente
      est ignoree (Safari ne donne pas deviceMemory, par exemple). */
+  /* Carte graphique logicielle : le navigateur dessine tout au processeur
+     (acceleration materielle coupee, pilote graphique absent, bureau a
+     distance, machine virtuelle). Meme sur un gros PC, les animations y
+     saccadent : c'est le premier critere du mode econome. */
+  function renduLogiciel(moteur) {
+    return /basic render driver|swiftshader|llvmpipe|software|softpipe/i.test(String(moteur || ""));
+  }
+
   function profilAppareil(infos = {}) {
+    if (renduLogiciel(infos.moteurGraphique)) return "econome";
     if (infos.reduireAnimations) return "econome";
     if (infos.economieDonnees) return "econome";
     if (Number.isFinite(infos.memoireGo) && infos.memoireGo <= 2) return "econome";
@@ -108,9 +117,24 @@
     return {
       reduireAnimations: media("(prefers-reduced-motion: reduce)"),
       economieDonnees: Boolean(nav.connection && nav.connection.saveData),
+      moteurGraphique: moteurGraphique(),
       memoireGo: Number(nav.deviceMemory),
       coeurs: Number(nav.hardwareConcurrency),
     };
+  }
+
+  /* Nom du moteur de rendu, lu une fois via WebGL (seul moyen de le
+     connaitre). Chaine vide si l'information n'est pas disponible. */
+  function moteurGraphique() {
+    try {
+      const gl = document.createElement("canvas").getContext("webgl");
+      const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
+      const nom = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "";
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+      return String(nom || "");
+    } catch (_e) {
+      return "";
+    }
   }
 
   function lireChoix() {
@@ -207,6 +231,7 @@
   const api = {
     CHOIX,
     profilAppareil,
+    renduLogiciel,
     creerMoniteur,
     modeEffectif,
     libelleChoix,
