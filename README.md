@@ -2,7 +2,7 @@
 
 Jeu éducatif 2D de mathématiques pour l'école primaire (CE1 à CE6). L'élève avance sur une carte en résolvant des exercices générés automatiquement. Un tuteur IA (le hibou) l'aide sans lui donner la réponse, et la difficulté s'adapte à sa maîtrise.
 
-Projet personnel, conçu et développé de manière indépendante (juin–septembre 2026).
+Conçu et développé pendant un stage à la Direction des Ressources Pédagogiques et Numériques (DRPN) du ministère de l'Éducation nationale du Maroc (juin–septembre 2026), à partir du programme officiel de mathématiques du primaire.
 
 [![Tests](https://github.com/Warok-dev/parcours-maths-ia/actions/workflows/tests.yml/badge.svg)](https://github.com/Warok-dev/parcours-maths-ia/actions/workflows/tests.yml)
 
